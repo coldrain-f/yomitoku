@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import {
   Navigate,
@@ -14,33 +20,49 @@ import {
   AdminScreen,
   GenerateScreen,
   PreviewScreen,
-} from "./features/admin/AdminScreens.jsx";
+} from "./features/admin/AdminScreens";
 import {
   ReadingListScreen,
   ReadingScreen,
   ResultScreen,
-} from "./features/readings/ReadingScreens.jsx";
-import { StatsScreen } from "./features/statistics/StatsScreen.jsx";
-import { AppDialogContent } from "./components/AppDialogContent.jsx";
-import { AppHeader } from "./components/AppHeader.jsx";
-import { Breadcrumb } from "./components/ui/Breadcrumb.jsx";
-import { Dialog } from "./components/ui/Dialog.jsx";
-import { Icon } from "./components/ui/Icon.jsx";
-import { initialItems } from "./data.js";
+} from "./features/readings/ReadingScreens";
+import { StatsScreen } from "./features/statistics/StatsScreen";
+import { AppDialogContent } from "./components/AppDialogContent";
+import { AppHeader } from "./components/AppHeader";
+import { Breadcrumb } from "./components/ui/Breadcrumb";
+import { Dialog } from "./components/ui/Dialog";
+import { Icon } from "./components/ui/Icon";
+import { initialItems } from "./data";
 import {
   latestAttempts,
   shuffle,
   totalGeneratedInitial,
-} from "./lib/reading.js";
+} from "./lib/reading";
+import { defaultRecommendedSeconds } from "./data";
+import type {
+  AdminFilters,
+  AttemptRecord,
+  DialogConfig,
+  FeedbackValues,
+  GenerationValues,
+  ListFilters,
+  ReadingAttempt,
+  ReadingItem,
+  ReadingResult,
+  Role,
+  Screen,
+  StateSetter,
+  Topic,
+} from "./types";
 
-const defaultListFilters = {
+const defaultListFilters: ListFilters = {
   level: "all",
   length: "all",
   status: "all",
   sort: "published-desc",
 };
 
-function screenForPath(pathname) {
+function screenForPath(pathname: string): Screen {
   if (pathname === "/statistics") return "stats";
   if (pathname.startsWith("/results/")) return "result";
   if (pathname.startsWith("/readings/")) return "reading";
@@ -51,15 +73,40 @@ function screenForPath(pathname) {
   return "home";
 }
 
-function RequireAuth({ authenticated, children }) {
+interface RequireAuthProps {
+  authenticated: boolean;
+  children: ReactNode;
+}
+
+function RequireAuth({ authenticated, children }: RequireAuthProps) {
   return authenticated ? children : <Navigate to="/" replace />;
 }
 
-function RequireAdmin({ authenticated, role, children }) {
+interface RequireAdminProps extends RequireAuthProps {
+  role: Role;
+}
+
+function RequireAdmin({ authenticated, role, children }: RequireAdminProps) {
   return authenticated && role === "admin" ? children : <Navigate to="/" replace />;
 }
 
-function ReadingRoute({ items, attempt, result, ...screenProps }) {
+interface ReadingRouteProps {
+  items: ReadingItem[];
+  attempt: ReadingAttempt | null;
+  result: ReadingResult | null;
+  onChoose: (choiceId: string) => void;
+  onSubmit: () => void;
+  onAbandon: () => void;
+  onReport: () => void;
+  onResult: () => void;
+}
+
+function ReadingRoute({
+  items,
+  attempt,
+  result,
+  ...screenProps
+}: ReadingRouteProps) {
   const { itemId } = useParams();
   const item = items.find((entry) => entry.id === itemId);
 
@@ -70,7 +117,14 @@ function ReadingRoute({ items, attempt, result, ...screenProps }) {
   return <ReadingScreen item={item} attempt={attempt} result={result} {...screenProps} />;
 }
 
-function ResultRoute({ result, ...screenProps }) {
+interface ResultRouteProps {
+  result: ReadingResult | null;
+  onFeedback: () => void;
+  onContinue: () => void;
+  onHome: () => void;
+}
+
+function ResultRoute({ result, ...screenProps }: ResultRouteProps) {
   const { itemId } = useParams();
 
   if (!result || result.itemId !== itemId) {
@@ -80,7 +134,23 @@ function ResultRoute({ result, ...screenProps }) {
   return <ResultScreen result={result} {...screenProps} />;
 }
 
-function AdminEditRoute({ items, draft, setDraft, ...screenProps }) {
+interface AdminEditRouteProps {
+  items: ReadingItem[];
+  draft: ReadingItem | null;
+  setDraft: StateSetter<ReadingItem | null>;
+  onSave: (item: ReadingItem) => void;
+  onHold: (item: ReadingItem) => void;
+  onPublish: (item: ReadingItem) => void;
+  onDelete: (item: ReadingItem) => void;
+  onBack: () => void;
+}
+
+function AdminEditRoute({
+  items,
+  draft,
+  setDraft,
+  ...screenProps
+}: AdminEditRouteProps) {
   const { itemId } = useParams();
   const item = items.find((entry) => entry.id === itemId);
 
@@ -111,7 +181,15 @@ function AdminEditRoute({ items, draft, setDraft, ...screenProps }) {
   );
 }
 
-function PreviewRoute({ items, ...screenProps }) {
+interface PreviewRouteProps {
+  items: ReadingItem[];
+  onHold: (item: ReadingItem) => void;
+  onPublish: (item: ReadingItem) => void;
+  onDelete: (item: ReadingItem) => void;
+  onBack: () => void;
+}
+
+function PreviewRoute({ items, ...screenProps }: PreviewRouteProps) {
   const { itemId } = useParams();
   const item = items.find((entry) => entry.id === itemId);
 
@@ -135,11 +213,11 @@ export default function App() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const screen = screenForPath(location.pathname);
-  const [authenticated, setAuthenticated] = useState(true);
-  const [role, setRole] = useState("admin");
-  const [items, setItems] = useState(initialItems);
+  const [authenticated, setAuthenticated] = useState<boolean>(true);
+  const [role, setRole] = useState<Role>("admin");
+  const [items, setItems] = useState<ReadingItem[]>(initialItems);
   const [totalGenerated, setTotalGenerated] = useState(totalGeneratedInitial);
-  const [attempts, setAttempts] = useState([
+  const [attempts, setAttempts] = useState<AttemptRecord[]>([
     {
       itemId: "society",
       status: "correct",
@@ -168,17 +246,25 @@ export default function App() {
       officialLevel: "N2",
     },
   ]);
-  const filters = useMemo(
+  const filters = useMemo<ListFilters>(
     () => ({
-      level: searchParams.get("level") ?? defaultListFilters.level,
-      length: searchParams.get("length") ?? defaultListFilters.length,
-      status: searchParams.get("status") ?? defaultListFilters.status,
-      sort: searchParams.get("sort") ?? defaultListFilters.sort,
+      level:
+        (searchParams.get("level") as ListFilters["level"] | null) ??
+        defaultListFilters.level,
+      length:
+        (searchParams.get("length") as ListFilters["length"] | null) ??
+        defaultListFilters.length,
+      status:
+        (searchParams.get("status") as ListFilters["status"] | null) ??
+        defaultListFilters.status,
+      sort:
+        (searchParams.get("sort") as ListFilters["sort"] | null) ??
+        defaultListFilters.sort,
     }),
     [searchParams],
   );
   const query = searchParams.get("q") ?? "";
-  const [adminFilters, setAdminFilters] = useState({
+  const [adminFilters, setAdminFilters] = useState<AdminFilters>({
     level: "all",
     length: "all",
     topic: "all",
@@ -189,12 +275,12 @@ export default function App() {
   const [adminFilterDraft, setAdminFilterDraft] = useState(adminFilters);
   const filterDraftRef = useRef(filterDraft);
   const adminFilterDraftRef = useRef(adminFilterDraft);
-  const [dialog, setDialog] = useState(null);
+  const [dialog, setDialog] = useState<DialogConfig | null>(null);
   const [toast, setToast] = useState("");
-  const [attempt, setAttempt] = useState(null);
-  const [result, setResult] = useState(null);
-  const [draft, setDraft] = useState(null);
-  const [generation, setGeneration] = useState({
+  const [attempt, setAttempt] = useState<ReadingAttempt | null>(null);
+  const [result, setResult] = useState<ReadingResult | null>(null);
+  const [draft, setDraft] = useState<ReadingItem | null>(null);
+  const [generation, setGeneration] = useState<GenerationValues>({
     level: "N2",
     length: "medium",
     topic: "추천",
@@ -202,7 +288,7 @@ export default function App() {
   const [dialogError, setDialogError] = useState("");
   const [reportText, setReportText] = useState("");
   const reportTextRef = useRef(reportText);
-  const [feedback, setFeedback] = useState({
+  const [feedback, setFeedback] = useState<FeedbackValues>({
     quality: "",
     level: "",
     comment: "",
@@ -259,11 +345,11 @@ export default function App() {
     setDialog(null);
     setDialogError("");
   };
-  const openDialog = (value) => {
+  const openDialog = (value: DialogConfig) => {
     setDialogError("");
     setDialog(value);
   };
-  const updateItem = (id, next) =>
+  const updateItem = (id: string, next: Partial<ReadingItem>) =>
     setItems((current) =>
       current.map((item) =>
         item.id === id
@@ -271,7 +357,10 @@ export default function App() {
           : item,
       ),
     );
-  const writeListParams = (next, { replace = false } = {}) => {
+  const writeListParams = (
+    next: ListFilters & { query: string },
+    { replace = false }: { replace?: boolean } = {},
+  ) => {
     const params = new URLSearchParams();
     if (next.query) params.set("q", next.query);
     if (next.level !== defaultListFilters.level) {
@@ -288,11 +377,15 @@ export default function App() {
     }
     setSearchParams(params, { replace });
   };
-  const setListFilters = (next) => writeListParams({ ...next, query });
-  const setListQuery = (nextQuery) =>
+  const setListFilters = (next: ListFilters) =>
+    writeListParams({ ...next, query });
+  const setListQuery = (nextQuery: string) =>
     writeListParams({ ...filters, query: nextQuery }, { replace: true });
 
-  const openStartDialog = (item, existing) =>
+  const openStartDialog = (
+    item: ReadingItem,
+    existing: AttemptRecord | undefined,
+  ) =>
     openDialog({
       kicker: "Start reading",
       title:
@@ -321,7 +414,7 @@ export default function App() {
       },
     });
 
-  const start = (item) => {
+  const start = (item: ReadingItem) => {
     const existing = latestAttempts(attempts)[item.id];
     if (authenticated) {
       openStartDialog(item, existing);
@@ -372,6 +465,7 @@ export default function App() {
   };
 
   const submit = () => {
+    if (!attempt || !activeItem) return;
     if (!attempt.selectedChoiceId) {
       setAttempt({
         ...attempt,
@@ -389,7 +483,8 @@ export default function App() {
         const selected = attempt.choices.find(
           (choice) => choice.id === attempt.selectedChoiceId,
         );
-        const submitted = {
+        if (!selected) return;
+        const submitted: ReadingResult = {
           itemId: activeItem.id,
           item: activeItem,
           choices: attempt.choices,
@@ -416,7 +511,7 @@ export default function App() {
     });
   };
 
-  const deleteItem = (item, target = "/admin/readings") =>
+  const deleteItem = (item: ReadingItem, target = "/admin/readings") =>
     openDialog({
       kicker: "Delete item",
       title: "문항을 삭제할까요?",
@@ -443,13 +538,18 @@ export default function App() {
         "선택한 조건으로 지문과 문항을 만든 뒤 검토 화면으로 이동합니다.",
       confirmLabel: "지문 만들기",
       onConfirm: () => {
-        const base = structuredClone(
-          items.find((item) => item.id === "library") ?? items[0],
-        );
+        const source = items.find((item) => item.id === "library") ?? items[0];
+        if (!source) {
+          closeDialog();
+          setToast("생성 기준 문항을 찾을 수 없습니다.");
+          return;
+        }
+        const base = structuredClone(source);
         const id = `generated-${Date.now()}`;
         const now = new Date().toISOString();
-        const topic = generation.topic === "추천" ? "교육" : generation.topic;
-        const newItem = {
+        const topic: Topic =
+          generation.topic === "추천" ? "교육" : generation.topic;
+        const newItem: ReadingItem = {
           ...base,
           id,
           title: `${topic}를 읽는 방법`,
@@ -457,9 +557,7 @@ export default function App() {
           officialLevel: generation.level,
           lengthType: generation.length,
           topic,
-          recommendedSeconds: { short: 60, medium: 150, long: 270 }[
-            generation.length
-          ],
+          recommendedSeconds: defaultRecommendedSeconds[generation.length],
           perceivedLevel: generation.level,
           perceivedVotes: 0,
           createdAt: now,
@@ -589,12 +687,12 @@ export default function App() {
       },
     });
 
-  const openEdit = (item) => {
+  const openEdit = (item: ReadingItem) => {
     setDraft(structuredClone(item));
     navigate(`/admin/readings/${item.id}/edit`);
   };
 
-  const handleEditHold = (item) => {
+  const handleEditHold = (item: ReadingItem) => {
     if (item.status === "published") {
       openDialog({
         kicker: "Hold published item",
@@ -616,7 +714,7 @@ export default function App() {
     );
   };
 
-  const publishEditingItem = (item) =>
+  const publishEditingItem = (item: ReadingItem) =>
     openDialog({
       kicker: "Publish item",
       title: "문항을 게시할까요?",
@@ -633,13 +731,17 @@ export default function App() {
     });
 
   const continueReading = () => {
+    if (!result) {
+      navigate("/");
+      return;
+    }
     const current = result.isCorrect
       ? publishedItems[
           (publishedItems.findIndex((item) => item.id === result.item.id) + 1) %
             publishedItems.length
         ]
       : result.item;
-    start(current);
+    if (current) start(current);
   };
 
   return (
@@ -687,13 +789,20 @@ export default function App() {
                   items={publishedItems}
                   attempt={attempt}
                   result={result}
-                  onChoose={(id) =>
-                    setAttempt({ ...attempt, selectedChoiceId: id, message: "" })
-                  }
+                  onChoose={(id) => {
+                    if (!attempt) return;
+                    setAttempt({
+                      ...attempt,
+                      selectedChoiceId: id,
+                      message: "",
+                    });
+                  }}
                   onSubmit={submit}
                   onAbandon={goHome}
                   onReport={openReport}
-                  onResult={() => navigate(`/results/${result.itemId}`)}
+                  onResult={() => {
+                    if (result) navigate(`/results/${result.itemId}`);
+                  }}
                 />
               </RequireAuth>
             }
@@ -755,6 +864,7 @@ export default function App() {
                   draft={draft}
                   setDraft={setDraft}
                   onSave={(item) => {
+                    if (!draft) return;
                     updateItem(item.id, draft);
                     setToast("문항 변경사항을 저장했습니다.");
                   }}

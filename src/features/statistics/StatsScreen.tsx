@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import {
   formatTime,
   latestAttempts,
@@ -5,9 +6,16 @@ import {
   levelTotals,
   totalGeneratedInitial,
   typeTotals,
-} from "../../lib/reading.js";
+} from "../../lib/reading";
+import type { AttemptRecord, DifficultyLevel, LengthType } from "../../types";
 
-export function StatsScreen({ attempts }) {
+interface StatsScreenProps {
+  attempts: AttemptRecord[];
+}
+
+type ProgressStyle = CSSProperties & Record<"--progress", string>;
+
+export function StatsScreen({ attempts }: StatsScreenProps) {
   const latest = latestAttempts(attempts);
   const records = Object.values(latest);
   const correctRate = records.length
@@ -22,7 +30,7 @@ export function StatsScreen({ attempts }) {
           records.length,
       )
     : 0;
-  const bar = (label, total, entries) => {
+  const bar = (label: string, total: number, entries: AttemptRecord[]) => {
     const rate = entries.length
       ? Math.round(
           (entries.filter((entry) => entry.isCorrect).length / entries.length) *
@@ -50,7 +58,7 @@ export function StatsScreen({ attempts }) {
         <div className="stats-bar-track">
           <span
             className="stats-bar-fill"
-            style={{ "--progress": `${(entries.length / total) * 100}%` }}
+            style={{ "--progress": `${(entries.length / total) * 100}%` } as ProgressStyle}
           />
         </div>
         <p className="stats-bar-meta">
@@ -110,9 +118,11 @@ export function StatsScreen({ attempts }) {
           <div className="stats-progress-track">
             <span
               className="stats-progress-fill"
-              style={{
-                "--progress": `${(records.length / totalGeneratedInitial) * 100}%`,
-              }}
+              style={
+                {
+                  "--progress": `${(records.length / totalGeneratedInitial) * 100}%`,
+                } as ProgressStyle
+              }
             />
           </div>
         </section>
@@ -122,7 +132,8 @@ export function StatsScreen({ attempts }) {
             <span className="stats-section-note">생성된 문제 기준</span>
           </div>
           <div className="stats-bar-list">
-            {Object.entries(typeTotals).map(([type, total]) =>
+            {(Object.entries(typeTotals) as [LengthType, number][]).map(
+              ([type, total]) =>
               bar(
                 lengthLabels[type],
                 total,
@@ -137,7 +148,8 @@ export function StatsScreen({ attempts }) {
             <span className="stats-section-note">생성된 문제 기준</span>
           </div>
           <div className="stats-bar-list">
-            {Object.entries(levelTotals).map(([level, total]) =>
+            {(Object.entries(levelTotals) as [DifficultyLevel, number][]).map(
+              ([level, total]) =>
               bar(
                 level,
                 total,

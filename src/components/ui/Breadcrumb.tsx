@@ -1,5 +1,11 @@
-export function Breadcrumb({ screen }) {
-  const paths = {
+import type { Screen } from "../../types";
+
+interface BreadcrumbProps {
+  screen: Screen;
+}
+
+export function Breadcrumb({ screen }: BreadcrumbProps) {
+  const paths: Record<Screen, string[]> = {
     home: ["학습", "독해 목록"],
     stats: ["학습", "독해 목록", "학습 통계"],
     reading: ["학습", "독해 목록", "문제 풀이"],

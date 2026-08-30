@@ -1,18 +1,26 @@
-export const defaultRecommendedSeconds = {
+import type { DifficultyLevel, LengthType, ReadingItem, Topic } from "./types";
+
+export const defaultRecommendedSeconds: Record<LengthType, number> = {
   short: 60,
   medium: 150,
   long: 270,
 };
 
-export const lengthLabels = {
+export const lengthLabels: Record<LengthType, string> = {
   short: "단문",
   medium: "중문",
   long: "장문",
 };
 
-export const difficultyRank = { N5: 0, N4: 1, N3: 2, N2: 3, N1: 4 };
+export const difficultyRank: Record<DifficultyLevel, number> = {
+  N5: 0,
+  N4: 1,
+  N3: 2,
+  N2: 3,
+  N1: 4,
+};
 
-const items = [
+const items: ReadingItem[] = [
   {
     id: "library",
     status: "held",
@@ -152,4 +160,16 @@ const items = [
 
 export const initialItems = items;
 
-export const topics = ["생활", "사회", "경제", "과학", "기술", "문화", "여행", "요리", "게임", "교육", "환경"];
+export const topics: Topic[] = [
+  "생활",
+  "사회",
+  "경제",
+  "과학",
+  "기술",
+  "문화",
+  "여행",
+  "요리",
+  "게임",
+  "교육",
+  "환경",
+];

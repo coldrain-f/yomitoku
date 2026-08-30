@@ -1,6 +1,27 @@
-import { OptionButtons } from "./ui/OptionButtons.jsx";
-import { topics } from "../data.js";
-import { lengthLabels } from "../lib/reading.js";
+import { OptionButtons } from "./ui/OptionButtons";
+import { topics } from "../data";
+import { lengthLabels } from "../lib/reading";
+import type {
+  AdminFilters,
+  DialogConfig,
+  FeedbackValues,
+  ListFilters,
+  StateSetter,
+} from "../types";
+
+interface AppDialogContentProps {
+  type: DialogConfig["type"];
+  authenticated: boolean;
+  filterDraft: ListFilters;
+  setFilterDraft: StateSetter<ListFilters>;
+  adminFilterDraft: AdminFilters;
+  setAdminFilterDraft: StateSetter<AdminFilters>;
+  reportText: string;
+  setReportText: StateSetter<string>;
+  feedback: FeedbackValues;
+  setFeedback: StateSetter<FeedbackValues>;
+  dialogError: string;
+}
 
 export function AppDialogContent({
   type,
@@ -14,7 +35,7 @@ export function AppDialogContent({
   feedback,
   setFeedback,
   dialogError,
-}) {
+}: AppDialogContentProps) {
   if (type === "list-filter") {
     return (
       <div className="dialog-filter-field">
@@ -30,7 +51,12 @@ export function AppDialogContent({
               "N2",
               "N1",
             ]}
-            onChange={(level) => setFilterDraft({ ...filterDraft, level })}
+            onChange={(level) =>
+              setFilterDraft({
+                ...filterDraft,
+                level: level as ListFilters["level"],
+              })
+            }
             ariaLabel="난이도 필터"
           />
         </div>
@@ -45,7 +71,12 @@ export function AppDialogContent({
                 label,
               })),
             ]}
-            onChange={(length) => setFilterDraft({ ...filterDraft, length })}
+            onChange={(length) =>
+              setFilterDraft({
+                ...filterDraft,
+                length: length as ListFilters["length"],
+              })
+            }
             ariaLabel="유형 필터"
           />
         </div>
@@ -60,7 +91,12 @@ export function AppDialogContent({
                 { value: "wrong", label: "오답" },
                 { value: "correct", label: "정답" },
               ]}
-              onChange={(status) => setFilterDraft({ ...filterDraft, status })}
+              onChange={(status) =>
+                setFilterDraft({
+                  ...filterDraft,
+                  status: status as ListFilters["status"],
+                })
+              }
               ariaLabel="풀이 상태 필터"
             />
           </div>
@@ -71,7 +107,10 @@ export function AppDialogContent({
             className="select-field"
             value={filterDraft.sort}
             onChange={(event) =>
-              setFilterDraft({ ...filterDraft, sort: event.target.value })
+              setFilterDraft({
+                ...filterDraft,
+                sort: event.target.value as ListFilters["sort"],
+              })
             }
           >
             <option value="published-desc">등록일 최신순</option>
@@ -102,7 +141,10 @@ export function AppDialogContent({
               "N1",
             ]}
             onChange={(level) =>
-              setAdminFilterDraft({ ...adminFilterDraft, level })
+              setAdminFilterDraft({
+                ...adminFilterDraft,
+                level: level as AdminFilters["level"],
+              })
             }
             ariaLabel="난이도 필터"
           />
@@ -119,7 +161,10 @@ export function AppDialogContent({
               })),
             ]}
             onChange={(length) =>
-              setAdminFilterDraft({ ...adminFilterDraft, length })
+              setAdminFilterDraft({
+                ...adminFilterDraft,
+                length: length as AdminFilters["length"],
+              })
             }
             ariaLabel="유형 필터"
           />
@@ -132,7 +177,7 @@ export function AppDialogContent({
             onChange={(event) =>
               setAdminFilterDraft({
                 ...adminFilterDraft,
-                topic: event.target.value,
+                topic: event.target.value as AdminFilters["topic"],
               })
             }
           >
@@ -153,7 +198,10 @@ export function AppDialogContent({
               { value: "published", label: "게시" },
             ]}
             onChange={(status) =>
-              setAdminFilterDraft({ ...adminFilterDraft, status })
+              setAdminFilterDraft({
+                ...adminFilterDraft,
+                status: status as AdminFilters["status"],
+              })
             }
             ariaLabel="상태 필터"
           />
@@ -166,7 +214,7 @@ export function AppDialogContent({
             onChange={(event) =>
               setAdminFilterDraft({
                 ...adminFilterDraft,
-                sort: event.target.value,
+                sort: event.target.value as AdminFilters["sort"],
               })
             }
           >
@@ -217,7 +265,12 @@ export function AppDialogContent({
               { value: "4", label: "좋음" },
               { value: "5", label: "매우 좋음" },
             ]}
-            onChange={(quality) => setFeedback({ ...feedback, quality })}
+            onChange={(quality) =>
+              setFeedback({
+                ...feedback,
+                quality: quality as FeedbackValues["quality"],
+              })
+            }
             ariaLabel="문항 품질"
           />
         </div>
@@ -226,7 +279,12 @@ export function AppDialogContent({
           <OptionButtons
             value={feedback.level}
             options={["N5", "N4", "N3", "N2", "N1"]}
-            onChange={(level) => setFeedback({ ...feedback, level })}
+            onChange={(level) =>
+              setFeedback({
+                ...feedback,
+                level: level as FeedbackValues["level"],
+              })
+            }
             ariaLabel="체감 난이도"
           />
         </div>

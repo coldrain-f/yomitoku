@@ -1,4 +1,22 @@
-export function OptionButtons({ value, options, onChange, ariaLabel }) {
+interface OptionButtonOption {
+  value: string;
+  label: string;
+  disabled?: boolean;
+}
+
+interface OptionButtonsProps {
+  value: string;
+  options: Array<string | OptionButtonOption>;
+  onChange: (value: string) => void;
+  ariaLabel: string;
+}
+
+export function OptionButtons({
+  value,
+  options,
+  onChange,
+  ariaLabel,
+}: OptionButtonsProps) {
   return (
     <div className="choice-group" role="group" aria-label={ariaLabel}>
       {options.map((option) => {

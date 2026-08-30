@@ -1,12 +1,19 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Icon } from "./Icon.jsx";
+import { Icon } from "./Icon";
+
+interface ListPaginationProps {
+  page: number;
+  totalPages: number;
+  onChange: (page: number) => void;
+  ariaLabel?: string;
+}
 
 export function ListPagination({
   page,
   totalPages,
   onChange,
   ariaLabel = "지문 목록 페이지",
-}) {
+}: ListPaginationProps) {
   const numbers = [...new Set([1, page - 1, page, page + 1, totalPages])]
     .filter((number) => number > 0 && number <= totalPages)
     .sort((a, b) => a - b);

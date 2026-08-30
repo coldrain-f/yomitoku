@@ -11,10 +11,10 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { Icon } from "../../components/ui/Icon.jsx";
-import { ListPagination } from "../../components/ui/ListPagination.jsx";
-import { OptionButtons } from "../../components/ui/OptionButtons.jsx";
-import { topics } from "../../data.js";
+import { Icon } from "../../components/ui/Icon";
+import { ListPagination } from "../../components/ui/ListPagination";
+import { OptionButtons } from "../../components/ui/OptionButtons";
+import { topics } from "../../data";
 import {
   difficultyRank,
   formatDate,
@@ -24,9 +24,58 @@ import {
   perceivedLabel,
   statusClass,
   statusLabel,
-} from "../../lib/reading.js";
+} from "../../lib/reading";
+import type {
+  AdminFilters,
+  DifficultyLevel,
+  GenerationValues,
+  LengthType,
+  ReadingItem,
+  StateSetter,
+  Topic,
+} from "../../types";
 
-export function AdminScreen({ items, filters, onFilters, onEdit, onGenerate }) {
+interface AdminScreenProps {
+  items: ReadingItem[];
+  filters: AdminFilters;
+  onFilters: () => void;
+  onEdit: (item: ReadingItem) => void;
+  onGenerate: () => void;
+}
+
+interface AdminEditProps {
+  item: ReadingItem;
+  draft: ReadingItem;
+  setDraft: StateSetter<ReadingItem | null>;
+  onSave: () => void;
+  onHold: () => void;
+  onPublish: () => void;
+  onDelete: () => void;
+  onBack: () => void;
+}
+
+interface GenerateScreenProps {
+  values: GenerationValues;
+  setValues: StateSetter<GenerationValues>;
+  onCreate: () => void;
+  onBack: () => void;
+}
+
+interface PreviewScreenProps {
+  item: ReadingItem;
+  onHold: () => void;
+  onPublish: () => void;
+  onDelete: () => void;
+  onBack: () => void;
+}
+
+export function AdminScreen({
+  items,
+  filters,
+  onFilters,
+  onEdit,
+  onGenerate,
+}: AdminScreenProps) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const rows = useMemo(
@@ -42,13 +91,22 @@ export function AdminScreen({ items, filters, onFilters, onEdit, onGenerate }) {
         )
         .sort((left, right) => {
           if (filters.sort === "created-desc") {
-            return new Date(right.createdAt) - new Date(left.createdAt);
+            return (
+              new Date(right.createdAt).getTime() -
+              new Date(left.createdAt).getTime()
+            );
           }
           if (filters.sort === "created-asc") {
-            return new Date(left.createdAt) - new Date(right.createdAt);
+            return (
+              new Date(left.createdAt).getTime() -
+              new Date(right.createdAt).getTime()
+            );
           }
           if (filters.sort === "updated-asc") {
-            return new Date(left.updatedAt) - new Date(right.updatedAt);
+            return (
+              new Date(left.updatedAt).getTime() -
+              new Date(right.updatedAt).getTime()
+            );
           }
           if (filters.sort === "title-asc") {
             return left.title.localeCompare(right.title, "ja");
@@ -83,7 +141,10 @@ export function AdminScreen({ items, filters, onFilters, onEdit, onGenerate }) {
               ["review", "held", "published"].indexOf(right.status)
             );
           }
-          return new Date(right.updatedAt) - new Date(left.updatedAt);
+          return (
+            new Date(right.updatedAt).getTime() -
+            new Date(left.updatedAt).getTime()
+          );
         }),
     [filters, items, query],
   );
@@ -191,10 +252,9 @@ export function AdminEdit({
   onPublish,
   onDelete,
   onBack,
-}) {
-  if (!item || !draft) return null;
+}: AdminEditProps) {
 
-  const updateChoice = (index, text) =>
+  const updateChoice = (index: number, text: string) =>
     setDraft({
       ...draft,
       choices: draft.choices.map((choice, choiceIndex) =>
@@ -233,7 +293,10 @@ export function AdminEdit({
                 className="select-field"
                 value={draft.officialLevel}
                 onChange={(event) =>
-                  setDraft({ ...draft, officialLevel: event.target.value })
+                  setDraft({
+                    ...draft,
+                    officialLevel: event.target.value as DifficultyLevel,
+                  })
                 }
               >
                 {["N5", "N4", "N3", "N2", "N1"].map((value) => (
@@ -257,7 +320,10 @@ export function AdminEdit({
                 className="select-field"
                 value={draft.lengthType}
                 onChange={(event) =>
-                  setDraft({ ...draft, lengthType: event.target.value })
+                  setDraft({
+                    ...draft,
+                    lengthType: event.target.value as LengthType,
+                  })
                 }
               >
                 {Object.entries(lengthLabels).map(([value, label]) => (
@@ -273,7 +339,10 @@ export function AdminEdit({
                 className="select-field"
                 value={draft.topic}
                 onChange={(event) =>
-                  setDraft({ ...draft, topic: event.target.value })
+                  setDraft({
+                    ...draft,
+                    topic: event.target.value as Topic,
+                  })
                 }
               >
                 {topics.map((topic) => (
@@ -452,7 +521,12 @@ export function AdminEdit({
   );
 }
 
-export function GenerateScreen({ values, setValues, onCreate, onBack }) {
+export function GenerateScreen({
+  values,
+  setValues,
+  onCreate,
+  onBack,
+}: GenerateScreenProps) {
   return (
     <section className="screen screen-generate" aria-label="지문 생성">
       <div className="paper">
@@ -464,7 +538,12 @@ export function GenerateScreen({ values, setValues, onCreate, onBack }) {
             <OptionButtons
               value={values.level}
               options={["N5", "N4", "N3", "N2", "N1"]}
-              onChange={(level) => setValues({ ...values, level })}
+              onChange={(level) =>
+                setValues({
+                  ...values,
+                  level: level as DifficultyLevel,
+                })
+              }
               ariaLabel="난이도"
             />
           </div>
@@ -476,7 +555,12 @@ export function GenerateScreen({ values, setValues, onCreate, onBack }) {
                 value,
                 label,
               }))}
-              onChange={(length) => setValues({ ...values, length })}
+              onChange={(length) =>
+                setValues({
+                  ...values,
+                  length: length as LengthType,
+                })
+              }
               ariaLabel="유형"
             />
           </div>
@@ -487,7 +571,10 @@ export function GenerateScreen({ values, setValues, onCreate, onBack }) {
                 className="select-field"
                 value={values.topic}
                 onChange={(event) =>
-                  setValues({ ...values, topic: event.target.value })
+                  setValues({
+                    ...values,
+                    topic: event.target.value as GenerationValues["topic"],
+                  })
                 }
               >
                 <option value="추천">추천 (랜덤)</option>
@@ -524,8 +611,13 @@ export function GenerateScreen({ values, setValues, onCreate, onBack }) {
   );
 }
 
-export function PreviewScreen({ item, onHold, onPublish, onDelete, onBack }) {
-  if (!item) return null;
+export function PreviewScreen({
+  item,
+  onHold,
+  onPublish,
+  onDelete,
+  onBack,
+}: PreviewScreenProps) {
   const held = item.status === "held";
 
   return (

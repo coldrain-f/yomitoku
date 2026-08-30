@@ -9,8 +9,8 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
-import { Icon } from "../../components/ui/Icon.jsx";
-import { ListPagination } from "../../components/ui/ListPagination.jsx";
+import { Icon } from "../../components/ui/Icon";
+import { ListPagination } from "../../components/ui/ListPagination";
 import {
   difficultyRank,
   formatDate,
@@ -21,7 +21,45 @@ import {
   minimumVotes,
   pageSize,
   perceivedLabel,
-} from "../../lib/reading.js";
+} from "../../lib/reading";
+import type {
+  AttemptRecord,
+  Choice,
+  ListFilters,
+  ReadingAttempt,
+  ReadingItem,
+  ReadingResult,
+} from "../../types";
+
+interface ReadingListScreenProps {
+  items: ReadingItem[];
+  authenticated: boolean;
+  attempts: AttemptRecord[];
+  filters: ListFilters;
+  setFilters: (filters: ListFilters) => void;
+  query: string;
+  setQuery: (query: string) => void;
+  onOpenFilters: () => void;
+  onStart: (item: ReadingItem) => void;
+}
+
+interface ReadingScreenProps {
+  item: ReadingItem;
+  attempt: ReadingAttempt;
+  result: ReadingResult | null;
+  onChoose: (choiceId: string) => void;
+  onSubmit: () => void;
+  onAbandon: () => void;
+  onReport: () => void;
+  onResult: () => void;
+}
+
+interface ResultScreenProps {
+  result: ReadingResult | null;
+  onFeedback: () => void;
+  onContinue: () => void;
+  onHome: () => void;
+}
 
 export function ReadingListScreen({
   items,
@@ -33,7 +71,7 @@ export function ReadingListScreen({
   setQuery,
   onOpenFilters,
   onStart,
-}) {
+}: ReadingListScreenProps) {
   const [page, setPage] = useState(1);
   const latest = useMemo(() => latestAttempts(attempts), [attempts]);
   const filtered = useMemo(() => {
@@ -50,14 +88,17 @@ export function ReadingListScreen({
           .includes(query.trim().toLocaleLowerCase())
       );
     });
-    const perceived = (item) =>
+    const perceived = (item: ReadingItem): number | undefined =>
       item.perceivedVotes >= minimumVotes
         ? difficultyRank[item.perceivedLevel]
         : undefined;
 
     rows.sort((left, right) => {
       if (filters.sort === "published-asc") {
-        return new Date(left.publishedAt) - new Date(right.publishedAt);
+        return (
+          new Date(left.publishedAt ?? left.createdAt).getTime() -
+          new Date(right.publishedAt ?? right.createdAt).getTime()
+        );
       }
       if (filters.sort === "level-asc") {
         return (
@@ -78,7 +119,10 @@ export function ReadingListScreen({
         if (b === undefined) return -1;
         return filters.sort.endsWith("asc") ? a - b : b - a;
       }
-      return new Date(right.publishedAt) - new Date(left.publishedAt);
+      return (
+        new Date(right.publishedAt ?? right.createdAt).getTime() -
+        new Date(left.publishedAt ?? left.createdAt).getTime()
+      );
     });
     return rows;
   }, [authenticated, filters, items, latest, query]);
@@ -191,7 +235,7 @@ export function ReadingListScreen({
                     </span>
                   ) : null}
                   <time className="row-date">
-                    등록 {formatDate(item.publishedAt)}
+                    등록 {formatDate(item.publishedAt ?? item.createdAt)}
                   </time>
                 </span>
                 <Icon icon={ChevronRight} className="row-arrow" />
@@ -228,13 +272,13 @@ export function ReadingScreen({
   onAbandon,
   onReport,
   onResult,
-}) {
-  if (!item || !attempt) return null;
-  const submitted = attempt.submitted && result?.itemId === item.id;
+}: ReadingScreenProps) {
+  const submitted = Boolean(attempt.submitted && result?.itemId === item.id);
   const selected = attempt.choices.find(
     (choice) => choice.id === attempt.selectedChoiceId,
   );
   const correct = attempt.choices.find((choice) => choice.isCorrect);
+  if (!correct) return null;
   const correctNumber = String(attempt.choices.indexOf(correct) + 1).padStart(
     2,
     "0",
@@ -308,14 +352,14 @@ export function ReadingScreen({
               <div className="answer-explanation">
                 <strong>{correctNumber}가 정답인 이유</strong>
                 <span>{explanation}</span>
-                {!result.isCorrect ? (
+                {result && !result.isCorrect && selected ? (
                   <p className="answer-choice-reason">
                     내가 고른{" "}
                     {String(attempt.choices.indexOf(selected) + 1).padStart(
                       2,
                       "0",
                     )}
-                    가 오답인 이유: {selected.wrongExplanation}
+                    가 오답인 이유: {selected.wrongExplanation ?? "지문 근거와 맞지 않습니다."}
                   </p>
                 ) : null}
               </div>
@@ -364,19 +408,25 @@ export function ReadingScreen({
   );
 }
 
-export function ResultScreen({ result, onFeedback, onContinue, onHome }) {
+export function ResultScreen({
+  result,
+  onFeedback,
+  onContinue,
+  onHome,
+}: ResultScreenProps) {
   if (!result) return null;
   const { item, choices, selectedChoiceId, isCorrect, elapsedSeconds } = result;
   const selected =
     choices.findIndex((choice) => choice.id === selectedChoiceId) + 1;
   const answer = choices.findIndex((choice) => choice.isCorrect) + 1;
-  const record = {
+  const records: Record<string, [number, number]> = {
     society: [62, 42],
     shopping: [71, 38],
     cooking: [58, 14],
     library: [75, 17],
     "quiet-library": [67, 11],
-  }[item.id] ?? [0, 0];
+  };
+  const record = records[item.id] ?? [0, 0];
 
   return (
     <section className="screen screen-result" aria-label="결과">

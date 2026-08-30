@@ -1,5 +1,18 @@
 import { BarChart3, LogIn, LogOut } from "lucide-react";
-import { Icon } from "./ui/Icon.jsx";
+import { Icon } from "./ui/Icon";
+import type { Role } from "../types";
+
+interface AppHeaderProps {
+  authenticated: boolean;
+  role: Role;
+  totalGenerated: number;
+  completeCount: number;
+  onHome: () => void;
+  onOpenAdmin: () => void;
+  onOpenStats: () => void;
+  onLogin: () => void;
+  onLogout: () => void;
+}
 
 export function AppHeader({
   authenticated,
@@ -11,7 +24,7 @@ export function AppHeader({
   onOpenStats,
   onLogin,
   onLogout,
-}) {
+}: AppHeaderProps) {
   return (
     <header className="topbar">
       <button

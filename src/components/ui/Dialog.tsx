@@ -1,8 +1,19 @@
-import { useEffect } from "react";
+import {
+  useEffect,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { X } from "lucide-react";
-import { Icon } from "./Icon.jsx";
+import { Icon } from "./Icon";
+import type { DialogConfig } from "../../types";
 
-export function Dialog({ dialog, onClose, children }) {
+interface DialogProps {
+  dialog: DialogConfig | null;
+  onClose: () => void;
+  children: ReactNode;
+}
+
+export function Dialog({ dialog, onClose, children }: DialogProps) {
   useEffect(() => {
     if (!dialog) return undefined;
     const scrollbarWidth = Math.max(
@@ -14,7 +25,9 @@ export function Dialog({ dialog, onClose, children }) {
       `${scrollbarWidth}px`,
     );
     document.body.classList.add("dialog-open");
-    const onKeyDown = (event) => event.key === "Escape" && onClose();
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.classList.remove("dialog-open");
@@ -28,7 +41,9 @@ export function Dialog({ dialog, onClose, children }) {
   return (
     <div
       className="dialog-backdrop"
-      onMouseDown={(event) => event.currentTarget === event.target && onClose()}
+        onMouseDown={(event: MouseEvent<HTMLDivElement>) =>
+          event.currentTarget === event.target && onClose()
+        }
     >
       <section
         className="confirm-dialog"
