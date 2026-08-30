@@ -278,6 +278,7 @@ export default function App() {
   const [dialog, setDialog] = useState<DialogConfig | null>(null);
   const [toast, setToast] = useState("");
   const [attempt, setAttempt] = useState<ReadingAttempt | null>(null);
+  const [pendingAbandon, setPendingAbandon] = useState(false);
   const [result, setResult] = useState<ReadingResult | null>(null);
   const [draft, setDraft] = useState<ReadingItem | null>(null);
   const [generation, setGeneration] = useState<GenerationValues>({
@@ -304,6 +305,12 @@ export default function App() {
     const timer = window.setTimeout(() => setToast(""), 2800);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    if (!pendingAbandon || screen === "reading") return;
+    setAttempt(null);
+    setPendingAbandon(false);
+  }, [pendingAbandon, screen]);
 
   useEffect(() => {
     filterDraftRef.current = filterDraft;
@@ -434,34 +441,28 @@ export default function App() {
     });
   };
 
-  const goHome = () => {
-    if (screen === "home") return;
+  const navigateFromReading = (target: string, targetLabel: string) => {
     if (screen === "reading" && attempt && !attempt.submitted) {
       openDialog({
         kicker: "Leave reading",
         title: "풀이를 포기할까요?",
-        description:
-          "현재 답안과 풀이 시간은 저장되지 않고 목록으로 돌아갑니다.",
-        confirmLabel: "포기하기",
+        description: `현재 답안과 풀이 시간은 저장되지 않고 ${targetLabel}으로 이동합니다.`,
+        confirmLabel: "포기하고 이동",
         onConfirm: () => {
           closeDialog();
-          setAttempt(null);
-          navigate("/");
-          setToast("풀이를 포기하고 목록으로 돌아왔습니다.");
+          setPendingAbandon(true);
+          navigate(target);
+          setToast(`풀이를 포기하고 ${targetLabel}으로 이동했습니다.`);
         },
       });
       return;
     }
-    openDialog({
-      kicker: "Back to list",
-      title: "목록으로 돌아갈까요?",
-      description: "현재 화면을 닫고 독해 목록으로 돌아갑니다.",
-      confirmLabel: "목록으로",
-      onConfirm: () => {
-        closeDialog();
-        navigate("/");
-      },
-    });
+    navigate(target);
+  };
+
+  const goHome = () => {
+    if (screen === "home") return;
+    navigateFromReading("/", "독해 목록");
   };
 
   const submit = () => {
@@ -647,16 +648,10 @@ export default function App() {
   };
 
   const openAdminScreen = () =>
-    openDialog({
-      kicker: "Open management",
-      title: "관리자 화면으로 이동할까요?",
-      description: "문항을 생성하고 관리하는 관리자 화면으로 이동합니다.",
-      confirmLabel: "이동하기",
-      onConfirm: () => {
-        closeDialog();
-        navigate("/admin/readings");
-      },
-    });
+    navigateFromReading("/admin/readings", "관리자 화면");
+
+  const openStatsScreen = () =>
+    navigateFromReading("/statistics", "학습 통계 화면");
 
   const openLogin = () =>
     openDialog({
@@ -672,24 +667,63 @@ export default function App() {
       },
     });
 
-  const openLogout = () =>
-    openDialog({
-      kicker: "Sign out",
-      title: "로그아웃할까요?",
-      description: "이 기기에서 현재 계정의 로그인이 해제됩니다.",
-      confirmLabel: "로그아웃",
-      onConfirm: () => {
-        closeDialog();
-        setAuthenticated(false);
-        setRole("learner");
-        navigate("/");
-        setToast("로그아웃되었습니다.");
-      },
-    });
+  const openLogout = () => {
+    setAuthenticated(false);
+    setRole("learner");
+    setAttempt(null);
+    setResult(null);
+    navigate("/");
+    setToast("로그아웃되었습니다.");
+  };
 
   const openEdit = (item: ReadingItem) => {
     setDraft(structuredClone(item));
     navigate(`/admin/readings/${item.id}/edit`);
+  };
+
+  const leaveEditor = () => {
+    const original = items.find((item) => item.id === draft?.id);
+    const editableSnapshot = (item: ReadingItem) =>
+      JSON.stringify({
+        title: item.title,
+        officialLevel: item.officialLevel,
+        lengthType: item.lengthType,
+        topic: item.topic,
+        passage: item.passage,
+        question: item.question,
+        choices: item.choices.map(({ id, text, isCorrect }) => ({
+          id,
+          text,
+          isCorrect,
+        })),
+        explanation: item.explanation,
+      });
+    if (!draft || !original) {
+      setDraft(null);
+      navigate("/admin/readings");
+      return;
+    }
+
+    const hasUnsavedChanges =
+      editableSnapshot(draft) !== editableSnapshot(original);
+
+    if (!hasUnsavedChanges) {
+      setDraft(null);
+      navigate("/admin/readings");
+      return;
+    }
+
+    openDialog({
+      kicker: "Discard changes",
+      title: "저장하지 않은 변경사항을 버릴까요?",
+      description: "저장하지 않은 편집 내용은 사라지고 문항 관리로 돌아갑니다.",
+      confirmLabel: "변경사항 버리기",
+      onConfirm: () => {
+        closeDialog();
+        setDraft(null);
+        navigate("/admin/readings");
+      },
+    });
   };
 
   const handleEditHold = (item: ReadingItem) => {
@@ -759,7 +793,7 @@ export default function App() {
           completeCount={completeCount}
           onHome={goHome}
           onOpenAdmin={openAdminScreen}
-          onOpenStats={() => navigate("/statistics")}
+          onOpenStats={openStatsScreen}
           onLogin={openLogin}
           onLogout={openLogout}
         />
@@ -871,18 +905,7 @@ export default function App() {
                   onHold={handleEditHold}
                   onPublish={publishEditingItem}
                   onDelete={deleteItem}
-                  onBack={() =>
-                    openDialog({
-                      kicker: "Back to management",
-                      title: "문항 관리로 돌아갈까요?",
-                      description: "현재 화면을 닫고 관리자 문항 관리로 돌아갑니다.",
-                      confirmLabel: "관리 목록으로",
-                      onConfirm: () => {
-                        closeDialog();
-                        navigate("/admin/readings");
-                      },
-                    })
-                  }
+                  onBack={leaveEditor}
                 />
               </RequireAdmin>
             }

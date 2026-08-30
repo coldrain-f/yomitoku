@@ -12,7 +12,7 @@ src/
   features/readings/       # 목록, 풀이, 결과
   features/statistics/     # 학습 통계
   features/admin/          # 관리 목록, 편집, 생성, 미리보기
-  lib/reading.js           # 표시·정렬·집계에 쓰는 순수 함수와 상수
+  lib/reading.ts           # 표시·정렬·집계에 쓰는 순수 함수와 상수
   data.js                  # 현재 목업 데이터
 ```
 
