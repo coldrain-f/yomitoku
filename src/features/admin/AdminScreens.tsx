@@ -483,7 +483,11 @@ export function AdminEdit({
         </div>
         <div className="footer-actions admin-edit-actions">
           <div className="admin-edit-secondary">
-            <button className="link-button" type="button" onClick={onBack}>
+            <button
+              className="link-button"
+              type="button"
+              onClick={() => onBack()}
+            >
               관리 목록으로
             </button>
             <button
