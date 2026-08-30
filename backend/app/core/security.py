@@ -45,6 +45,17 @@ async def get_current_user(
     return CurrentUser(id=user_id, role=role)
 
 
+async def get_optional_current_user(
+    settings: Annotated[Settings, Depends(get_settings)],
+    dev_user_id: Annotated[str | None, Header(alias="X-Dev-User-Id")] = None,
+    dev_role: Annotated[str | None, Header(alias="X-Dev-Role")] = None,
+) -> CurrentUser | None:
+    """Return an unauthenticated public visitor unless local dev headers are supplied."""
+    if dev_user_id is None and dev_role is None:
+        return None
+    return await get_current_user(settings, dev_user_id, dev_role)
+
+
 async def require_admin(
     user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> CurrentUser:

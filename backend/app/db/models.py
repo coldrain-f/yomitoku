@@ -160,7 +160,7 @@ class GenerationJob(TimestampedModel, Base):
     error_code: Mapped[str | None] = mapped_column(String(64))
     error_detail: Mapped[str | None] = mapped_column(Text)
     generated_item_id: Mapped[UUID | None] = mapped_column(
-        Uuid, ForeignKey("reading_items.id", ondelete="SET NULL")
+        Uuid, ForeignKey("reading_items.id", ondelete="CASCADE")
     )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
