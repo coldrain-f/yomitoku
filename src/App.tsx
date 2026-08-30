@@ -674,7 +674,7 @@ export default function App() {
 
   const leaveEditor = (
     target = "/admin/readings",
-    targetLabel = "문항 관리",
+    targetLabel = "관리 목록",
     afterLeave?: () => void,
   ) => {
     const original = items.find((item) => item.id === draft?.id);
@@ -703,18 +703,15 @@ export default function App() {
     const hasUnsavedChanges =
       editableSnapshot(draft) !== editableSnapshot(original);
 
-    if (!hasUnsavedChanges) {
-      setDraft(null);
-      afterLeave?.();
-      navigate(target);
-      return;
-    }
-
     openDialog({
-      kicker: "Discard changes",
-      title: "저장하지 않은 변경사항을 버릴까요?",
-      description: `저장하지 않은 편집 내용은 사라지고 ${targetLabel}으로 이동합니다.`,
-      confirmLabel: "변경사항 버리기",
+      kicker: hasUnsavedChanges ? "Discard changes" : "Leave editor",
+      title: hasUnsavedChanges
+        ? "저장하지 않은 변경사항을 버릴까요?"
+        : `${targetLabel}으로 이동할까요?`,
+      description: hasUnsavedChanges
+        ? `저장하지 않은 편집 내용은 사라지고 ${targetLabel}으로 이동합니다.`
+        : `현재 문항 편집을 닫고 ${targetLabel}으로 이동합니다.`,
+      confirmLabel: hasUnsavedChanges ? "변경사항 버리기" : "이동하기",
       onConfirm: () => {
         closeDialog();
         setDraft(null);
@@ -738,7 +735,7 @@ export default function App() {
 
   const openAdminFromHeader = () =>
     screen === "admin-edit"
-      ? leaveEditor("/admin/readings", "문항 관리")
+      ? leaveEditor("/admin/readings", "문항 관리 화면")
       : openAdminScreen();
 
   const openStatsFromHeader = () =>
