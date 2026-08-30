@@ -667,21 +667,16 @@ export default function App() {
       },
     });
 
-  const openLogout = () => {
-    setAuthenticated(false);
-    setRole("learner");
-    setAttempt(null);
-    setResult(null);
-    navigate("/");
-    setToast("로그아웃되었습니다.");
-  };
-
   const openEdit = (item: ReadingItem) => {
     setDraft(structuredClone(item));
     navigate(`/admin/readings/${item.id}/edit`);
   };
 
-  const leaveEditor = () => {
+  const leaveEditor = (
+    target = "/admin/readings",
+    targetLabel = "문항 관리",
+    afterLeave?: () => void,
+  ) => {
     const original = items.find((item) => item.id === draft?.id);
     const editableSnapshot = (item: ReadingItem) =>
       JSON.stringify({
@@ -700,7 +695,8 @@ export default function App() {
       });
     if (!draft || !original) {
       setDraft(null);
-      navigate("/admin/readings");
+      afterLeave?.();
+      navigate(target);
       return;
     }
 
@@ -709,22 +705,51 @@ export default function App() {
 
     if (!hasUnsavedChanges) {
       setDraft(null);
-      navigate("/admin/readings");
+      afterLeave?.();
+      navigate(target);
       return;
     }
 
     openDialog({
       kicker: "Discard changes",
       title: "저장하지 않은 변경사항을 버릴까요?",
-      description: "저장하지 않은 편집 내용은 사라지고 문항 관리로 돌아갑니다.",
+      description: `저장하지 않은 편집 내용은 사라지고 ${targetLabel}으로 이동합니다.`,
       confirmLabel: "변경사항 버리기",
       onConfirm: () => {
         closeDialog();
         setDraft(null);
-        navigate("/admin/readings");
+        afterLeave?.();
+        navigate(target);
       },
     });
   };
+
+  const logout = () => {
+    setAuthenticated(false);
+    setRole("learner");
+    setAttempt(null);
+    setResult(null);
+    navigate("/");
+    setToast("로그아웃되었습니다.");
+  };
+
+  const goHomeFromHeader = () =>
+    screen === "admin-edit" ? leaveEditor("/", "독해 목록") : goHome();
+
+  const openAdminFromHeader = () =>
+    screen === "admin-edit"
+      ? leaveEditor("/admin/readings", "문항 관리")
+      : openAdminScreen();
+
+  const openStatsFromHeader = () =>
+    screen === "admin-edit"
+      ? leaveEditor("/statistics", "학습 통계 화면")
+      : openStatsScreen();
+
+  const logoutFromHeader = () =>
+    screen === "admin-edit"
+      ? leaveEditor("/", "로그아웃 후 독해 목록", logout)
+      : logout();
 
   const handleEditHold = (item: ReadingItem) => {
     if (item.status === "published") {
@@ -791,11 +816,11 @@ export default function App() {
           role={role}
           totalGenerated={totalGenerated}
           completeCount={completeCount}
-          onHome={goHome}
-          onOpenAdmin={openAdminScreen}
-          onOpenStats={openStatsScreen}
+          onHome={goHomeFromHeader}
+          onOpenAdmin={openAdminFromHeader}
+          onOpenStats={openStatsFromHeader}
           onLogin={openLogin}
-          onLogout={openLogout}
+          onLogout={logoutFromHeader}
         />
         <Breadcrumb screen={screen} />
         <Routes>
