@@ -12,7 +12,7 @@ if (!root) {
 
 createRoot(root).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename="/yomitoku">
       <App />
     </BrowserRouter>
   </StrictMode>,
