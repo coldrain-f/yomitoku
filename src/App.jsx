@@ -210,12 +210,12 @@ function Breadcrumb({ screen }) {
   );
 }
 
-function ListPagination({ page, totalPages, onChange }) {
+function ListPagination({ page, totalPages, onChange, ariaLabel = "지문 목록 페이지" }) {
   const numbers = [...new Set([1, page - 1, page, page + 1, totalPages])]
     .filter((number) => number > 0 && number <= totalPages)
     .sort((a, b) => a - b);
   return (
-    <nav className="list-pagination" aria-label="지문 목록 페이지">
+    <nav className="list-pagination" aria-label={ariaLabel}>
       <button
         className="pagination-button"
         type="button"
@@ -816,6 +816,7 @@ function StatsScreen({ attempts }) {
 
 function AdminScreen({ items, filters, onFilters, onEdit, onGenerate }) {
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
   const rows = useMemo(
     () =>
       items
@@ -865,6 +866,15 @@ function AdminScreen({ items, filters, onFilters, onEdit, onGenerate }) {
         }),
     [filters, items, query],
   );
+  const pages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const currentPage = Math.min(page, pages);
+  const pageRows = rows.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
+
+  useEffect(() => setPage(1), [filters, query]);
+
   return (
     <section className="screen screen-admin" aria-label="관리자 문항 관리">
       <div className="paper flush">
@@ -900,7 +910,7 @@ function AdminScreen({ items, filters, onFilters, onEdit, onGenerate }) {
           </button>
         </div>
         <div className="admin-list">
-          {rows.map((item) => (
+          {pageRows.map((item) => (
             <button
               className="admin-row"
               type="button"
@@ -933,6 +943,18 @@ function AdminScreen({ items, filters, onFilters, onEdit, onGenerate }) {
             </button>
           ))}
         </div>
+        {rows.length === 0 ? (
+          <div className="reading-list-empty">
+            <p>조건에 맞는 문항이 없습니다.</p>
+          </div>
+        ) : (
+          <ListPagination
+            page={currentPage}
+            totalPages={pages}
+            onChange={setPage}
+            ariaLabel="관리 문항 목록 페이지"
+          />
+        )}
         <div className="home-actions">
           <button className="primary-button" type="button" onClick={onGenerate}>
             <Icon icon={Plus} />새 독해 지문 생성
