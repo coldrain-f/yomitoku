@@ -42,14 +42,14 @@ npm run typecheck
 ## 현재 범위
 
 - API 기반 목록, 검색, 필터, 페이지네이션
-- 개발용 인증 경계와 학습 시작 차단
+- Google Identity Services 로그인과 서버 토큰 기반 권한 경계
 - 서버 채점 기반 선택지 셔플, 제출, 해설, 결과, 통계
 - 관리자 목록, 편집, 생성 작업 폴링, 미리보기, 보류, 게시, 삭제
 - React Router 기반 화면 전환과 목록 필터 URL 쿼리
 - TypeScript strict 모드 기반 도메인·컴포넌트·라우트 상태 검사
 - Lucide React 아이콘과 기존 CSS 재사용
 
-현재 목록, 문항, 시도, 통계, 관리자 문항은 FastAPI와 PostgreSQL을 사용한다. 풀이 중 선택과 타이머, 제출 직후 결과 화면은 브라우저 상태이며 결과 URL을 새로고침해 복원하는 API는 아직 없다. Google OAuth를 붙일 때 개발용 헤더 인증을 세션 기반 인증으로 교체한다.
+현재 목록, 문항, 시도, 통계, 관리자 문항은 FastAPI와 PostgreSQL을 사용한다. 풀이 중 선택과 타이머, 제출 직후 결과 화면은 브라우저 상태이며 결과 URL을 새로고침해 복원하는 API는 아직 없다. Google 로그인은 Identity Services ID 토큰을 서버에서 검증하고, 서버가 발급한 짧은 수명의 Bearer 토큰을 브라우저 세션에 보관한다. 운영 설정 방법은 [05-delivery-roadmap.md](./docs/05-delivery-roadmap.md)에 정리했다.
 
 ## 백엔드 시작
 

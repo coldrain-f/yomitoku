@@ -13,6 +13,8 @@ import type {
 const apiBaseUrl =
   import.meta.env.VITE_API_BASE_URL ??
   (import.meta.env.DEV ? "http://localhost:8001/api/v1" : "/api/v1");
+const accessTokenStorageKey = "yomitoku.access-token";
+let accessToken = window.sessionStorage.getItem(accessTokenStorageKey);
 
 const devHeaders: Record<string, string> = import.meta.env.DEV
   ? {
@@ -129,6 +131,13 @@ export interface CurrentUser {
   role: Role;
 }
 
+interface AuthenticationResponse {
+  accessToken: string;
+  tokenType: "bearer";
+  expiresIn: number;
+  user: CurrentUser;
+}
+
 function toItem(summary: ApiReadingSummary, detail?: ApiReadingDetail): ReadingItem {
   const choices = detail?.choices.map((choice) => ({
     id: choice.id,
@@ -181,6 +190,9 @@ async function request<T>(
 ): Promise<T> {
   const headers = new Headers(options.headers);
   Object.entries(devHeaders).forEach(([key, value]) => headers.set(key, value));
+  if (accessToken && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
+  }
   if (options.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
@@ -197,6 +209,19 @@ async function request<T>(
 }
 
 export const api = {
+  async signInWithGoogle(credential: string): Promise<CurrentUser> {
+    const response = await request<AuthenticationResponse>("/auth/google", {
+      method: "POST",
+      body: JSON.stringify({ credential }),
+    });
+    accessToken = response.accessToken;
+    window.sessionStorage.setItem(accessTokenStorageKey, accessToken);
+    return response.user;
+  },
+  clearAccessToken: () => {
+    accessToken = null;
+    window.sessionStorage.removeItem(accessTokenStorageKey);
+  },
   me: () => request<CurrentUser>("/me"),
   logout: () => request<void>("/auth/logout", { method: "POST" }),
   async listReadings(

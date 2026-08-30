@@ -135,12 +135,12 @@ export interface FeedbackValues {
 }
 
 export interface DialogConfig {
-  type?: "list-filter" | "admin-filter" | "report" | "feedback";
+  type?: "list-filter" | "admin-filter" | "report" | "feedback" | "google-login";
   kicker: string;
   title: string;
   description: string;
-  confirmLabel: string;
-  onConfirm: () => void;
+  confirmLabel?: string;
+  onConfirm?: () => void;
 }
 
 export type Screen =

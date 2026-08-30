@@ -70,13 +70,15 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
           <button className="text-button" type="button" onClick={onClose}>
             취소
           </button>
-          <button
-            className="primary-button"
-            type="button"
-            onClick={dialog.onConfirm}
-          >
-            {dialog.confirmLabel}
-          </button>
+          {dialog.confirmLabel && dialog.onConfirm ? (
+            <button
+              className="primary-button"
+              type="button"
+              onClick={dialog.onConfirm}
+            >
+              {dialog.confirmLabel}
+            </button>
+          ) : null}
         </div>
       </section>
     </div>

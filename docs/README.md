@@ -19,6 +19,7 @@
 | [02-data-and-api-spec.md](./02-data-and-api-spec.md) | 데이터 모델, API 계약, 통계와 체감 난이도 계산 규칙 |
 | [03-ai-operations-and-react-plan.md](./03-ai-operations-and-react-plan.md) | AI 생성 운영, 검증, 비용 통제, React 전환 계획 |
 | [04-acceptance-checklist.md](./04-acceptance-checklist.md) | 구현 완료 판정용 기능 및 품질 점검표 |
+| [05-delivery-roadmap.md](./05-delivery-roadmap.md) | Google 로그인부터 운영 배포까지의 후속 개발 순서와 완료 기준 |
 
 ## 제품 결정
 

@@ -35,12 +35,26 @@ The worker is deliberately separate from FastAPI. Generation can take time and
 cost money, so `POST /api/v1/admin/generation-jobs` returns `202 Accepted` and
 the frontend polls the job endpoint instead of holding an HTTP request open.
 
-## Development-only authentication
+## Google login and local development authentication
 
-Google OAuth is intentionally not implemented yet. In `APP_ENV=development`,
-protected API examples can send `X-Dev-Role: admin` and optionally
-`X-Dev-User-Id`. Outside development the placeholder authentication dependency
-rejects protected requests until the Google OAuth implementation replaces it.
+`POST /api/v1/auth/google` receives a Google Identity Services ID token,
+verifies its signature and audience, then returns a short-lived Yomitoku
+Bearer token. Set the following values on the API server before enabling it:
+
+```text
+GOOGLE_OAUTH_CLIENT_ID=...apps.googleusercontent.com
+AUTH_JWT_SECRET=a-long-random-server-only-value
+ADMIN_GOOGLE_EMAILS=admin@example.com
+```
+
+The Google Client ID must also be available to the Vite build as
+`VITE_GOOGLE_CLIENT_ID`. Register the GitHub Pages origin and local Vite origins
+in Google Cloud Console. `ADMIN_GOOGLE_EMAILS` is the server-side allowlist;
+frontend visibility never grants administrator access.
+
+In `APP_ENV=development` and `test`, protected API examples may still use
+`X-Dev-Role: admin` and optionally `X-Dev-User-Id`. These headers are rejected
+in production. The React app sends them only in Vite development mode.
 
 ## Connected MVP APIs
 
@@ -49,4 +63,4 @@ rejects protected requests until the Google OAuth implementation replaces it.
 - Statistics, feedback, issue reports, item metrics, and administrator item CRUD are persisted in PostgreSQL.
 - Admin actions cover review, hold, unhold, publish, permanent deletion, and LangGraph generation-job polling.
 
-The local React client sends the development headers only while Vite runs in development mode. Production OAuth must replace that behavior before deploying.
+The local React client sends development headers only while Vite runs in development mode. See [`docs/05-delivery-roadmap.md`](../docs/05-delivery-roadmap.md) for the remaining deployment and operations work.

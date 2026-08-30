@@ -1801,6 +1801,18 @@ body.dialog-open {
   font-size: 13px;
 }
 
+.google-sign-in {
+  display: grid;
+  justify-content: start;
+  gap: 10px;
+  min-height: 40px;
+  margin-top: 20px;
+}
+
+.google-sign-in .dialog-field-error {
+  margin: 0;
+}
+
 .dialog-feedback-field {
   margin-top: 20px;
 }

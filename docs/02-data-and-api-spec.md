@@ -127,8 +127,11 @@
 | --- | --- | --- | --- |
 | `GET` | `/me` | 로그인 | 현재 사용자와 역할 반환 |
 | `POST` | `/auth/logout` | 로그인 | 세션 종료 |
-| `GET` | `/auth/google/start` | 공개 | Google 로그인 시작 |
-| `GET` | `/auth/google/callback` | 공개 | OAuth 콜백 처리 |
+| `POST` | `/auth/google` | 공개 | Google Identity Services ID 토큰 검증 및 Yomitoku Bearer 토큰 발급 |
+
+`POST /auth/google` 요청은 Google의 `credential`(ID 토큰)을 받는다. API는 Google 서명, issuer, audience, 만료, 이메일 검증 여부를 확인한 뒤 Google `sub`로 로컬 사용자를 만들거나 갱신한다. 응답의 `accessToken`은 브라우저 세션에서만 사용하며 `AUTH_ACCESS_TOKEN_TTL_SECONDS` 뒤 만료된다.
+
+관리자 역할은 `ADMIN_GOOGLE_EMAILS` 서버 allowlist로만 결정한다. 액세스 토큰의 역할은 서버 서명으로 보호되며, 프론트의 관리자 링크 노출은 권한 근거가 아니다.
 
 `GET /me` 예시:
 

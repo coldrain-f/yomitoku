@@ -111,6 +111,17 @@ class CurrentUserResponse(ApiModel):
     role: Literal["learner", "admin"]
 
 
+class GoogleCredentialRequest(ApiModel):
+    credential: str = Field(min_length=1, max_length=16_384)
+
+
+class AuthenticationResponse(ApiModel):
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    expires_in: int
+    user: CurrentUserResponse
+
+
 class ReadingChoicePublic(ApiModel):
     id: UUID
     text: str

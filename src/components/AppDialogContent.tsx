@@ -1,5 +1,6 @@
 import { OptionButtons } from "./ui/OptionButtons";
 import { topics } from "../data";
+import { GoogleSignInButton } from "../features/auth/GoogleSignInButton";
 import { lengthLabels } from "../lib/reading";
 import type {
   AdminFilters,
@@ -21,6 +22,9 @@ interface AppDialogContentProps {
   feedback: FeedbackValues;
   setFeedback: StateSetter<FeedbackValues>;
   dialogError: string;
+  googleClientId: string;
+  onGoogleCredential: (credential: string) => void;
+  onGoogleError: (message: string) => void;
 }
 
 export function AppDialogContent({
@@ -35,7 +39,25 @@ export function AppDialogContent({
   feedback,
   setFeedback,
   dialogError,
+  googleClientId,
+  onGoogleCredential,
+  onGoogleError,
 }: AppDialogContentProps) {
+  if (type === "google-login") {
+    return (
+      <div>
+        <GoogleSignInButton
+          clientId={googleClientId}
+          onCredential={onGoogleCredential}
+          onError={onGoogleError}
+        />
+        {dialogError ? (
+          <p className="dialog-field-error">{dialogError}</p>
+        ) : null}
+      </div>
+    );
+  }
+
   if (type === "list-filter") {
     return (
       <div className="dialog-filter-field">

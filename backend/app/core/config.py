@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     max_generation_revisions: int = 2
     worker_poll_interval_seconds: float = 1.5
     dev_admin_id: UUID = UUID("00000000-0000-0000-0000-000000000001")
+    google_oauth_client_id: str | None = None
+    auth_jwt_secret: SecretStr | None = None
+    auth_jwt_issuer: str = "yomitoku-api"
+    auth_jwt_audience: str = "yomitoku-web"
+    auth_access_token_ttl_seconds: int = 28_800
+    admin_google_emails: str = ""
 
     @property
     def allowed_origins(self) -> list[str]:
@@ -37,6 +43,14 @@ class Settings(BaseSettings):
             for origin in self.cors_allowed_origins.split(",")
             if origin.strip()
         ]
+
+    @property
+    def admin_emails(self) -> frozenset[str]:
+        return frozenset(
+            email.strip().casefold()
+            for email in self.admin_google_emails.split(",")
+            if email.strip()
+        )
 
 
 @lru_cache

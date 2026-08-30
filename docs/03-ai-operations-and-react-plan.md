@@ -207,4 +207,4 @@ src/
 - LangGraph는 `generate -> validate_schema -> verify_answer + verify_quality -> decide -> revise/persist` 흐름을 사용한다. 검증을 통과하면 문항은 `review`, 한도를 넘긴 경고/실패 결과는 `held` 상태로 저장한다.
 - 기본 제공자는 비용 없는 `stub`이며, `GENERATION_PROVIDER=anthropic`과 서버 환경 변수로 실제 Claude 제공자를 연결할 수 있다. API 키는 프론트엔드에 전달하지 않는다.
 
-2026-08-30 기준으로 React는 `src/lib/api.ts`를 통해 목록, 문항 상세, 시도, 통계, 평가·제보, 관리자 문항, 생성 작업 API를 사용한다. 현재는 별도 서버 상태 라이브러리 없이 API 어댑터와 화면별 갱신으로 범위를 작게 유지한다. Google OAuth를 추가하면 개발용 헤더 인증을 제거하고, 그 시점에 TanStack Query 도입과 결과 화면 새로고침 복원을 함께 검토한다.
+2026-08-30 기준으로 React는 `src/lib/api.ts`를 통해 목록, 문항 상세, 시도, 통계, 평가·제보, 관리자 문항, 생성 작업 API를 사용한다. Google Identity Services 로그인은 `/auth/google`에서 서버 검증과 Yomitoku Bearer 토큰 발급까지 연결했고, 개발용 헤더는 로컬 개발 환경에만 남겼다. 현재는 별도 서버 상태 라이브러리 없이 API 어댑터와 화면별 갱신으로 범위를 작게 유지한다. 다음 서버 상태 보강 단계에서 TanStack Query 도입과 결과 화면 새로고침 복원을 함께 검토한다.

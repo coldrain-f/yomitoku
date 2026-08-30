@@ -48,6 +48,7 @@ const defaultListFilters: ListFilters = {
   status: "all",
   sort: "published-desc",
 };
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
 
 function screenForPath(pathname: string): Screen {
   if (pathname === "/statistics") return "stats";
@@ -252,6 +253,7 @@ export default function App() {
   const filterDraftRef = useRef(filterDraft);
   const adminFilterDraftRef = useRef(adminFilterDraft);
   const [dialog, setDialog] = useState<DialogConfig | null>(null);
+  const [pendingStart, setPendingStart] = useState<ReadingItem | null>(null);
   const [toast, setToast] = useState("");
   const [attempt, setAttempt] = useState<ReadingAttempt | null>(null);
   const [result, setResult] = useState<ReadingResult | null>(null);
@@ -363,6 +365,7 @@ export default function App() {
   }, [attempt?.startedAt, attempt?.submitted, screen]);
 
   const closeDialog = () => {
+    if (dialog?.type === "google-login") setPendingStart(null);
     setDialog(null);
     setDialogError("");
   };
@@ -446,16 +449,8 @@ export default function App() {
       openStartDialog(item, item.myLatestStatus);
       return;
     }
-    openDialog({
-      kicker: "Sign in",
-      title: "로그인할까요?",
-      description: "로그인하면 풀이 결과와 학습 통계를 기록할 수 있습니다.",
-      confirmLabel: "로그인하기",
-      onConfirm: () => {
-        closeDialog();
-        void login().then(() => openStartDialog(item, item.myLatestStatus));
-      },
-    });
+    setPendingStart(item);
+    openLogin();
   };
 
   const abandonAndNavigate = (target: string, targetLabel: string) => {
@@ -658,9 +653,11 @@ export default function App() {
     });
   };
 
-  const login = async () => {
+  const completeGoogleLogin = (credential: string) => {
+    const itemToStart = pendingStart;
+    void (async () => {
     try {
-      const user = await api.me();
+      const user = await api.signInWithGoogle(credential);
       setAuthenticated(true);
       setRole(user.role);
       await Promise.all([
@@ -668,24 +665,27 @@ export default function App() {
         loadStatistics(),
         ...(user.role === "admin" ? [loadAdminItems()] : []),
       ]);
+      setPendingStart(null);
+      closeDialog();
       setToast("로그인되었습니다.");
+      if (itemToStart) openStartDialog(itemToStart, itemToStart.myLatestStatus);
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "로그인 설정이 필요합니다.");
+      setDialogError(
+        error instanceof Error ? error.message : "로그인하지 못했습니다. 다시 시도해 주세요.",
+      );
     }
+    })();
   };
   const openLogin = () =>
     openDialog({
+      type: "google-login",
       kicker: "Sign in",
-      title: "로그인할까요?",
+      title: "Google 계정으로 로그인",
       description: "로그인하면 풀이 결과와 학습 통계를 기록할 수 있습니다.",
-      confirmLabel: "로그인하기",
-      onConfirm: () => {
-        closeDialog();
-        void login();
-      },
     });
   const logout = () => {
     void api.logout().catch(() => undefined);
+    api.clearAccessToken();
     setAuthenticated(false);
     setRole("learner");
     setAttempt(null);
@@ -856,7 +856,7 @@ export default function App() {
         </nav>
       ) : null}
       <Dialog dialog={dialog} onClose={closeDialog}>
-        <AppDialogContent type={dialog?.type} authenticated={authenticated} filterDraft={filterDraft} setFilterDraft={setFilterDraft} adminFilterDraft={adminFilterDraft} setAdminFilterDraft={setAdminFilterDraft} reportText={reportText} setReportText={setReportText} feedback={feedback} setFeedback={setFeedback} dialogError={dialogError} />
+        <AppDialogContent type={dialog?.type} authenticated={authenticated} filterDraft={filterDraft} setFilterDraft={setFilterDraft} adminFilterDraft={adminFilterDraft} setAdminFilterDraft={setAdminFilterDraft} reportText={reportText} setReportText={setReportText} feedback={feedback} setFeedback={setFeedback} dialogError={dialogError} googleClientId={googleClientId} onGoogleCredential={completeGoogleLogin} onGoogleError={setDialogError} />
       </Dialog>
       {toast ? <div className="toast is-visible" role="status">{toast}</div> : null}
     </main>
