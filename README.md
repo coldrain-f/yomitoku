@@ -50,3 +50,17 @@ npm run typecheck
 - Lucide React 아이콘과 기존 CSS 재사용
 
 현재 사용자 인증, 문항, 시도, 통계 데이터는 React 메모리 상태다. 따라서 풀이와 결과 화면을 새로고침하면 목록으로 돌아간다. 실제 구현에서는 [데이터 및 API 명세](./docs/02-data-and-api-spec.md)의 API를 연결하고 서버 권한 검사를 적용한다.
+
+## 백엔드 시작
+
+`backend/`에는 FastAPI API, PostgreSQL 스키마, LangGraph 생성·검증 워커가 있다. 저장소 루트에서 다음을 실행하면 `db`, `migrate`, `api`, `worker` 컨테이너가 함께 실행된다.
+
+```powershell
+Copy-Item .env.example .env
+docker compose up --build
+```
+
+- API 문서: `http://localhost:8001/docs`
+- 상태 확인: `http://localhost:8001/api/v1/health`
+
+기본 생성 제공자는 외부 API를 호출하지 않는 `stub`이다. 실제 Claude 사용 전에는 `.env`의 `GENERATION_PROVIDER`, 모델 ID, `ANTHROPIC_API_KEY`를 설정해야 한다. 자세한 구성은 [backend/README.md](./backend/README.md)에 정리했다.

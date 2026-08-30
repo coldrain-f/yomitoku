@@ -197,3 +197,14 @@ src/
 - 새로고침 뒤에도 서버에 저장된 목록, 시도, 통계, 관리자 상태가 유지된다.
 - API 로딩, 빈 상태, 권한 없음, 네트워크 오류 상태를 제공한다.
 - [04-acceptance-checklist.md](./04-acceptance-checklist.md)의 항목을 실제 브라우저 테스트로 통과한다.
+
+## 6. 백엔드 초기 구현
+
+2026-08-30 기준으로 `backend/`에 FastAPI, SQLAlchemy 비동기 세션, Alembic 초기 마이그레이션, PostgreSQL 기반 LangGraph 체크포인트, 생성 워커를 추가했다. 저장소 루트의 `docker-compose.yml`은 `db`, `migrate`, `api`, `worker`를 분리해 개발 환경을 동일하게 재현한다.
+
+- `POST /api/v1/admin/generation-jobs`: 관리자 생성 작업을 만들고 `202 Accepted`와 작업 ID를 반환한다. `Idempotency-Key`를 보내면 같은 관리자 요청은 중복 생성하지 않는다.
+- `GET /api/v1/admin/generation-jobs/{jobId}`: 작업 상태, 현재 그래프 노드, 생성된 문항 ID, 오류 정보를 반환한다.
+- LangGraph는 `generate -> validate_schema -> verify_answer + verify_quality -> decide -> revise/persist` 흐름을 사용한다. 검증을 통과하면 문항은 `review`, 한도를 넘긴 경고/실패 결과는 `held` 상태로 저장한다.
+- 기본 제공자는 비용 없는 `stub`이며, `GENERATION_PROVIDER=anthropic`과 서버 환경 변수로 실제 Claude 제공자를 연결할 수 있다. API 키는 프론트엔드에 전달하지 않는다.
+
+현재 프론트는 여전히 목업 데이터를 사용한다. 다음 연결 작업에서는 목록, 문항 상세, 시도, 통계, 관리자 API를 기능별로 TanStack Query 등의 서버 상태로 교체하고, Google OAuth를 추가해 개발용 헤더 인증을 제거한다.
