@@ -1,6 +1,20 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { AdminEdit, AdminScreen, GenerateScreen, PreviewScreen } from "./features/admin/AdminScreens.jsx";
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
+import {
+  AdminEdit,
+  AdminScreen,
+  GenerateScreen,
+  PreviewScreen,
+} from "./features/admin/AdminScreens.jsx";
 import {
   ReadingListScreen,
   ReadingScreen,
@@ -19,8 +33,108 @@ import {
   totalGeneratedInitial,
 } from "./lib/reading.js";
 
+const defaultListFilters = {
+  level: "all",
+  length: "all",
+  status: "all",
+  sort: "published-desc",
+};
+
+function screenForPath(pathname) {
+  if (pathname === "/statistics") return "stats";
+  if (pathname.startsWith("/results/")) return "result";
+  if (pathname.startsWith("/readings/")) return "reading";
+  if (pathname === "/admin/readings") return "admin";
+  if (pathname === "/admin/readings/new") return "generate";
+  if (pathname.endsWith("/preview")) return "preview";
+  if (pathname.endsWith("/edit")) return "admin-edit";
+  return "home";
+}
+
+function RequireAuth({ authenticated, children }) {
+  return authenticated ? children : <Navigate to="/" replace />;
+}
+
+function RequireAdmin({ authenticated, role, children }) {
+  return authenticated && role === "admin" ? children : <Navigate to="/" replace />;
+}
+
+function ReadingRoute({ items, attempt, result, ...screenProps }) {
+  const { itemId } = useParams();
+  const item = items.find((entry) => entry.id === itemId);
+
+  if (!item || attempt?.itemId !== item.id) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <ReadingScreen item={item} attempt={attempt} result={result} {...screenProps} />;
+}
+
+function ResultRoute({ result, ...screenProps }) {
+  const { itemId } = useParams();
+
+  if (!result || result.itemId !== itemId) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <ResultScreen result={result} {...screenProps} />;
+}
+
+function AdminEditRoute({ items, draft, setDraft, ...screenProps }) {
+  const { itemId } = useParams();
+  const item = items.find((entry) => entry.id === itemId);
+
+  useEffect(() => {
+    if (item && (!draft || draft.id !== item.id)) {
+      setDraft(structuredClone(item));
+    }
+  }, [draft?.id, item, setDraft]);
+
+  if (!item) {
+    return <Navigate to="/admin/readings" replace />;
+  }
+  if (!draft || draft.id !== item.id) {
+    return null;
+  }
+
+  return (
+    <AdminEdit
+      item={item}
+      draft={draft}
+      setDraft={setDraft}
+      onSave={() => screenProps.onSave(item)}
+      onHold={() => screenProps.onHold(item)}
+      onPublish={() => screenProps.onPublish(item)}
+      onDelete={() => screenProps.onDelete(item)}
+      onBack={screenProps.onBack}
+    />
+  );
+}
+
+function PreviewRoute({ items, ...screenProps }) {
+  const { itemId } = useParams();
+  const item = items.find((entry) => entry.id === itemId);
+
+  if (!item) {
+    return <Navigate to="/admin/readings" replace />;
+  }
+
+  return (
+    <PreviewScreen
+      item={item}
+      onHold={() => screenProps.onHold(item)}
+      onPublish={() => screenProps.onPublish(item)}
+      onDelete={() => screenProps.onDelete(item)}
+      onBack={screenProps.onBack}
+    />
+  );
+}
+
 export default function App() {
-  const [screen, setScreen] = useState("home");
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const screen = screenForPath(location.pathname);
   const [authenticated, setAuthenticated] = useState(true);
   const [role, setRole] = useState("admin");
   const [items, setItems] = useState(initialItems);
@@ -54,12 +168,16 @@ export default function App() {
       officialLevel: "N2",
     },
   ]);
-  const [filters, setFilters] = useState({
-    level: "all",
-    length: "all",
-    status: "all",
-    sort: "published-desc",
-  });
+  const filters = useMemo(
+    () => ({
+      level: searchParams.get("level") ?? defaultListFilters.level,
+      length: searchParams.get("length") ?? defaultListFilters.length,
+      status: searchParams.get("status") ?? defaultListFilters.status,
+      sort: searchParams.get("sort") ?? defaultListFilters.sort,
+    }),
+    [searchParams],
+  );
+  const query = searchParams.get("q") ?? "";
   const [adminFilters, setAdminFilters] = useState({
     level: "all",
     length: "all",
@@ -73,17 +191,14 @@ export default function App() {
   const adminFilterDraftRef = useRef(adminFilterDraft);
   const [dialog, setDialog] = useState(null);
   const [toast, setToast] = useState("");
-  const [activeId, setActiveId] = useState(null);
   const [attempt, setAttempt] = useState(null);
   const [result, setResult] = useState(null);
-  const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState(null);
   const [generation, setGeneration] = useState({
     level: "N2",
     length: "medium",
     topic: "추천",
   });
-  const [previewId, setPreviewId] = useState(null);
   const [dialogError, setDialogError] = useState("");
   const [reportText, setReportText] = useState("");
   const reportTextRef = useRef(reportText);
@@ -94,9 +209,7 @@ export default function App() {
   });
   const feedbackRef = useRef(feedback);
 
-  const activeItem = items.find((item) => item.id === activeId);
-  const editingItem = items.find((item) => item.id === editingId);
-  const previewItem = items.find((item) => item.id === previewId);
+  const activeItem = items.find((item) => item.id === attempt?.itemId);
   const publishedItems = items.filter((item) => item.status === "published");
   const completeCount = Object.keys(latestAttempts(attempts)).length;
 
@@ -158,6 +271,26 @@ export default function App() {
           : item,
       ),
     );
+  const writeListParams = (next, { replace = false } = {}) => {
+    const params = new URLSearchParams();
+    if (next.query) params.set("q", next.query);
+    if (next.level !== defaultListFilters.level) {
+      params.set("level", next.level);
+    }
+    if (next.length !== defaultListFilters.length) {
+      params.set("length", next.length);
+    }
+    if (next.status !== defaultListFilters.status) {
+      params.set("status", next.status);
+    }
+    if (next.sort !== defaultListFilters.sort) {
+      params.set("sort", next.sort);
+    }
+    setSearchParams(params, { replace });
+  };
+  const setListFilters = (next) => writeListParams({ ...next, query });
+  const setListQuery = (nextQuery) =>
+    writeListParams({ ...filters, query: nextQuery }, { replace: true });
 
   const openStartDialog = (item, existing) =>
     openDialog({
@@ -174,9 +307,9 @@ export default function App() {
       confirmLabel: existing ? "다시 풀기" : "시작하기",
       onConfirm: () => {
         closeDialog();
-        setActiveId(item.id);
         setResult(null);
         setAttempt({
+          itemId: item.id,
           startedAt: Date.now(),
           elapsedSeconds: 0,
           selectedChoiceId: null,
@@ -184,7 +317,7 @@ export default function App() {
           submitted: false,
           message: "",
         });
-        setScreen("reading");
+        navigate(`/readings/${item.id}`);
       },
     });
 
@@ -220,7 +353,7 @@ export default function App() {
         onConfirm: () => {
           closeDialog();
           setAttempt(null);
-          setScreen("home");
+          navigate("/");
           setToast("풀이를 포기하고 목록으로 돌아왔습니다.");
         },
       });
@@ -233,7 +366,7 @@ export default function App() {
       confirmLabel: "목록으로",
       onConfirm: () => {
         closeDialog();
-        setScreen("home");
+        navigate("/");
       },
     });
   };
@@ -283,7 +416,7 @@ export default function App() {
     });
   };
 
-  const deleteItem = (item, target = "admin") =>
+  const deleteItem = (item, target = "/admin/readings") =>
     openDialog({
       kicker: "Delete item",
       title: "문항을 삭제할까요?",
@@ -297,7 +430,7 @@ export default function App() {
           current.filter((entry) => entry.itemId !== item.id),
         );
         setTotalGenerated((current) => current - 1);
-        setScreen(target);
+        navigate(target);
         setToast("문항을 삭제했습니다.");
       },
     });
@@ -343,8 +476,7 @@ export default function App() {
         closeDialog();
         setItems((current) => [...current, newItem]);
         setTotalGenerated((current) => current + 1);
-        setPreviewId(id);
-        setScreen("preview");
+        navigate(`/admin/readings/${id}/preview`);
       },
     });
 
@@ -357,7 +489,7 @@ export default function App() {
       description: "조건을 선택한 뒤 적용해 주세요.",
       confirmLabel: "적용하기",
       onConfirm: () => {
-        setFilters(filterDraftRef.current);
+        setListFilters(filterDraftRef.current);
         closeDialog();
       },
     });
@@ -424,7 +556,7 @@ export default function App() {
       confirmLabel: "이동하기",
       onConfirm: () => {
         closeDialog();
-        setScreen("admin");
+        navigate("/admin/readings");
       },
     });
 
@@ -452,19 +584,18 @@ export default function App() {
         closeDialog();
         setAuthenticated(false);
         setRole("learner");
-        setScreen("home");
+        navigate("/");
         setToast("로그아웃되었습니다.");
       },
     });
 
   const openEdit = (item) => {
-    setEditingId(item.id);
     setDraft(structuredClone(item));
-    setScreen("admin-edit");
+    navigate(`/admin/readings/${item.id}/edit`);
   };
 
-  const handleEditHold = () => {
-    if (editingItem.status === "published") {
+  const handleEditHold = (item) => {
+    if (item.status === "published") {
       openDialog({
         kicker: "Hold published item",
         title: "게시 문항을 보류로 전환할까요?",
@@ -472,20 +603,20 @@ export default function App() {
         confirmLabel: "보류로 전환",
         onConfirm: () => {
           closeDialog();
-          updateItem(editingItem.id, { status: "held" });
+          updateItem(item.id, { status: "held" });
           setToast("게시 문항을 보류로 전환했습니다.");
         },
       });
       return;
     }
-    const status = editingItem.status === "held" ? "review" : "held";
-    updateItem(editingItem.id, { status });
+    const status = item.status === "held" ? "review" : "held";
+    updateItem(item.id, { status });
     setToast(
       status === "held" ? "문항을 보류했습니다." : "문항 보류를 취소했습니다.",
     );
   };
 
-  const publishEditingItem = () =>
+  const publishEditingItem = (item) =>
     openDialog({
       kicker: "Publish item",
       title: "문항을 게시할까요?",
@@ -493,47 +624,10 @@ export default function App() {
       confirmLabel: "게시하기",
       onConfirm: () => {
         closeDialog();
-        updateItem(editingItem.id, {
+        updateItem(item.id, {
           status: "published",
-          publishedAt: editingItem.publishedAt ?? new Date().toISOString(),
+          publishedAt: item.publishedAt ?? new Date().toISOString(),
         });
-        setToast("문항을 게시했습니다.");
-      },
-    });
-
-  const backToAdmin = () =>
-    openDialog({
-      kicker: "Back to management",
-      title: "문항 관리로 돌아갈까요?",
-      description: "현재 화면을 닫고 관리자 문항 관리로 돌아갑니다.",
-      confirmLabel: "관리 목록으로",
-      onConfirm: () => {
-        closeDialog();
-        setScreen("admin");
-      },
-    });
-
-  const handlePreviewHold = () => {
-    const status = previewItem.status === "held" ? "review" : "held";
-    updateItem(previewItem.id, { status });
-    setToast(
-      status === "held" ? "문항을 보류했습니다." : "문항 보류를 취소했습니다.",
-    );
-  };
-
-  const publishPreview = () =>
-    openDialog({
-      kicker: "Publish draft",
-      title: "문항을 게시할까요?",
-      description: "게시한 문항은 목록에서 바로 풀이할 수 있습니다.",
-      confirmLabel: "게시하기",
-      onConfirm: () => {
-        closeDialog();
-        updateItem(previewItem.id, {
-          status: "published",
-          publishedAt: new Date().toISOString(),
-        });
-        setScreen("admin");
         setToast("문항을 게시했습니다.");
       },
     });
@@ -563,96 +657,192 @@ export default function App() {
           completeCount={completeCount}
           onHome={goHome}
           onOpenAdmin={openAdminScreen}
-          onOpenStats={() => setScreen("stats")}
+          onOpenStats={() => navigate("/statistics")}
           onLogin={openLogin}
           onLogout={openLogout}
         />
         <Breadcrumb screen={screen} />
-        <ReadingListScreen
-          items={publishedItems}
-          authenticated={authenticated}
-          attempts={attempts}
-          filters={filters}
-          setFilters={setFilters}
-          onOpenFilters={openListFilters}
-          onStart={start}
-        />
-        <ReadingScreen
-          item={activeItem}
-          attempt={attempt}
-          result={result}
-          onChoose={(id) =>
-            setAttempt({ ...attempt, selectedChoiceId: id, message: "" })
-          }
-          onSubmit={submit}
-          onAbandon={goHome}
-          onReport={openReport}
-          onResult={() => setScreen("result")}
-        />
-        <ResultScreen
-          result={result}
-          onFeedback={openFeedback}
-          onContinue={continueReading}
-          onHome={goHome}
-        />
-        <StatsScreen attempts={attempts} />
-        <AdminScreen
-          items={items}
-          filters={adminFilters}
-          onFilters={openAdminFilters}
-          onEdit={openEdit}
-          onGenerate={() => setScreen("generate")}
-        />
-        <AdminEdit
-          item={editingItem}
-          draft={draft}
-          setDraft={setDraft}
-          onSave={() => {
-            updateItem(editingItem.id, draft);
-            setToast("문항 변경사항을 저장했습니다.");
-          }}
-          onHold={handleEditHold}
-          onPublish={publishEditingItem}
-          onDelete={() => deleteItem(editingItem)}
-          onBack={backToAdmin}
-        />
-        <GenerateScreen
-          values={generation}
-          setValues={setGeneration}
-          onCreate={createDraft}
-          onBack={() => setScreen("admin")}
-        />
-        <PreviewScreen
-          item={previewItem}
-          onHold={handlePreviewHold}
-          onPublish={publishPreview}
-          onDelete={() => deleteItem(previewItem)}
-          onBack={() => setScreen("admin")}
-        />
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <ReadingListScreen
+                items={publishedItems}
+                authenticated={authenticated}
+                attempts={attempts}
+                filters={filters}
+                setFilters={setListFilters}
+                query={query}
+                setQuery={setListQuery}
+                onOpenFilters={openListFilters}
+                onStart={start}
+              />
+            }
+          />
+          <Route
+            path="/readings/:itemId"
+            element={
+              <RequireAuth authenticated={authenticated}>
+                <ReadingRoute
+                  items={publishedItems}
+                  attempt={attempt}
+                  result={result}
+                  onChoose={(id) =>
+                    setAttempt({ ...attempt, selectedChoiceId: id, message: "" })
+                  }
+                  onSubmit={submit}
+                  onAbandon={goHome}
+                  onReport={openReport}
+                  onResult={() => navigate(`/results/${result.itemId}`)}
+                />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/results/:itemId"
+            element={
+              <RequireAuth authenticated={authenticated}>
+                <ResultRoute
+                  result={result}
+                  onFeedback={openFeedback}
+                  onContinue={continueReading}
+                  onHome={goHome}
+                />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/statistics"
+            element={
+              <RequireAuth authenticated={authenticated}>
+                <StatsScreen attempts={attempts} />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/readings"
+            element={
+              <RequireAdmin authenticated={authenticated} role={role}>
+                <AdminScreen
+                  items={items}
+                  filters={adminFilters}
+                  onFilters={openAdminFilters}
+                  onEdit={openEdit}
+                  onGenerate={() => navigate("/admin/readings/new")}
+                />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/admin/readings/new"
+            element={
+              <RequireAdmin authenticated={authenticated} role={role}>
+                <GenerateScreen
+                  values={generation}
+                  setValues={setGeneration}
+                  onCreate={createDraft}
+                  onBack={() => navigate("/admin/readings")}
+                />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/admin/readings/:itemId/edit"
+            element={
+              <RequireAdmin authenticated={authenticated} role={role}>
+                <AdminEditRoute
+                  items={items}
+                  draft={draft}
+                  setDraft={setDraft}
+                  onSave={(item) => {
+                    updateItem(item.id, draft);
+                    setToast("문항 변경사항을 저장했습니다.");
+                  }}
+                  onHold={handleEditHold}
+                  onPublish={publishEditingItem}
+                  onDelete={deleteItem}
+                  onBack={() =>
+                    openDialog({
+                      kicker: "Back to management",
+                      title: "문항 관리로 돌아갈까요?",
+                      description: "현재 화면을 닫고 관리자 문항 관리로 돌아갑니다.",
+                      confirmLabel: "관리 목록으로",
+                      onConfirm: () => {
+                        closeDialog();
+                        navigate("/admin/readings");
+                      },
+                    })
+                  }
+                />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/admin/readings/:itemId/preview"
+            element={
+              <RequireAdmin authenticated={authenticated} role={role}>
+                <PreviewRoute
+                  items={items}
+                  onHold={(item) => {
+                    const status = item.status === "held" ? "review" : "held";
+                    updateItem(item.id, { status });
+                    setToast(
+                      status === "held"
+                        ? "문항을 보류했습니다."
+                        : "문항 보류를 취소했습니다.",
+                    );
+                  }}
+                  onPublish={(item) =>
+                    openDialog({
+                      kicker: "Publish draft",
+                      title: "문항을 게시할까요?",
+                      description: "게시한 문항은 목록에서 바로 풀이할 수 있습니다.",
+                      confirmLabel: "게시하기",
+                      onConfirm: () => {
+                        closeDialog();
+                        updateItem(item.id, {
+                          status: "published",
+                          publishedAt: new Date().toISOString(),
+                        });
+                        navigate("/admin/readings");
+                        setToast("문항을 게시했습니다.");
+                      },
+                    })
+                  }
+                  onDelete={deleteItem}
+                  onBack={() => navigate("/admin/readings")}
+                />
+              </RequireAdmin>
+            }
+          />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </div>
-      <nav className="scroll-controls" aria-label="통계 페이지 이동">
-        <button
-          className="scroll-control-button"
-          type="button"
-          aria-label="통계 맨 위로"
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-        >
-          <Icon icon={ChevronUp} />
-        </button>
-        <button
-          className="scroll-control-button"
-          type="button"
-          aria-label="통계 맨 아래로"
-          onClick={() =>
-            window.scrollTo({
-              top: document.documentElement.scrollHeight,
-              behavior: "smooth",
-            })
-          }
-        >
-          <Icon icon={ChevronDown} />
-        </button>
-      </nav>
+      {screen === "stats" ? (
+        <nav className="scroll-controls" aria-label="통계 페이지 이동">
+          <button
+            className="scroll-control-button"
+            type="button"
+            aria-label="통계 맨 위로"
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          >
+            <Icon icon={ChevronUp} />
+          </button>
+          <button
+            className="scroll-control-button"
+            type="button"
+            aria-label="통계 맨 아래로"
+            onClick={() =>
+              window.scrollTo({
+                top: document.documentElement.scrollHeight,
+                behavior: "smooth",
+              })
+            }
+          >
+            <Icon icon={ChevronDown} />
+          </button>
+        </nav>
+      ) : null}
       <Dialog dialog={dialog} onClose={closeDialog}>
         <AppDialogContent
           type={dialog?.type}

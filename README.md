@@ -6,7 +6,7 @@
 
 ```text
 src/
-  App.jsx                  # 목업 상태, 화면 전환, 기능 조립
+  App.jsx                  # 목업 상태, 라우트 가드, 기능 조립
   components/              # 헤더, 다이얼로그와 재사용 UI
   features/readings/       # 목록, 풀이, 결과
   features/statistics/     # 학습 통계
@@ -38,6 +38,7 @@ npm run build
 - 로그인/로그아웃 목업과 학습 시작 차단
 - 선택지 셔플, 제출, 해설, 결과, 통계
 - 관리자 목록, 편집, 생성, 미리보기, 보류, 게시, 삭제
+- React Router 기반 화면 전환과 목록 필터 URL 쿼리
 - Lucide React 아이콘과 기존 CSS 재사용
 
-현재 사용자 인증, 문항, 시도, 통계 데이터는 React 메모리 상태다. 실제 구현에서는 [데이터 및 API 명세](./docs/02-data-and-api-spec.md)의 API를 연결하고 서버 권한 검사를 적용한다.
+현재 사용자 인증, 문항, 시도, 통계 데이터는 React 메모리 상태다. 따라서 풀이와 결과 화면을 새로고침하면 목록으로 돌아간다. 실제 구현에서는 [데이터 및 API 명세](./docs/02-data-and-api-spec.md)의 API를 연결하고 서버 권한 검사를 적용한다.

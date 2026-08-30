@@ -29,10 +29,11 @@ export function ReadingListScreen({
   attempts,
   filters,
   setFilters,
+  query,
+  setQuery,
   onOpenFilters,
   onStart,
 }) {
-  const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const latest = useMemo(() => latestAttempts(attempts), [attempts]);
   const filtered = useMemo(() => {
