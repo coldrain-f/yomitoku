@@ -96,30 +96,37 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 18px;
+  gap: 6px;
 }
 
-.header-admin-link {
-  min-height: auto;
-  padding: 0;
-  font-size: 13px;
+.header-icon-button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
 }
 
-.header-logout-link {
-  min-height: auto;
-  padding: 0;
-  font-size: 13px;
+.header-icon-button:hover,
+.header-icon-button:focus-visible {
+  border-color: var(--line);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.header-icon-button [data-lucide] {
+  width: 15px;
+  height: 15px;
 }
 
 .header-login-link {
   min-height: auto;
   padding: 0;
   font-size: 13px;
-}
-
-.header-logout-link [data-lucide] {
-  width: 14px;
-  height: 14px;
 }
 
 .header-login-link [data-lucide] {
@@ -130,29 +137,41 @@ textarea:focus-visible {
 .header-progress {
   border: 0;
   background: transparent;
-  padding: 0;
+  min-height: 32px;
+  padding: 0 7px;
   margin: 0;
   color: var(--muted);
   display: inline-flex;
-  align-items: baseline;
-  gap: 7px;
-  font-size: 13px;
+  align-items: center;
+  gap: 4px;
+  border-radius: 4px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
-.header-progress strong {
+.header-progress-current {
   color: var(--ink);
-  font-weight: 500;
+  font-weight: 650;
+}
+
+.header-progress-separator {
+  color: var(--line-strong);
+}
+
+.header-progress-total {
+  color: var(--muted);
 }
 
 .header-progress:hover,
 .header-progress:focus-visible {
+  background: var(--paper);
   color: var(--ink);
 }
 
 .header-progress [data-lucide] {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
+  margin-right: 2px;
 }
 
 .breadcrumb {
@@ -1820,7 +1839,7 @@ body.dialog-open {
   }
 
   .header-actions {
-    gap: 12px;
+    gap: 5px;
   }
 
   .admin-toolbar {
@@ -2087,22 +2106,18 @@ body.dialog-open {
 
 @media (max-width: 380px) {
   .header-actions {
-    gap: 8px;
+    gap: 3px;
   }
 
-  .header-admin-link,
-  .header-logout-link,
   .header-login-link,
   .header-progress {
     font-size: 12px;
   }
 
   .header-progress {
-    gap: 5px;
+    padding: 0 5px;
   }
 
-  .header-progress [data-lucide],
-  .header-logout-link [data-lucide],
   .header-login-link [data-lucide] {
     display: none;
   }
