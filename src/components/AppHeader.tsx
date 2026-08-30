@@ -1,4 +1,4 @@
-import { BarChart3, LogIn, LogOut, Settings2 } from "lucide-react";
+import { LogIn, LogOut } from "lucide-react";
 import { Icon } from "./ui/Icon";
 import type { Role } from "../types";
 
@@ -38,13 +38,12 @@ export function AppHeader({
       <div className="header-actions">
         {authenticated && role === "admin" ? (
           <button
-            className="header-icon-button header-admin-link"
+            className="header-admin-link"
             type="button"
-            aria-label="관리자 화면"
             title="관리자 화면"
             onClick={onOpenAdmin}
           >
-            <Icon icon={Settings2} />
+            관리자
           </button>
         ) : null}
         {authenticated ? (
@@ -55,7 +54,6 @@ export function AppHeader({
             title="학습 통계"
             onClick={onOpenStats}
           >
-            <Icon icon={BarChart3} />
             <span className="header-progress-current">{completeCount}</span>
             <span className="header-progress-separator" aria-hidden="true">
               /

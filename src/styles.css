@@ -123,6 +123,22 @@ textarea:focus-visible {
   height: 15px;
 }
 
+.header-admin-link {
+  min-height: 32px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  padding: 0 7px;
+  font-size: 12px;
+}
+
+.header-admin-link:hover,
+.header-admin-link:focus-visible {
+  background: var(--paper);
+  color: var(--ink);
+}
+
 .header-login-link {
   min-height: auto;
   padding: 0;
@@ -166,12 +182,6 @@ textarea:focus-visible {
 .header-progress:focus-visible {
   background: var(--paper);
   color: var(--ink);
-}
-
-.header-progress [data-lucide] {
-  width: 15px;
-  height: 15px;
-  margin-right: 2px;
 }
 
 .breadcrumb {
@@ -2109,6 +2119,7 @@ body.dialog-open {
     gap: 3px;
   }
 
+  .header-admin-link,
   .header-login-link,
   .header-progress {
     font-size: 12px;
