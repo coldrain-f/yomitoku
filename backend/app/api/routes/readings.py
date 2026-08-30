@@ -74,6 +74,7 @@ def serialize_public_summary(
         updated_at=item.updated_at,
         perceived_level=perceived_level if isinstance(perceived_level, str) else None,
         perceived_level_visible=perceived_vote_count >= 10,
+        perceived_vote_count=perceived_vote_count,
         my_latest_status=my_latest_status,
     )
 

@@ -134,7 +134,7 @@ v1 백엔드는 생성·검증 흐름을 처음부터 LangGraph로 구현한다.
 
 ### 5.0 현재 상태
 
-이 저장소에 React 1차 전환을 완료했다. 기존 정적 파일은 디자인 기준 시안으로 남겨 두었고, React 앱은 동일한 CSS와 클래스 구조를 사용한다. 현재 데이터와 로그인은 브라우저 메모리 목업이며, 다음 구현 단계에서 이 문서의 API 계약으로 교체한다.
+이 저장소에 React 1차 전환을 완료했다. 기존 정적 파일은 디자인 기준 시안으로 남겨 두었고, React 앱은 동일한 CSS와 클래스 구조를 사용한다. 목록, 풀이, 제출, 통계, 관리자 문항, 생성 작업은 FastAPI 계약을 사용한다. 다이얼로그, 선택지 선택, 타이머, 제출 직후 결과 표시는 화면 상태로 유지한다.
 
 2026-08-30 기준으로 공통 UI, 학습, 통계, 관리자 화면을 기능 폴더로 분리했고, `react-router-dom`으로 화면 전환을 URL 기반으로 바꿨다. 이후 전체 `src`를 TypeScript strict 모드로 전환해 문항, 시도, 필터, 생성 조건, 다이얼로그의 도메인 타입을 `src/types.ts`에 모았다. `App.tsx`는 목업 상태, 라우트 가드, 기능 조립을 담당하고, 표시·정렬·집계용 순수 함수는 `src/lib/reading.ts`에 둔다. 목록의 검색과 필터는 URL 쿼리(`q`, `level`, `length`, `status`, `sort`)에 남긴다. 백엔드 연결 때는 이 기능 경계를 유지한 채 각 기능의 목업 상태를 API 서버 상태로 교체한다.
 
@@ -144,7 +144,7 @@ v1 백엔드는 생성·검증 흐름을 처음부터 LangGraph로 구현한다.
 - `/readings/:itemId`, `/results/:itemId`, `/statistics`: 로그인 필요 화면
 - `/admin/readings`, `/admin/readings/new`, `/admin/readings/:itemId/edit`, `/admin/readings/:itemId/preview`: 관리자 전용 화면
 
-문항과 시도 결과가 아직 브라우저 메모리에만 있으므로 풀이·결과 URL을 새로고침하거나 직접 열면 목록으로 되돌린다. 실제 API 연결 뒤에는 URL 매개변수로 문항과 결과를 다시 조회해 유지한다.
+풀이 중 상태와 제출 직후 결과는 아직 브라우저 메모리에 있으므로 풀이·결과 URL을 새로고침하거나 직접 열면 목록으로 되돌린다. 다음 보완 단계에서 URL 매개변수로 문항과 결과를 다시 조회하는 API를 추가한다.
 
 ### 5.1 권장 기술 기준
 
@@ -207,4 +207,4 @@ src/
 - LangGraph는 `generate -> validate_schema -> verify_answer + verify_quality -> decide -> revise/persist` 흐름을 사용한다. 검증을 통과하면 문항은 `review`, 한도를 넘긴 경고/실패 결과는 `held` 상태로 저장한다.
 - 기본 제공자는 비용 없는 `stub`이며, `GENERATION_PROVIDER=anthropic`과 서버 환경 변수로 실제 Claude 제공자를 연결할 수 있다. API 키는 프론트엔드에 전달하지 않는다.
 
-현재 프론트는 여전히 목업 데이터를 사용한다. 다음 연결 작업에서는 목록, 문항 상세, 시도, 통계, 관리자 API를 기능별로 TanStack Query 등의 서버 상태로 교체하고, Google OAuth를 추가해 개발용 헤더 인증을 제거한다.
+2026-08-30 기준으로 React는 `src/lib/api.ts`를 통해 목록, 문항 상세, 시도, 통계, 평가·제보, 관리자 문항, 생성 작업 API를 사용한다. 현재는 별도 서버 상태 라이브러리 없이 API 어댑터와 화면별 갱신으로 범위를 작게 유지한다. Google OAuth를 추가하면 개발용 헤더 인증을 제거하고, 그 시점에 TanStack Query 도입과 결과 화면 새로고침 복원을 함께 검토한다.

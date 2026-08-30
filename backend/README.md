@@ -1,8 +1,9 @@
 # Yomitoku backend
 
 FastAPI API, PostgreSQL persistence, and a LangGraph worker live here. The
-React application remains in the repository root and continues to run on
-`http://localhost:5173` during development.
+The React application remains in the repository root. It reads
+`VITE_API_BASE_URL` when provided and otherwise targets `http://localhost:8001/api/v1`
+in development.
 
 ## Start locally
 
@@ -40,3 +41,12 @@ Google OAuth is intentionally not implemented yet. In `APP_ENV=development`,
 protected API examples can send `X-Dev-Role: admin` and optionally
 `X-Dev-User-Id`. Outside development the placeholder authentication dependency
 rejects protected requests until the Google OAuth implementation replaces it.
+
+## Connected MVP APIs
+
+- Public reading lists support search, level, length, learning-status, sort, and pagination.
+- A reading attempt is created and shuffled by the server. Correct answers and explanations are returned only after submission.
+- Statistics, feedback, issue reports, item metrics, and administrator item CRUD are persisted in PostgreSQL.
+- Admin actions cover review, hold, unhold, publish, permanent deletion, and LangGraph generation-job polling.
+
+The local React client sends the development headers only while Vite runs in development mode. Production OAuth must replace that behavior before deploying.

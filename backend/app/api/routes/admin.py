@@ -88,6 +88,7 @@ def serialize_summary(
         updated_at=item.updated_at,
         perceived_level=perceived_level if isinstance(perceived_level, str) else None,
         perceived_level_visible=vote_count >= 10,
+        perceived_vote_count=vote_count,
     )
 
 
@@ -110,7 +111,6 @@ def serialize_detail(
             )
             for choice in item.choices
         ],
-        perceived_vote_count=int(metrics["perceived_vote_count"] or 0),
         quality_average=(
             float(metrics["quality_average"])
             if metrics["quality_average"] is not None

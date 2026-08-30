@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     langgraph_database_url: str = (
         "postgresql://yomitoku:yomitoku@localhost:5432/yomitoku?sslmode=disable"
     )
-    cors_allowed_origins: str = "http://localhost:5173"
+    cors_allowed_origins: str = "http://localhost:5173,http://localhost:5174"
     generation_provider: Literal["stub", "anthropic"] = "stub"
     generator_model: str = "claude-fable-5"
     answer_validator_model: str = "claude-fable-5"

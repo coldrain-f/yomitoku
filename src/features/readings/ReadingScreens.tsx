@@ -77,12 +77,13 @@ export function ReadingListScreen({
   const filtered = useMemo(() => {
     const rows = items.filter((item) => {
       const attempt = latest[item.id];
+      const learningStatus = attempt?.status ?? item.myLatestStatus ?? "unstarted";
       return (
         (filters.level === "all" || item.officialLevel === filters.level) &&
         (filters.length === "all" || item.lengthType === filters.length) &&
         (!authenticated ||
           filters.status === "all" ||
-          attempt?.status === filters.status) &&
+          learningStatus === filters.status) &&
         item.title
           .toLocaleLowerCase()
           .includes(query.trim().toLocaleLowerCase())
@@ -186,7 +187,7 @@ export function ReadingListScreen({
         <div className="reading-list">
           {rows.map((item) => {
             const attempt = latest[item.id];
-            const status = attempt?.status ?? "unstarted";
+            const status = attempt?.status ?? item.myLatestStatus ?? "unstarted";
             return (
               <button
                 className="reading-row"
@@ -277,16 +278,13 @@ export function ReadingScreen({
   const selected = attempt.choices.find(
     (choice) => choice.id === attempt.selectedChoiceId,
   );
-  const correct = attempt.choices.find((choice) => choice.isCorrect);
-  if (!correct) return null;
-  const correctNumber = String(attempt.choices.indexOf(correct) + 1).padStart(
-    2,
-    "0",
-  );
-  const explanation = item.explanation.replace(
-    /따라서 \d{2}가/,
-    `따라서 ${correctNumber}가`,
-  );
+  const correctNumber = result
+    ? String(
+        attempt.choices.findIndex(
+          (choice) => choice.id === result.correctChoiceId,
+        ) + 1,
+      ).padStart(2, "0")
+    : "";
 
   return (
     <section className="screen screen-reading" aria-label="풀이">
@@ -330,7 +328,7 @@ export function ReadingScreen({
             >
               {attempt.choices.map((choice, index) => (
                 <button
-                  className={`answer-choice${choice.id === attempt.selectedChoiceId ? " is-selected" : ""}${submitted && choice.isCorrect ? " correct" : ""}${submitted && choice.id === attempt.selectedChoiceId && !choice.isCorrect ? " wrong" : ""}`}
+                  className={`answer-choice${choice.id === attempt.selectedChoiceId ? " is-selected" : ""}${submitted && choice.id === result?.correctChoiceId ? " correct" : ""}${submitted && choice.id === attempt.selectedChoiceId && choice.id !== result?.correctChoiceId ? " wrong" : ""}`}
                   type="button"
                   role="radio"
                   aria-checked={choice.id === attempt.selectedChoiceId}
@@ -351,7 +349,7 @@ export function ReadingScreen({
             {submitted ? (
               <div className="answer-explanation">
                 <strong>{correctNumber}가 정답인 이유</strong>
-                <span>{explanation}</span>
+                <span>{result?.explanation}</span>
                 {result && !result.isCorrect && selected ? (
                   <p className="answer-choice-reason">
                     내가 고른{" "}
@@ -359,7 +357,7 @@ export function ReadingScreen({
                       2,
                       "0",
                     )}
-                    가 오답인 이유: {selected.wrongExplanation ?? "지문 근거와 맞지 않습니다."}
+                    가 오답인 이유: {result.selectedChoiceWrongExplanation ?? "지문 근거와 맞지 않습니다."}
                   </p>
                 ) : null}
               </div>
@@ -418,15 +416,8 @@ export function ResultScreen({
   const { item, choices, selectedChoiceId, isCorrect, elapsedSeconds } = result;
   const selected =
     choices.findIndex((choice) => choice.id === selectedChoiceId) + 1;
-  const answer = choices.findIndex((choice) => choice.isCorrect) + 1;
-  const records: Record<string, [number, number]> = {
-    society: [62, 42],
-    shopping: [71, 38],
-    cooking: [58, 14],
-    library: [75, 17],
-    "quiet-library": [67, 11],
-  };
-  const record = records[item.id] ?? [0, 0];
+  const answer =
+    choices.findIndex((choice) => choice.id === result.correctChoiceId) + 1;
 
   return (
     <section className="screen screen-result" aria-label="결과">
@@ -477,9 +468,9 @@ export function ResultScreen({
           <div className="result-metric">
             <span className="result-label">이 문항의 정답률</span>
             <strong className="result-value result-accuracy">
-              {record[0]}% 정답
+              {result.itemAccuracy === null ? "-" : `${result.itemAccuracy}% 정답`}
             </strong>
-            <span className="result-detail">{record[1]}명 도전</span>
+            <span className="result-detail">{result.challengerCount}명 도전</span>
           </div>
         </div>
         <div className="footer-actions">

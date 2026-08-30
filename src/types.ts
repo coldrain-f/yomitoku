@@ -45,6 +45,7 @@ export interface ReadingItem {
   createdAt: string;
   updatedAt: string;
   publishedAt: string | null;
+  myLatestStatus?: Exclude<AttemptStatus, "unstarted"> | null;
   passage: string;
   question: string;
   choices: Choice[];
@@ -66,6 +67,7 @@ export interface AttemptRecord {
 }
 
 export interface ReadingAttempt {
+  attemptId: string;
   itemId: string;
   startedAt: number;
   elapsedSeconds: number;
@@ -80,8 +82,13 @@ export interface ReadingResult {
   item: ReadingItem;
   choices: Choice[];
   selectedChoiceId: string;
+  correctChoiceId: string;
   isCorrect: boolean;
   elapsedSeconds: number;
+  explanation: string;
+  selectedChoiceWrongExplanation: string | null;
+  itemAccuracy: number | null;
+  challengerCount: number;
 }
 
 export interface ListFilters {

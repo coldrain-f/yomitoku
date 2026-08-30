@@ -89,6 +89,7 @@ class ReadingItemSummary(ApiModel):
     updated_at: datetime
     perceived_level: JlptLevel | None = None
     perceived_level_visible: bool = False
+    perceived_vote_count: int = 0
     my_latest_status: Literal["correct", "wrong"] | None = None
 
 
@@ -192,7 +193,6 @@ class AdminReadingItemDetail(ReadingItemSummary):
     question: str
     explanation: str
     choices: list[ReadingChoiceInput]
-    perceived_vote_count: int
     quality_average: float | None
     report_count: int
     challenger_count: int

@@ -1,76 +1,61 @@
 import type { CSSProperties } from "react";
-import {
-  formatTime,
-  latestAttempts,
-  lengthLabels,
-  levelTotals,
-  totalGeneratedInitial,
-  typeTotals,
-} from "../../lib/reading";
-import type { AttemptRecord, DifficultyLevel, LengthType } from "../../types";
+import type { Statistics } from "../../lib/api";
+import { formatTime, lengthLabels } from "../../lib/reading";
+import type { DifficultyLevel, LengthType } from "../../types";
 
 interface StatsScreenProps {
-  attempts: AttemptRecord[];
+  statistics: Statistics | null;
 }
 
 type ProgressStyle = CSSProperties & Record<"--progress", string>;
 
-export function StatsScreen({ attempts }: StatsScreenProps) {
-  const latest = latestAttempts(attempts);
-  const records = Object.values(latest);
-  const correctRate = records.length
-    ? Math.round(
-        (records.filter((record) => record.isCorrect).length / records.length) *
-          100,
-      )
-    : 0;
-  const average = records.length
-    ? Math.round(
-        records.reduce((sum, record) => sum + record.elapsedSeconds, 0) /
-          records.length,
-      )
-    : 0;
-  const bar = (label: string, total: number, entries: AttemptRecord[]) => {
-    const rate = entries.length
-      ? Math.round(
-          (entries.filter((entry) => entry.isCorrect).length / entries.length) *
-            100,
-        )
-      : null;
-    const time = entries.length
-      ? Math.round(
-          entries.reduce((sum, entry) => sum + entry.elapsedSeconds, 0) /
-            entries.length,
-        )
-      : null;
-
+export function StatsScreen({ statistics }: StatsScreenProps) {
+  if (!statistics) {
     return (
-      <article
-        className={`stats-bar-row${entries.length ? "" : " is-empty"}`}
-        key={label}
-      >
-        <div className="stats-bar-topline">
-          <strong>{label}</strong>
-          <span className="stats-bar-count">
-            {entries.length} / {total} 완료
-          </span>
-        </div>
-        <div className="stats-bar-track">
-          <span
-            className="stats-bar-fill"
-            style={{ "--progress": `${(entries.length / total) * 100}%` } as ProgressStyle}
-          />
-        </div>
-        <p className="stats-bar-meta">
-          <span>
-            정답률 <strong>{rate === null ? "-" : `${rate}%`}</strong>
-          </span>
-          <span>평균 {time === null ? "-" : formatTime(time)}</span>
-        </p>
-      </article>
+      <section className="screen screen-stats" aria-label="학습 통계">
+        <div className="paper">학습 통계를 불러오는 중입니다.</div>
+      </section>
     );
-  };
+  }
 
+  const bar = (
+    label: string,
+    total: number,
+    completed: number,
+    accuracy: number | null,
+    averageElapsedSeconds: number | null,
+  ) => (
+    <article
+      className={`stats-bar-row${completed ? "" : " is-empty"}`}
+      key={label}
+    >
+      <div className="stats-bar-topline">
+        <strong>{label}</strong>
+        <span className="stats-bar-count">
+          {completed} / {total} 완료
+        </span>
+      </div>
+      <div className="stats-bar-track">
+        <span
+          className="stats-bar-fill"
+          style={
+            { "--progress": `${total ? (completed / total) * 100 : 0}%` } as ProgressStyle
+          }
+        />
+      </div>
+      <p className="stats-bar-meta">
+        <span>
+          정답률 <strong>{accuracy === null ? "-" : `${accuracy}%`}</strong>
+        </span>
+        <span>
+          평균 {averageElapsedSeconds === null ? "-" : formatTime(averageElapsedSeconds)}
+        </span>
+      </p>
+    </article>
+  );
+
+  const total = statistics.totalGeneratedCount;
+  const completed = statistics.completedCount;
   return (
     <section className="screen screen-stats" aria-label="학습 통계">
       <div className="paper">
@@ -79,27 +64,29 @@ export function StatsScreen({ attempts }: StatsScreenProps) {
             <p className="kicker">Learning record</p>
             <h1 className="screen-title">학습 통계</h1>
           </div>
-          <span className="badge">생성된 문제 {totalGeneratedInitial}개</span>
+          <span className="badge">생성된 문제 {total}개</span>
         </div>
         <div className="stats-overview">
           <div className="stats-overview-item">
             <span className="stats-label">풀이 완료</span>
             <strong className="stats-value">
-              {records.length} / {totalGeneratedInitial}
+              {completed} / {total}
             </strong>
             <span className="stats-detail">1회 이상 제출한 고유 문항</span>
           </div>
           <div className="stats-overview-item">
             <span className="stats-label">전체 정답률</span>
             <strong className="stats-value">
-              {records.length ? `${correctRate}%` : "-"}
+              {statistics.accuracy === null ? "-" : `${statistics.accuracy}%`}
             </strong>
             <span className="stats-detail">문항별 최근 제출 기준</span>
           </div>
           <div className="stats-overview-item">
             <span className="stats-label">평균 풀이 시간</span>
             <strong className="stats-value">
-              {records.length ? formatTime(average) : "-"}
+              {statistics.averageElapsedSeconds === null
+                ? "-"
+                : formatTime(statistics.averageElapsedSeconds)}
             </strong>
             <span className="stats-detail">문항별 최근 제출 기준</span>
           </div>
@@ -111,17 +98,13 @@ export function StatsScreen({ attempts }: StatsScreenProps) {
         <section className="stats-section stats-progress-section">
           <div className="stats-section-heading">
             <h2 className="stats-section-title">학습 진도</h2>
-            <span className="stats-section-note">
-              미풀이 {totalGeneratedInitial - records.length}문항
-            </span>
+            <span className="stats-section-note">미풀이 {total - completed}문항</span>
           </div>
           <div className="stats-progress-track">
             <span
               className="stats-progress-fill"
               style={
-                {
-                  "--progress": `${(records.length / totalGeneratedInitial) * 100}%`,
-                } as ProgressStyle
+                { "--progress": `${total ? (completed / total) * 100 : 0}%` } as ProgressStyle
               }
             />
           </div>
@@ -132,12 +115,13 @@ export function StatsScreen({ attempts }: StatsScreenProps) {
             <span className="stats-section-note">생성된 문제 기준</span>
           </div>
           <div className="stats-bar-list">
-            {(Object.entries(typeTotals) as [LengthType, number][]).map(
-              ([type, total]) =>
+            {statistics.byLength.map((group) =>
               bar(
-                lengthLabels[type],
-                total,
-                records.filter((record) => record.lengthType === type),
+                lengthLabels[group.key as LengthType],
+                group.totalCount,
+                group.completedCount,
+                group.accuracy,
+                group.averageElapsedSeconds,
               ),
             )}
           </div>
@@ -148,12 +132,13 @@ export function StatsScreen({ attempts }: StatsScreenProps) {
             <span className="stats-section-note">생성된 문제 기준</span>
           </div>
           <div className="stats-bar-list">
-            {(Object.entries(levelTotals) as [DifficultyLevel, number][]).map(
-              ([level, total]) =>
+            {statistics.byLevel.map((group) =>
               bar(
-                level,
-                total,
-                records.filter((record) => record.officialLevel === level),
+                group.key as DifficultyLevel,
+                group.totalCount,
+                group.completedCount,
+                group.accuracy,
+                group.averageElapsedSeconds,
               ),
             )}
           </div>
