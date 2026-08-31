@@ -47,3 +47,7 @@ jobs:
       - name: Validate production Compose
         working-directory: .
         run: docker compose --env-file deploy/production.env.example -f deploy/docker-compose.production.yml config --quiet
+
+      - name: Validate host Caddy Compose override
+        working-directory: .
+        run: docker compose --env-file deploy/production.env.example -f deploy/docker-compose.production.yml -f deploy/docker-compose.host-caddy.yml config --quiet

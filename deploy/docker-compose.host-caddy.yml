@@ -1,0 +1,8 @@
+# Use this override when the Linux host already runs Caddy on ports 80 and 443.
+services:
+  api:
+    ports:
+      - "127.0.0.1:${API_HOST_PORT}:8000"
+
+  caddy:
+    profiles: ["container-caddy"]

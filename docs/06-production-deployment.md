@@ -4,6 +4,8 @@
 
 이 가이드는 GitHub Pages 프론트엔드와 별도의 Linux 서버에 Yomitoku API를 배포하는 기준이다. 운영 서버는 Caddy가 HTTPS를 종료하고 FastAPI, LangGraph 워커, PostgreSQL은 Docker 내부 네트워크에만 둔다. PostgreSQL `5432`와 API `8000`은 외부에 공개하지 않는다.
 
+기본 Compose는 Caddy까지 Docker로 실행한다. 서버가 이미 Caddy를 운영 중이면 `docker-compose.host-caddy.yml`을 추가해 API만 `127.0.0.1:8002`으로 열고, 기존 Caddy가 이를 프록시한다.
+
 ## 배포 전 준비
 
 1. API에 쓸 도메인 또는 서브도메인(예: `api.example.com`)의 DNS `A` 레코드를 서버 공인 IP로 연결한다.
@@ -29,6 +31,7 @@ chmod 600 .env.production
 
 ```text
 API_DOMAIN=api.example.com
+API_HOST_PORT=8002
 POSTGRES_PASSWORD=긴-무작위-비밀번호
 APP_ENV=production
 CORS_ALLOWED_ORIGINS=https://coldrain-f.github.io
@@ -39,11 +42,35 @@ ADMIN_GOOGLE_EMAILS=관리자@example.com
 
 운영 설정에 누락된 Google Client ID, 관리자 이메일, 짧은 JWT 비밀값, HTTP CORS 원본이 있으면 FastAPI는 시작 단계에서 실패한다. 설정 오류를 공개 서비스 상태로 배포하지 않기 위한 의도된 동작이다.
 
-DNS 전파가 끝난 뒤 다음 명령으로 기동한다.
+### 기존 Caddy를 쓰는 서버
+
+호스트 Caddy의 설정 파일에 API 도메인 블록을 추가한다. 실제 도메인으로 바꾸고, 이미 사용 중인 `8002`가 있으면 `.env.production`과 두 위치의 포트를 같은 값으로 함께 바꾼다.
+
+```caddyfile
+api.example.com {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:8002
+}
+```
+
+설정을 적용하기 전 검증하고 Caddy를 다시 읽힌다.
+
+```sh
+caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+systemctl reload caddy
+```
+
+DNS 전파가 끝난 뒤 다음 명령으로 기동한다. 기존 Caddy를 쓰는 서버에서는 두 번째 Compose 파일도 함께 지정한다.
 
 ```sh
 docker compose --env-file .env.production \
   -f deploy/docker-compose.production.yml up -d --build
+```
+
+```sh
+docker compose --env-file .env.production \
+  -f deploy/docker-compose.production.yml \
+  -f deploy/docker-compose.host-caddy.yml up -d --build
 ```
 
 정상 기동을 확인한다.
@@ -53,6 +80,8 @@ docker compose --env-file .env.production \
 docker compose --env-file .env.production \
   -f deploy/docker-compose.production.yml ps
 ```
+
+기존 Caddy를 쓰는 경우에는 위 명령에도 `-f deploy/docker-compose.host-caddy.yml`을 추가한다. 먼저 내부 연결을 확인하려면 `curl --fail http://127.0.0.1:8002/api/v1/health`를 실행한다.
 
 응답은 `{"status":"ok","database":"ok"}`이어야 한다. Caddy가 자동 HTTPS 인증서를 발급하려면 DNS와 80/443 포트가 외부에서 접근 가능해야 한다.
 
@@ -91,6 +120,8 @@ docker compose --env-file .env.production \
 docker compose --env-file .env.production \
   -f deploy/docker-compose.production.yml logs --tail=200 migrate api worker caddy
 ```
+
+기존 Caddy를 쓰는 서버는 위의 Compose 명령마다 `-f deploy/docker-compose.host-caddy.yml`을 추가하고, 로그 명령에서는 `caddy`를 뺀다.
 
 ## 운영 점검
 
