@@ -88,3 +88,28 @@ def test_validator_outcome_json_response_accepts_surrounding_text() -> None:
 
     assert outcome.status == "passed"
     assert outcome.correct_choice_index == 2
+
+
+def test_validator_outcome_accepts_structured_evidence_entries() -> None:
+    outcome = ValidatorOutcome.model_validate(
+        {
+            "status": "warning",
+            "score": 72,
+            "evidence": [
+                {
+                    "issueCode": "WEAK_DISTRACTOR",
+                    "message": "Distractor choice is too easy to eliminate.",
+                },
+                {
+                    "issueCode": "DISTRACTOR_OVERLAP",
+                    "description": "Two incorrect choices overlap in meaning.",
+                },
+            ],
+        }
+    )
+
+    assert outcome.issue_codes == ["WEAK_DISTRACTOR", "DISTRACTOR_OVERLAP"]
+    assert outcome.evidence == [
+        "WEAK_DISTRACTOR: Distractor choice is too easy to eliminate.",
+        "DISTRACTOR_OVERLAP: Two incorrect choices overlap in meaning.",
+    ]

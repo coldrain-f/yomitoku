@@ -1,5 +1,6 @@
+import json
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -60,6 +61,25 @@ class ValidatorOutcome(ApiModel):
     issue_codes: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
     correct_choice_index: int | None = Field(default=None, ge=1, le=4)
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_model_response(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        values = dict(data)
+        issue_codes = _coerce_issue_codes(
+            values.get("issueCodes", values.get("issue_codes", []))
+        )
+        evidence, evidence_issue_codes = _normalize_evidence(
+            values.get("evidence", [])
+        )
+        for issue_code in evidence_issue_codes:
+            if issue_code not in issue_codes:
+                issue_codes.append(issue_code)
+        values["issueCodes"] = issue_codes
+        values["evidence"] = evidence
+        return values
 
 
 class GenerationJobResponse(ApiModel):
@@ -253,3 +273,83 @@ def validate_choice_inputs(choices: list[ReadingChoiceInput]) -> None:
     normalized = [choice.text.strip() for choice in choices]
     if len(set(normalized)) != len(normalized):
         raise ValueError("Choice text must be unique.")
+
+
+def _coerce_issue_codes(value: Any) -> list[str]:
+    entries = value if isinstance(value, list) else [value]
+    issue_codes: list[str] = []
+    for entry in entries:
+        if entry is None:
+            continue
+        if isinstance(entry, dict):
+            issue_code = (
+                entry.get("issueCode")
+                or entry.get("issue_code")
+                or entry.get("code")
+            )
+            if issue_code is None:
+                continue
+            entry = issue_code
+        text = str(entry).strip()
+        if text and text not in issue_codes:
+            issue_codes.append(text)
+    return issue_codes
+
+
+def _normalize_evidence(value: Any) -> tuple[list[str], list[str]]:
+    if value is None:
+        return [], []
+    entries = value if isinstance(value, list) else [value]
+    evidence: list[str] = []
+    issue_codes: list[str] = []
+    for entry in entries:
+        if entry is None:
+            continue
+        if isinstance(entry, dict):
+            issue_code = (
+                entry.get("issueCode")
+                or entry.get("issue_code")
+                or entry.get("code")
+            )
+            if issue_code is not None:
+                issue_codes.append(str(issue_code).strip())
+            evidence.append(_stringify_evidence_object(entry))
+            continue
+        evidence.append(str(entry).strip())
+    return [entry for entry in evidence if entry], [
+        issue_code for issue_code in issue_codes if issue_code
+    ]
+
+
+def _stringify_evidence_object(value: dict[str, Any]) -> str:
+    issue_code = value.get("issueCode") or value.get("issue_code") or value.get("code")
+    message = next(
+        (
+            value[key]
+            for key in (
+                "message",
+                "detail",
+                "description",
+                "reason",
+                "explanation",
+                "evidence",
+                "text",
+            )
+            if value.get(key)
+        ),
+        None,
+    )
+    if issue_code and message:
+        return f"{issue_code}: {_stringify_json_value(message)}"
+    if message:
+        return _stringify_json_value(message)
+    return _stringify_json_value(value)
+
+
+def _stringify_json_value(value: Any) -> str:
+    if isinstance(value, str):
+        return value.strip()
+    try:
+        return json.dumps(value, ensure_ascii=False, sort_keys=True)
+    except TypeError:
+        return str(value).strip()
