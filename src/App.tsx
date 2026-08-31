@@ -824,6 +824,8 @@ export default function App() {
             replaceAdminItem(next);
             setDraft((current) => (current?.id === next.id ? structuredClone(next) : current));
             await Promise.all([loadPublicItems(), loadStatistics()]);
+            setDraft(null);
+            navigate("/admin/readings/new");
             setToast("문항을 게시했습니다.");
           } catch (error) {
             setToast(error instanceof Error ? error.message : "문항을 게시하지 못했습니다.");
