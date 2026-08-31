@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from typing import Protocol
+import json
+import re
+from typing import Protocol, TypeVar
 
 from anthropic import AsyncAnthropic
+from pydantic import BaseModel
 
 from app.core.config import Settings
 from app.schemas import (
@@ -10,6 +13,12 @@ from app.schemas import (
     GeneratedReading,
     GenerationConditions,
     ValidatorOutcome,
+)
+
+ModelT = TypeVar("ModelT", bound=BaseModel)
+JSON_FENCE_PATTERN = re.compile(
+    r"^\s*`+\s*(?:json)?\s*(?P<payload>.*?)\s*`+\s*$",
+    re.IGNORECASE | re.DOTALL,
 )
 
 
@@ -124,8 +133,9 @@ Return title, passage, question, explanation, and exactly four choices.
 Each choice must include text, isCorrect, and wrongExplanation for incorrect choices.
 Exactly one choice must have isCorrect true. Do not use furigana.
 """
-        return GeneratedReading.model_validate_json(
-            await self._text_response(self.generator_model, prompt)
+        return _model_validate_json_response(
+            GeneratedReading,
+            await self._text_response(self.generator_model, prompt),
         )
 
     async def verify_answer(self, item: GeneratedReading) -> ValidatorOutcome:
@@ -139,8 +149,9 @@ Passage:\n{item.passage}\n\nQuestion:\n{item.question}\n\nChoices:\n{choices}
 Return strict JSON with status (passed, warning, or failed), score (0-100),
 issueCodes (string array), evidence (string array), and correctChoiceIndex (1-4).
 """
-        return ValidatorOutcome.model_validate_json(
-            await self._text_response(self.answer_validator_model, prompt)
+        return _model_validate_json_response(
+            ValidatorOutcome,
+            await self._text_response(self.answer_validator_model, prompt),
         )
 
     async def verify_quality(self, item: GeneratedReading) -> ValidatorOutcome:
@@ -150,8 +161,9 @@ status (passed, warning, or failed), score (0-100), issueCodes, and evidence.
 
 {item.model_dump_json(by_alias=True)}
 """
-        return ValidatorOutcome.model_validate_json(
-            await self._text_response(self.quality_validator_model, prompt)
+        return _model_validate_json_response(
+            ValidatorOutcome,
+            await self._text_response(self.quality_validator_model, prompt),
         )
 
     async def _text_response(self, model: str, prompt: str) -> str:
@@ -166,6 +178,32 @@ status (passed, warning, or failed), score (0-100), issueCodes, and evidence.
         if not text_parts:
             raise RuntimeError("The Anthropic response did not contain text content.")
         return "\n".join(text_parts)
+
+
+def _model_validate_json_response(
+    model_type: type[ModelT],
+    response_text: str,
+) -> ModelT:
+    return model_type.model_validate_json(_extract_json_payload(response_text))
+
+
+def _extract_json_payload(response_text: str) -> str:
+    payload = response_text.strip()
+    fenced_match = JSON_FENCE_PATTERN.match(payload)
+    if fenced_match:
+        payload = fenced_match.group("payload").strip()
+
+    decoder = json.JSONDecoder()
+    json_starts = sorted(
+        {index for index in (payload.find("{"), payload.find("[")) if index != -1}
+    )
+    for start in json_starts:
+        try:
+            _, end = decoder.raw_decode(payload[start:])
+        except json.JSONDecodeError:
+            continue
+        return payload[start : start + end]
+    return payload
 
 
 def build_generation_provider(settings: Settings) -> GenerationProvider:

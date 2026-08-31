@@ -1,8 +1,31 @@
 import pytest
 
-from app.schemas import GenerationConditions
-from app.services.generation_provider import StubGenerationProvider
+from app.schemas import (
+    GeneratedChoice,
+    GeneratedReading,
+    GenerationConditions,
+    ValidatorOutcome,
+)
+from app.services.generation_provider import (
+    StubGenerationProvider,
+    _model_validate_json_response,
+)
 from app.services.validation import validate_generated_reading
+
+
+def _sample_generated_reading() -> GeneratedReading:
+    return GeneratedReading(
+        title="背景を考える",
+        passage="結果だけを見ると、理由を見落とすことがある。",
+        question="筆者が大切だと考えていることは何か。",
+        choices=[
+            GeneratedChoice(text="早く決めること。", is_correct=False),
+            GeneratedChoice(text="理由を確かめること。", is_correct=True),
+            GeneratedChoice(text="数だけを比べること。", is_correct=False),
+            GeneratedChoice(text="意見を避けること。", is_correct=False),
+        ],
+        explanation="本文は理由を確かめる大切さを述べている。",
+    )
 
 
 @pytest.mark.asyncio
@@ -28,3 +51,40 @@ async def test_stub_answer_validator_identifies_the_only_correct_choice() -> Non
 
     assert outcome.status == "passed"
     assert outcome.correct_choice_index == 3
+
+
+@pytest.mark.parametrize(
+    "response_template",
+    [
+        "```json\n{}\n```",
+        "`json\n{}\n`",
+    ],
+)
+def test_generated_reading_json_response_accepts_markdown_fences(
+    response_template: str,
+) -> None:
+    payload = _sample_generated_reading().model_dump_json(by_alias=True)
+    item = _model_validate_json_response(
+        GeneratedReading,
+        response_template.format(payload),
+    )
+
+    assert item.title == "背景を考える"
+    assert item.choices[1].is_correct is True
+
+
+def test_validator_outcome_json_response_accepts_surrounding_text() -> None:
+    payload = ValidatorOutcome(
+        status="passed",
+        score=94,
+        evidence=["Supported by the passage."],
+        correct_choice_index=2,
+    ).model_dump_json(by_alias=True)
+
+    outcome = _model_validate_json_response(
+        ValidatorOutcome,
+        f"Here is the JSON:\n{payload}\nDone.",
+    )
+
+    assert outcome.status == "passed"
+    assert outcome.correct_choice_index == 2
