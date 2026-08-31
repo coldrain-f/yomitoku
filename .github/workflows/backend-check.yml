@@ -1,0 +1,49 @@
+name: Backend checks
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "docker-compose.yml"
+      - "deploy/**"
+      - ".github/workflows/backend-check.yml"
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "docker-compose.yml"
+      - "deploy/**"
+      - ".github/workflows/backend-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Install dependencies
+        run: pip install ".[dev]"
+
+      - name: Lint
+        run: ruff check app tests alembic
+
+      - name: Test
+        run: pytest -q
+
+      - name: Validate production Compose
+        working-directory: .
+        run: docker compose --env-file deploy/production.env.example -f deploy/docker-compose.production.yml config --quiet

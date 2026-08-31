@@ -6,7 +6,7 @@
 
 ## 현재 상태
 
-2026-08-30 기준으로 React 화면, FastAPI API, PostgreSQL, 관리자 문항 관리, LangGraph 기반 생성·검증 워커는 로컬 Docker 환경에서 연결돼 있다. 프론트엔드는 GitHub Pages에 배포돼 있고, 백엔드는 아직 로컬 개발 인증을 사용한다.
+2026-08-31 기준으로 React 화면, FastAPI API, PostgreSQL, 관리자 문항 관리, LangGraph 기반 생성·검증 워커는 로컬 Docker 환경에서 연결돼 있다. 프론트엔드는 GitHub Pages에 배포돼 있고, Google 로그인 구현과 운영 배포용 Compose 구성이 준비돼 있다. 실제 서버에 환경 변수와 도메인을 설정해 배포하는 작업이 남아 있다.
 
 ## 작업 순서
 
@@ -70,7 +70,7 @@ GitHub Pages 배포는 저장소의 **Settings → Secrets and variables → Act
 - `APP_ENV=production`, GitHub Pages 원본만 포함한 `CORS_ALLOWED_ORIGINS`, 실제 API URL을 설정한다.
 - `/api/v1/health`를 로드밸런서 또는 모니터링 대상에 등록한다.
 
-완료 기준은 GitHub Pages에서 로그인, 풀이, 통계, 관리자 문항 관리까지 실제 HTTPS API로 동작하는 것이다.
+자세한 서버 작업은 [06-production-deployment.md](./06-production-deployment.md)를 따른다. 완료 기준은 GitHub Pages에서 로그인, 풀이, 통계, 관리자 문항 관리까지 실제 HTTPS API로 동작하는 것이다.
 
 ## 3. AI 생성 실연동
 

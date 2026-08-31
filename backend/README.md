@@ -64,3 +64,11 @@ in production. The React app sends them only in Vite development mode.
 - Admin actions cover review, hold, unhold, publish, permanent deletion, and LangGraph generation-job polling.
 
 The local React client sends development headers only while Vite runs in development mode. See [`docs/05-delivery-roadmap.md`](../docs/05-delivery-roadmap.md) for the remaining deployment and operations work.
+
+## Production deployment
+
+`deploy/docker-compose.production.yml` runs Caddy, FastAPI, the worker, and
+PostgreSQL without exposing the API or database ports directly. It expects a
+server-only `.env.production` file based on `deploy/production.env.example`.
+Follow [`docs/06-production-deployment.md`](../docs/06-production-deployment.md)
+for DNS, HTTPS, Google configuration, backup, and update steps.

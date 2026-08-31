@@ -2,7 +2,7 @@ from functools import lru_cache
 from typing import Literal
 from uuid import UUID
 
-from pydantic import SecretStr
+from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -51,6 +51,41 @@ class Settings(BaseSettings):
             for email in self.admin_google_emails.split(",")
             if email.strip()
         )
+
+    @model_validator(mode="after")
+    def validate_production_settings(self) -> "Settings":
+        if self.app_env != "production":
+            return self
+
+        if not self.allowed_origins or any(
+            not origin.startswith("https://") for origin in self.allowed_origins
+        ):
+            raise ValueError(
+                "CORS_ALLOWED_ORIGINS must contain only HTTPS origins in production."
+            )
+        if not (self.google_oauth_client_id or "").strip():
+            raise ValueError("GOOGLE_OAUTH_CLIENT_ID is required in production.")
+        secret = (
+            self.auth_jwt_secret.get_secret_value().strip()
+            if self.auth_jwt_secret is not None
+            else ""
+        )
+        if len(secret) < 32:
+            raise ValueError(
+                "AUTH_JWT_SECRET must be at least 32 characters in production."
+            )
+        if not self.admin_emails:
+            raise ValueError("ADMIN_GOOGLE_EMAILS is required in production.")
+        anthropic_key = (
+            self.anthropic_api_key.get_secret_value().strip()
+            if self.anthropic_api_key is not None
+            else ""
+        )
+        if self.generation_provider == "anthropic" and not anthropic_key:
+            raise ValueError(
+                "ANTHROPIC_API_KEY is required when GENERATION_PROVIDER=anthropic."
+            )
+        return self
 
 
 @lru_cache
