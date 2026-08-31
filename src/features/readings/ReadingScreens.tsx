@@ -222,23 +222,21 @@ export function ReadingListScreen({
                   </span>
                 </span>
                 <span className="row-state">
-                  {authenticated ? (
-                    <span
-                      className={
-                        status === "correct"
-                          ? "badge ok row-status"
-                          : status === "wrong"
-                            ? "badge danger row-status"
-                            : "badge row-status"
-                      }
-                    >
-                      {status === "correct"
-                        ? "정답"
+                  <span
+                    className={
+                      status === "correct"
+                        ? "badge ok row-status"
                         : status === "wrong"
-                          ? "오답"
-                          : "미풀이"}
-                    </span>
-                  ) : null}
+                          ? "badge danger row-status"
+                          : "badge row-status"
+                    }
+                  >
+                    {status === "correct"
+                      ? "정답"
+                      : status === "wrong"
+                        ? "오답"
+                        : "미풀이"}
+                  </span>
                   <time className="row-date">
                     등록 {formatDate(item.publishedAt ?? item.createdAt)}
                   </time>
