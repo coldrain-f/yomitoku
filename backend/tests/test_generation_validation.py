@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 
 from app.schemas import (
@@ -7,8 +9,8 @@ from app.schemas import (
     ValidatorOutcome,
 )
 from app.services.generation_provider import (
+    AnthropicGenerationProvider,
     StubGenerationProvider,
-    _model_validate_json_response,
 )
 from app.services.validation import validate_generated_reading
 
@@ -53,41 +55,73 @@ async def test_stub_answer_validator_identifies_the_only_correct_choice() -> Non
     assert outcome.correct_choice_index == 3
 
 
-@pytest.mark.parametrize(
-    "response_template",
-    [
-        "```json\n{}\n```",
-        "`json\n{}\n`",
-    ],
-)
-def test_generated_reading_json_response_accepts_markdown_fences(
-    response_template: str,
-) -> None:
-    payload = _sample_generated_reading().model_dump_json(by_alias=True)
-    item = _model_validate_json_response(
-        GeneratedReading,
-        response_template.format(payload),
+class FakeParsedResponse:
+    def __init__(self, parsed_output: object) -> None:
+        self.parsed_output = parsed_output
+
+
+class FakeAnthropicMessages:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    async def parse(self, **kwargs: object) -> FakeParsedResponse:
+        self.calls.append(kwargs)
+        output_format = kwargs["output_format"]
+        if output_format is GeneratedReading:
+            return FakeParsedResponse(_sample_generated_reading())
+        if output_format is ValidatorOutcome:
+            return FakeParsedResponse(
+                ValidatorOutcome(
+                    status="passed",
+                    score=94,
+                    evidence=["Supported by the passage."],
+                    correct_choice_index=2,
+                )
+            )
+        raise AssertionError(f"Unexpected output format: {output_format}")
+
+
+def _anthropic_provider_with_fake_client(
+    messages: FakeAnthropicMessages,
+) -> AnthropicGenerationProvider:
+    provider = AnthropicGenerationProvider.__new__(AnthropicGenerationProvider)
+    provider.client = SimpleNamespace(messages=messages)
+    provider.generator_model = "claude-fable-5"
+    provider.answer_validator_model = "claude-fable-5"
+    provider.quality_validator_model = "claude-fable-5"
+    return provider
+
+
+@pytest.mark.asyncio
+async def test_anthropic_generation_uses_native_structured_output() -> None:
+    messages = FakeAnthropicMessages()
+    provider = _anthropic_provider_with_fake_client(messages)
+    conditions = GenerationConditions(
+        official_level="N2", length_type="medium", topic="교육"
     )
+
+    item = await provider.generate(conditions, [])
 
     assert item.title == "背景を考える"
     assert item.choices[1].is_correct is True
+    assert messages.calls[0]["output_format"] is GeneratedReading
 
 
-def test_validator_outcome_json_response_accepts_surrounding_text() -> None:
-    payload = ValidatorOutcome(
-        status="passed",
-        score=94,
-        evidence=["Supported by the passage."],
-        correct_choice_index=2,
-    ).model_dump_json(by_alias=True)
+@pytest.mark.asyncio
+async def test_anthropic_validators_use_native_structured_output() -> None:
+    messages = FakeAnthropicMessages()
+    provider = _anthropic_provider_with_fake_client(messages)
+    item = _sample_generated_reading()
 
-    outcome = _model_validate_json_response(
+    answer = await provider.verify_answer(item)
+    quality = await provider.verify_quality(item)
+
+    assert answer.status == "passed"
+    assert quality.correct_choice_index == 2
+    assert [call["output_format"] for call in messages.calls] == [
         ValidatorOutcome,
-        f"Here is the JSON:\n{payload}\nDone.",
-    )
-
-    assert outcome.status == "passed"
-    assert outcome.correct_choice_index == 2
+        ValidatorOutcome,
+    ]
 
 
 def test_validator_outcome_accepts_structured_evidence_entries() -> None:
