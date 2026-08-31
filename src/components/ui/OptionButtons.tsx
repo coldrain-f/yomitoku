@@ -9,6 +9,7 @@ interface OptionButtonsProps {
   options: Array<string | OptionButtonOption>;
   onChange: (value: string) => void;
   ariaLabel: string;
+  disabled?: boolean;
 }
 
 export function OptionButtons({
@@ -16,6 +17,7 @@ export function OptionButtons({
   options,
   onChange,
   ariaLabel,
+  disabled = false,
 }: OptionButtonsProps) {
   return (
     <div className="choice-group" role="group" aria-label={ariaLabel}>
@@ -28,7 +30,7 @@ export function OptionButtons({
             type="button"
             aria-pressed={value === item.value}
             key={item.value}
-            disabled={item.disabled}
+            disabled={disabled || item.disabled}
             onClick={() => onChange(item.value)}
           >
             {item.label}

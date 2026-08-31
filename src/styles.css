@@ -1137,6 +1137,12 @@ textarea:focus-visible {
   display: none;
 }
 
+.link-button:disabled {
+  color: var(--muted);
+  cursor: default;
+  opacity: 0.55;
+}
+
 .text-button {
   min-height: 42px;
   border: 1px solid var(--line);
@@ -1280,6 +1286,63 @@ textarea:focus-visible {
   color: var(--muted);
   cursor: default;
   opacity: 1;
+}
+
+.loading-bar {
+  display: grid;
+  gap: 8px;
+  padding: 14px 30px;
+  border-bottom: 1px solid var(--line);
+}
+
+.loading-bar-track {
+  display: block;
+  height: 2px;
+  overflow: hidden;
+  background: var(--line);
+}
+
+.loading-bar-track span {
+  display: block;
+  width: 34%;
+  height: 100%;
+  background: var(--accent);
+  animation: loading-bar-slide 1.15s ease-in-out infinite;
+}
+
+.loading-bar-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.generation-progress {
+  margin-top: 22px;
+  padding: 0 18px 2px;
+  border-bottom: 0;
+}
+
+.generation-error {
+  margin: 20px 18px 0;
+  color: var(--danger);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+@keyframes loading-bar-slide {
+  from {
+    transform: translateX(-110%);
+  }
+
+  to {
+    transform: translateX(325%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-bar-track span {
+    animation: none;
+    transform: translateX(95%);
+  }
 }
 
 .reading-body {

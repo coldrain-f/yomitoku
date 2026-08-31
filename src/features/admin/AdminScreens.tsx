@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Icon } from "../../components/ui/Icon";
 import { ListPagination } from "../../components/ui/ListPagination";
+import { LoadingBar } from "../../components/ui/LoadingBar";
 import { OptionButtons } from "../../components/ui/OptionButtons";
 import { topics } from "../../data";
 import {
@@ -37,6 +38,7 @@ import type {
 
 interface AdminScreenProps {
   items: ReadingItem[];
+  loading: boolean;
   filters: AdminFilters;
   onFilters: () => void;
   onEdit: (item: ReadingItem) => void;
@@ -57,6 +59,9 @@ interface AdminEditProps {
 interface GenerateScreenProps {
   values: GenerationValues;
   setValues: StateSetter<GenerationValues>;
+  isCreating: boolean;
+  progressLabel: string;
+  error: string;
   onCreate: () => void;
   onBack: () => void;
 }
@@ -71,6 +76,7 @@ interface PreviewScreenProps {
 
 export function AdminScreen({
   items,
+  loading,
   filters,
   onFilters,
   onEdit,
@@ -191,7 +197,8 @@ export function AdminScreen({
             <Icon icon={SlidersHorizontal} />
           </button>
         </div>
-        <div className="admin-list">
+        {loading ? <LoadingBar label="관리 문항을 불러오는 중입니다." /> : null}
+        <div className="admin-list" aria-busy={loading}>
           {pageRows.map((item) => (
             <button
               className="admin-row"
@@ -221,7 +228,7 @@ export function AdminScreen({
             </button>
           ))}
         </div>
-        {rows.length === 0 ? (
+        {!loading && rows.length === 0 ? (
           <div className="reading-list-empty">
             <p>조건에 맞는 문항이 없습니다.</p>
           </div>
@@ -528,11 +535,18 @@ export function AdminEdit({
 export function GenerateScreen({
   values,
   setValues,
+  isCreating,
+  progressLabel,
+  error,
   onCreate,
   onBack,
 }: GenerateScreenProps) {
   return (
-    <section className="screen screen-generate" aria-label="지문 생성">
+    <section
+      className="screen screen-generate"
+      aria-label="지문 생성"
+      aria-busy={isCreating}
+    >
       <div className="paper">
         <p className="kicker">Generate</p>
         <h1 className="screen-title">새 독해 지문 생성</h1>
@@ -549,6 +563,7 @@ export function GenerateScreen({
                 })
               }
               ariaLabel="난이도"
+              disabled={isCreating}
             />
           </div>
           <div className="form-section">
@@ -566,6 +581,7 @@ export function GenerateScreen({
                 })
               }
               ariaLabel="유형"
+              disabled={isCreating}
             />
           </div>
           <div className="form-section">
@@ -574,6 +590,7 @@ export function GenerateScreen({
               <select
                 className="select-field"
                 value={values.topic}
+                disabled={isCreating}
                 onChange={(event) =>
                   setValues({
                     ...values,
@@ -599,15 +616,20 @@ export function GenerateScreen({
             ]}
             onChange={() => {}}
             ariaLabel="후리가나"
+            disabled={isCreating}
           />
         </div>
+        {isCreating ? (
+          <LoadingBar className="generation-progress" label={progressLabel} />
+        ) : null}
+        {error ? <p className="generation-error" role="alert">{error}</p> : null}
         <div className="footer-actions">
-          <button className="link-button" type="button" onClick={onBack}>
+          <button className="link-button" type="button" onClick={onBack} disabled={isCreating}>
             관리 목록으로
           </button>
-          <button className="primary-button" type="button" onClick={onCreate}>
+          <button className="primary-button" type="button" onClick={onCreate} disabled={isCreating}>
             <Icon icon={Sparkles} />
-            지문 만들기
+            {isCreating ? "지문 생성 중" : "지문 만들기"}
           </button>
         </div>
       </div>

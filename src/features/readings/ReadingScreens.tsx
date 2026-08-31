@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Icon } from "../../components/ui/Icon";
 import { ListPagination } from "../../components/ui/ListPagination";
+import { LoadingBar } from "../../components/ui/LoadingBar";
 import {
   difficultyRank,
   formatDate,
@@ -33,6 +34,7 @@ import type {
 
 interface ReadingListScreenProps {
   items: ReadingItem[];
+  loading: boolean;
   authenticated: boolean;
   attempts: AttemptRecord[];
   filters: ListFilters;
@@ -63,6 +65,7 @@ interface ResultScreenProps {
 
 export function ReadingListScreen({
   items,
+  loading,
   authenticated,
   attempts,
   filters,
@@ -184,7 +187,8 @@ export function ReadingListScreen({
             <Icon icon={SlidersHorizontal} />
           </button>
         </div>
-        <div className="reading-list">
+        {loading ? <LoadingBar label="목록을 불러오는 중입니다." /> : null}
+        <div className="reading-list" aria-busy={loading}>
           {rows.map((item) => {
             const attempt = latest[item.id];
             const status = attempt?.status ?? item.myLatestStatus ?? "unstarted";
@@ -244,7 +248,7 @@ export function ReadingListScreen({
             );
           })}
         </div>
-        {filtered.length === 0 ? (
+        {!loading && filtered.length === 0 ? (
           <div className="reading-list-empty">
             <p>조건에 맞는 지문이 없습니다.</p>
             <button className="text-button" type="button" onClick={reset}>

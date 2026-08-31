@@ -26,7 +26,7 @@ import { AppHeader } from "./components/AppHeader";
 import { Breadcrumb } from "./components/ui/Breadcrumb";
 import { Dialog } from "./components/ui/Dialog";
 import { Icon } from "./components/ui/Icon";
-import { api, recordFromResult, type Statistics } from "./lib/api";
+import { api, recordFromResult, type GenerationJob, type Statistics } from "./lib/api";
 import type {
   AdminFilters,
   AttemptRecord,
@@ -49,6 +49,16 @@ const defaultListFilters: ListFilters = {
   sort: "published-desc",
 };
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
+
+function generationProgressLabel(job: GenerationJob) {
+  if (job.status === "queued") return "생성 작업을 준비하는 중입니다.";
+  if (job.currentNode === "generate") return "지문과 문항을 만드는 중입니다.";
+  if (job.currentNode === "validate_schema") return "문항 형식을 확인하는 중입니다.";
+  if (job.currentNode === "verify_answer") return "정답이 하나인지 검증하는 중입니다.";
+  if (job.currentNode === "verify_quality") return "선택지와 해설 품질을 검토하는 중입니다.";
+  if (job.currentNode === "revise") return "검증 결과를 반영해 다시 만드는 중입니다.";
+  return "생성 결과를 정리하는 중입니다.";
+}
 
 function screenForPath(pathname: string): Screen {
   if (pathname === "/statistics") return "stats";
@@ -223,6 +233,8 @@ export default function App() {
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [attempts, setAttempts] = useState<AttemptRecord[]>([]);
   const [adminLoaded, setAdminLoaded] = useState(false);
+  const [isListLoading, setIsListLoading] = useState(true);
+  const [isAdminListLoading, setIsAdminListLoading] = useState(false);
   const filters = useMemo<ListFilters>(
     () => ({
       level:
@@ -264,6 +276,9 @@ export default function App() {
     topic: "추천",
   });
   const [dialogError, setDialogError] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState("");
+  const [generationError, setGenerationError] = useState("");
   const [reportText, setReportText] = useState("");
   const reportTextRef = useRef(reportText);
   const [feedback, setFeedback] = useState<FeedbackValues>({
@@ -278,27 +293,37 @@ export default function App() {
   const totalGenerated = statistics?.totalGeneratedCount ?? 0;
 
   const loadPublicItems = async () => {
-    const response = await api.listReadings({ pageSize: 50 });
-    setItems((current) =>
-      response.items.map((item) => {
-        const loaded = current.find((entry) => entry.id === item.id);
-        return loaded?.passage
-          ? {
-              ...item,
-              passage: loaded.passage,
-              question: loaded.question,
-              choices: loaded.choices,
-              explanation: loaded.explanation,
-            }
-          : item;
-      }),
-    );
+    setIsListLoading(true);
+    try {
+      const response = await api.listReadings({ pageSize: 50 });
+      setItems((current) =>
+        response.items.map((item) => {
+          const loaded = current.find((entry) => entry.id === item.id);
+          return loaded?.passage
+            ? {
+                ...item,
+                passage: loaded.passage,
+                question: loaded.question,
+                choices: loaded.choices,
+                explanation: loaded.explanation,
+              }
+            : item;
+        }),
+      );
+    } finally {
+      setIsListLoading(false);
+    }
   };
   const loadStatistics = async () => setStatistics(await api.statistics());
   const loadAdminItems = async () => {
-    const response = await api.listAdminReadings({ pageSize: 50 });
-    setAdminItems(response.items);
-    setAdminLoaded(true);
+    setIsAdminListLoading(true);
+    try {
+      const response = await api.listAdminReadings({ pageSize: 50 });
+      setAdminItems(response.items);
+      setAdminLoaded(true);
+    } finally {
+      setIsAdminListLoading(false);
+    }
   };
   const replaceAdminItem = (next: ReadingItem) =>
     setAdminItems((current) =>
@@ -555,19 +580,29 @@ export default function App() {
       onConfirm: () => {
         closeDialog();
         void (async () => {
+          setIsGenerating(true);
+          setGenerationError("");
+          setGenerationProgress("생성 작업을 준비하는 중입니다.");
           try {
             let job = await api.createGenerationJob(generation);
-            for (let retry = 0; retry < 45 && !job.generatedItemId; retry += 1) {
-              await new Promise((resolve) => window.setTimeout(resolve, 800));
+            setGenerationProgress(generationProgressLabel(job));
+            for (let retry = 0; retry < 180 && !job.generatedItemId; retry += 1) {
+              await new Promise((resolve) => window.setTimeout(resolve, 1_000));
               job = await api.generationJob(job.id);
               if (job.status === "failed") throw new Error(job.errorDetail ?? "지문 생성에 실패했습니다.");
+              setGenerationProgress(generationProgressLabel(job));
             }
-            if (!job.generatedItemId) throw new Error("지문 생성 시간이 초과되었습니다.");
+            if (!job.generatedItemId) throw new Error("지문 생성 시간이 초과되었습니다. 잠시 후 관리 목록에서 다시 확인해 주세요.");
             const item = await api.adminReading(job.generatedItemId);
             replaceAdminItem(item);
             navigate(`/admin/readings/${item.id}/preview`);
           } catch (error) {
-            setToast(error instanceof Error ? error.message : "지문을 만들지 못했습니다.");
+            const message = error instanceof Error ? error.message : "지문을 만들지 못했습니다.";
+            setGenerationError(message);
+            setToast(message);
+          } finally {
+            setIsGenerating(false);
+            setGenerationProgress("");
           }
         })();
       },
@@ -837,13 +872,13 @@ export default function App() {
         <Routes>
           <Route
             path="/"
-            element={<ReadingListScreen items={items} authenticated={authenticated} attempts={attempts} filters={filters} setFilters={setListFilters} query={query} setQuery={setListQuery} onOpenFilters={openListFilters} onStart={start} />}
+            element={<ReadingListScreen items={items} loading={isListLoading} authenticated={authenticated} attempts={attempts} filters={filters} setFilters={setListFilters} query={query} setQuery={setListQuery} onOpenFilters={openListFilters} onStart={start} />}
           />
           <Route path="/readings/:itemId" element={<RequireAuth authenticated={authenticated}><ReadingRoute items={items} attempt={attempt} result={result} onChoose={(id) => setAttempt((current) => current ? { ...current, selectedChoiceId: id, message: "" } : current)} onSubmit={submit} onAbandon={goHome} onReport={openReport} onResult={() => result && navigate(`/results/${result.itemId}`)} /></RequireAuth>} />
           <Route path="/results/:itemId" element={<RequireAuth authenticated={authenticated}><ResultRoute result={result} onFeedback={openFeedback} onContinue={continueReading} onHome={goHome} /></RequireAuth>} />
           <Route path="/statistics" element={<RequireAuth authenticated={authenticated}><StatsScreen statistics={statistics} /></RequireAuth>} />
-          <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} filters={adminFilters} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => navigate("/admin/readings/new")} /></RequireAdmin>} />
-          <Route path="/admin/readings/new" element={<RequireAdmin authenticated={authenticated} role={role}><GenerateScreen values={generation} setValues={setGeneration} onCreate={createDraft} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
+          <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} filters={adminFilters} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => navigate("/admin/readings/new")} /></RequireAdmin>} />
+          <Route path="/admin/readings/new" element={<RequireAdmin authenticated={authenticated} role={role}><GenerateScreen values={generation} setValues={setGeneration} isCreating={isGenerating} progressLabel={generationProgress} error={generationError} onCreate={createDraft} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
           <Route path="/admin/readings/:itemId/edit" element={<RequireAdmin authenticated={authenticated} role={role}><AdminEditRoute items={adminItems} draft={draft} setDraft={setDraft} onSave={() => draft && void updateAdminItem(draft)} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={leaveEditor} /></RequireAdmin>} />
           <Route path="/admin/readings/:itemId/preview" element={<RequireAdmin authenticated={authenticated} role={role}><PreviewRoute items={adminItems} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
           <Route path="*" element={<Navigate to="/" replace />} />
