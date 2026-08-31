@@ -97,5 +97,6 @@ docker compose --env-file .env.production \
 - 매 배포 뒤 health endpoint와 Google 로그인을 확인한다.
 - 정기적으로 백업 파일을 다른 저장소에 복사하고 복원 절차를 별도 테스트한다.
 - `docker compose ... logs`에서 API 5xx, 워커 실패, Caddy 인증서 오류를 확인한다.
+- 운영 Compose는 컨테이너별 로그를 20MB씩 최대 3개만 보관한다. 급격히 반복되는 로그는 용량을 채우기 전에 원인을 해결한다.
 - AI 모델 키를 넣기 전까지는 `GENERATION_PROVIDER=stub`을 유지한다.
 - GitHub Actions의 `Backend checks`가 backend 변경마다 린트, 테스트, 운영 Compose 해석을 확인한다.
