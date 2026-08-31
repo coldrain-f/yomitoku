@@ -26,6 +26,7 @@ from app.schemas import (
     ReadingItemPage,
     ReadingItemSummary,
 )
+from app.services.generation_topics import resolve_generation_topic
 from app.services.item_metrics import LEVEL_ORDER, ItemMetrics, collect_item_metrics
 from app.services.users import ensure_user
 
@@ -192,6 +193,7 @@ async def create_generation_job(
 
     settings = get_settings()
     job_id = uuid4()
+    topic = resolve_generation_topic(conditions.topic)
     job = GenerationJob(
         id=job_id,
         requested_by=current_user.id,
@@ -201,7 +203,7 @@ async def create_generation_job(
         current_node="queued",
         official_level=conditions.official_level,
         length_type=conditions.length_type,
-        topic=conditions.topic,
+        topic=topic,
         generator_model=settings.generator_model,
         answer_validator_model=settings.answer_validator_model,
         quality_validator_model=settings.quality_validator_model,

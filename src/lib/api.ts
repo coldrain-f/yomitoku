@@ -339,7 +339,7 @@ export const api = {
       body: JSON.stringify({
         officialLevel: values.level,
         lengthType: values.length,
-        topic: values.topic === "추천" ? "교육" : values.topic,
+        topic: values.topic,
       }),
     }),
   generationJob: (jobId: string) => request<GenerationJob>(`/admin/generation-jobs/${jobId}`),
