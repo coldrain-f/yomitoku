@@ -167,6 +167,12 @@ export function AdminScreen({
     (currentPage - 1) * pageSize,
     currentPage * pageSize,
   );
+  const hasAppliedFilters =
+    filters.level !== "all" ||
+    filters.length !== "all" ||
+    filters.topic !== "all" ||
+    filters.status !== "all" ||
+    filters.sort !== "created-desc";
 
   useEffect(() => setPage(1), [filters, query]);
 
@@ -195,9 +201,10 @@ export function AdminScreen({
             />
           </div>
           <button
-            className="icon-button list-filter-button"
+            className={`icon-button list-filter-button${hasAppliedFilters ? " is-active" : ""}`}
             type="button"
             aria-label="필터 및 정렬"
+            aria-pressed={hasAppliedFilters}
             title="필터 및 정렬"
             onClick={onFilters}
           >

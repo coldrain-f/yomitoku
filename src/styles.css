@@ -1239,6 +1239,20 @@ textarea:focus-visible {
   border-right: 0;
 }
 
+.generation-form-grid .form-section:nth-child(3) {
+  border-bottom: 1px solid var(--line);
+}
+
+.generation-form-grid .form-section:last-child {
+  border-right: 1px solid var(--line);
+}
+
+.list-filter-button.is-active {
+  border-color: var(--accent);
+  background: #f1f2ed;
+  color: var(--accent);
+}
+
 .generate-topic-field {
   display: grid;
   gap: 12px;
@@ -2169,6 +2183,10 @@ body.dialog-open {
 
   .generation-form-grid .form-section:nth-child(n + 4) {
     border-top: 0;
+  }
+
+  .generation-form-grid .form-section:last-child {
+    border-right: 0;
   }
 
   .furigana-row {

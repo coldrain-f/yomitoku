@@ -232,10 +232,10 @@ export function AppDialogContent({
               })
             }
           >
-            <option value="updated-desc">수정일 최신순</option>
-            <option value="updated-asc">수정일 오래된순</option>
             <option value="created-desc">등록일 최신순</option>
             <option value="created-asc">등록일 오래된순</option>
+            <option value="updated-desc">수정일 최신순</option>
+            <option value="updated-asc">수정일 오래된순</option>
             <option value="title-asc">제목 가나다순</option>
             <option value="level-asc">난이도 낮은순</option>
             <option value="level-desc">난이도 높은순</option>

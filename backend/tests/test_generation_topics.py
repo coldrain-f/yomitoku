@@ -15,6 +15,8 @@ def test_resolve_generation_topic_picks_topic_for_recommendation() -> None:
     def choose_last(topics: Sequence[str]) -> str:
         return topics[-1]
 
-    assert resolve_generation_topic("추천", choose_last) == "환경"
+    assert resolve_generation_topic("추천", choose_last) == "사진"
     assert "교육" in GENERATION_TOPICS
+    assert "우주" in GENERATION_TOPICS
+    assert "법률" in GENERATION_TOPICS
     assert len(set(GENERATION_TOPICS)) == len(GENERATION_TOPICS)

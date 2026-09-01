@@ -60,7 +60,38 @@ const defaultListFilters: ListFilters = {
   status: "all",
   sort: "published-desc",
 };
+const defaultAdminFilters: AdminFilters = {
+  level: "all",
+  length: "all",
+  topic: "all",
+  status: "all",
+  sort: "created-desc",
+};
+const listFiltersStorageKey = "yomitoku.list-filters";
+const adminFiltersStorageKey = "yomitoku.admin-filters";
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
+
+function readStoredFilters<T extends object>(key: string, fallback: T): T {
+  try {
+    const stored = window.sessionStorage.getItem(key);
+    if (!stored) return fallback;
+    const parsed = JSON.parse(stored);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return fallback;
+    }
+    return { ...fallback, ...parsed } as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function storeFilters(key: string, filters: object) {
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(filters));
+  } catch {
+    // Filter controls remain usable when browser storage is unavailable.
+  }
+}
 
 function generationProgressLabel(job: GenerationJob) {
   if (job.status === "queued") return "생성 작업을 준비하는 중입니다.";
@@ -247,31 +278,31 @@ export default function App() {
   const [adminLoaded, setAdminLoaded] = useState(false);
   const [isListLoading, setIsListLoading] = useState(true);
   const [isAdminListLoading, setIsAdminListLoading] = useState(false);
+  const storedListFilters = useMemo(
+    () => readStoredFilters(listFiltersStorageKey, defaultListFilters),
+    [searchParams],
+  );
   const filters = useMemo<ListFilters>(
     () => ({
       level:
         (searchParams.get("level") as ListFilters["level"] | null) ??
-        defaultListFilters.level,
+        storedListFilters.level,
       length:
         (searchParams.get("length") as ListFilters["length"] | null) ??
-        defaultListFilters.length,
+        storedListFilters.length,
       status:
         (searchParams.get("status") as ListFilters["status"] | null) ??
-        defaultListFilters.status,
+        storedListFilters.status,
       sort:
         (searchParams.get("sort") as ListFilters["sort"] | null) ??
-        defaultListFilters.sort,
+        storedListFilters.sort,
     }),
-    [searchParams],
+    [searchParams, storedListFilters],
   );
   const query = searchParams.get("q") ?? "";
-  const [adminFilters, setAdminFilters] = useState<AdminFilters>({
-    level: "all",
-    length: "all",
-    topic: "all",
-    status: "all",
-    sort: "updated-desc",
-  });
+  const [adminFilters, setAdminFilters] = useState<AdminFilters>(() =>
+    readStoredFilters(adminFiltersStorageKey, defaultAdminFilters),
+  );
   const [filterDraft, setFilterDraft] = useState(filters);
   const [adminFilterDraft, setAdminFilterDraft] = useState(adminFilters);
   const filterDraftRef = useRef(filterDraft);
@@ -410,6 +441,9 @@ export default function App() {
     adminFilterDraftRef.current = adminFilterDraft;
   }, [adminFilterDraft]);
   useEffect(() => {
+    storeFilters(adminFiltersStorageKey, adminFilters);
+  }, [adminFilters]);
+  useEffect(() => {
     reportTextRef.current = reportText;
   }, [reportText]);
   useEffect(() => {
@@ -441,6 +475,12 @@ export default function App() {
     next: ListFilters & { query: string },
     { replace = false }: { replace?: boolean } = {},
   ) => {
+    storeFilters(listFiltersStorageKey, {
+      level: next.level,
+      length: next.length,
+      status: next.status,
+      sort: next.sort,
+    });
     const params = new URLSearchParams();
     if (next.query) params.set("q", next.query);
     if (next.level !== "all") params.set("level", next.level);

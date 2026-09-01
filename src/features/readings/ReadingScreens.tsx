@@ -137,11 +137,14 @@ export function ReadingListScreen({
     (currentPage - 1) * pageSize,
     currentPage * pageSize,
   );
-  const active =
-    query ||
+  const hasAppliedFilters =
     filters.level !== "all" ||
     filters.length !== "all" ||
+    filters.sort !== "published-desc" ||
     (authenticated && filters.status !== "all");
+  const active =
+    query ||
+    hasAppliedFilters;
   const reset = () => {
     setQuery("");
     setFilters({
@@ -178,9 +181,10 @@ export function ReadingListScreen({
             />
           </div>
           <button
-            className="icon-button list-filter-button"
+            className={`icon-button list-filter-button${hasAppliedFilters ? " is-active" : ""}`}
             type="button"
             aria-label="필터 및 정렬"
+            aria-pressed={hasAppliedFilters}
             title="필터 및 정렬"
             onClick={onOpenFilters}
           >

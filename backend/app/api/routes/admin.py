@@ -38,6 +38,7 @@ from app.services.users import ensure_user
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 ItemStatus = Literal["review", "held", "published"]
+PREFERRED_GENERATION_MODEL = "claude-fable-5"
 
 
 def serialize_generation_job(job: GenerationJob) -> GenerationJobResponse:
@@ -232,10 +233,16 @@ async def get_generation_model_options(
     current_user: Annotated[CurrentUser, Depends(require_admin)],
 ) -> GenerationModelOptionsResponse:
     settings = get_settings()
+    available_models = settings.available_generation_models
+    preferred_model = (
+        PREFERRED_GENERATION_MODEL
+        if PREFERRED_GENERATION_MODEL in available_models
+        else None
+    )
     return GenerationModelOptionsResponse(
-        models=list(settings.available_generation_models),
-        default_generator_model=settings.generator_model,
-        default_validator_model=settings.answer_validator_model,
+        models=list(available_models),
+        default_generator_model=preferred_model or settings.generator_model,
+        default_validator_model=preferred_model or settings.answer_validator_model,
     )
 
 

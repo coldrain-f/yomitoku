@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>YOMITOKU | 読み解く</title>
+    <script>
+      const redirect = new URLSearchParams(window.location.search).get("redirect");
+      if (redirect?.startsWith("/") && !redirect.startsWith("//")) {
+        window.history.replaceState(null, "", `/yomitoku${redirect}`);
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
