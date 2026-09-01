@@ -12,6 +12,7 @@ import {
 import { Icon } from "../../components/ui/Icon";
 import { ListPagination } from "../../components/ui/ListPagination";
 import { LoadingBar } from "../../components/ui/LoadingBar";
+import { OptionButtons } from "../../components/ui/OptionButtons";
 import {
   difficultyRank,
   formatDate,
@@ -23,13 +24,18 @@ import {
   pageSize,
   perceivedLabel,
 } from "../../lib/reading";
-import { languageLabels } from "../../lib/readingPolicy";
+import {
+  defaultGenerationLanguage,
+  languageLabels,
+  readingLanguages,
+} from "../../lib/readingPolicy";
 import type {
   AttemptRecord,
   Choice,
   ListFilters,
   ReadingAttempt,
   ReadingItem,
+  ReadingLanguage,
   ReadingResult,
 } from "../../types";
 
@@ -83,7 +89,7 @@ export function ReadingListScreen({
       const attempt = latest[item.id];
       const learningStatus = attempt?.status ?? item.myLatestStatus ?? "unstarted";
       return (
-        (filters.language === "all" || item.language === filters.language) &&
+        item.language === filters.language &&
         (filters.level === "all" || item.officialLevel === filters.level) &&
         (filters.length === "all" || item.lengthType === filters.length) &&
         (!authenticated ||
@@ -140,7 +146,6 @@ export function ReadingListScreen({
     currentPage * pageSize,
   );
   const hasAppliedFilters =
-    filters.language !== "all" ||
     filters.level !== "all" ||
     filters.length !== "all" ||
     filters.sort !== "published-desc" ||
@@ -151,7 +156,7 @@ export function ReadingListScreen({
   const reset = () => {
     setQuery("");
     setFilters({
-      language: "all",
+      language: defaultGenerationLanguage,
       level: "all",
       length: "all",
       status: "all",
@@ -182,6 +187,23 @@ export function ReadingListScreen({
               aria-label="제목 검색"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+          <div className="list-language-switch">
+            <OptionButtons
+              value={filters.language}
+              options={readingLanguages.map((language) => ({
+                value: language,
+                label: languageLabels[language],
+              }))}
+              onChange={(language) =>
+                setFilters({
+                  ...filters,
+                  language: language as ReadingLanguage,
+                  level: "all",
+                })
+              }
+              ariaLabel="독해 언어"
             />
           </div>
           <button
@@ -218,7 +240,6 @@ export function ReadingListScreen({
                     <span className="badge row-level">
                       {item.officialLevel}
                     </span>
-                    <span className="badge">{languageLabels[item.language]}</span>
                     <span
                       className={`badge row-perceived${item.perceivedVotes < minimumVotes ? " is-pending" : ""}`}
                     >

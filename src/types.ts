@@ -90,7 +90,7 @@ export interface ReadingResult {
 }
 
 export interface ListFilters {
-  language: ReadingLanguage | "all";
+  language: ReadingLanguage;
   level: DifficultyLevel | "all";
   length: LengthType | "all";
   status: AttemptStatus | "all";
@@ -104,7 +104,7 @@ export interface ListFilters {
 }
 
 export interface AdminFilters {
-  language: ReadingLanguage | "all";
+  language: ReadingLanguage;
   level: DifficultyLevel | "all";
   length: LengthType | "all";
   topic: Topic | "all";

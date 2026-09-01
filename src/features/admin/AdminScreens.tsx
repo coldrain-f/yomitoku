@@ -49,6 +49,7 @@ interface AdminScreenProps {
   items: ReadingItem[];
   loading: boolean;
   filters: AdminFilters;
+  onLanguageChange: (language: ReadingLanguage) => void;
   onFilters: () => void;
   onEdit: (item: ReadingItem) => void;
   onGenerate: () => void;
@@ -89,6 +90,7 @@ export function AdminScreen({
   items,
   loading,
   filters,
+  onLanguageChange,
   onFilters,
   onEdit,
   onGenerate,
@@ -101,7 +103,7 @@ export function AdminScreen({
         .filter(
           (item) =>
             (filters.level === "all" || filters.level === item.officialLevel) &&
-            (filters.language === "all" || filters.language === item.language) &&
+            filters.language === item.language &&
             (filters.length === "all" || filters.length === item.lengthType) &&
             (filters.topic === "all" || filters.topic === item.topic) &&
             (filters.status === "all" || filters.status === item.status) &&
@@ -173,7 +175,6 @@ export function AdminScreen({
     currentPage * pageSize,
   );
   const hasAppliedFilters =
-    filters.language !== "all" ||
     filters.level !== "all" ||
     filters.length !== "all" ||
     filters.topic !== "all" ||
@@ -206,6 +207,19 @@ export function AdminScreen({
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
+          <div className="list-language-switch">
+            <OptionButtons
+              value={filters.language}
+              options={readingLanguages.map((language) => ({
+                value: language,
+                label: languageLabels[language],
+              }))}
+              onChange={(language) =>
+                onLanguageChange(language as ReadingLanguage)
+              }
+              ariaLabel="관리 문항 언어"
+            />
+          </div>
           <button
             className={`icon-button list-filter-button${hasAppliedFilters ? " is-active" : ""}`}
             type="button"
@@ -230,7 +244,6 @@ export function AdminScreen({
                 <span className="admin-row-title">{item.title}</span>
                 <span className="row-meta">
                   <span className="badge row-level">{item.officialLevel}</span>
-                  <span className="badge">{languageLabels[item.language]}</span>
                   <span className="badge row-perceived">
                     {perceivedLabel(item)} · {item.perceivedVotes}명
                   </span>

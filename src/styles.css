@@ -835,6 +835,18 @@ textarea:focus-visible {
   gap: 8px;
 }
 
+.list-language-switch {
+  flex: 0 0 auto;
+}
+
+.list-language-switch .choice-group {
+  flex-wrap: nowrap;
+}
+
+.list-language-switch .text-button {
+  min-width: 58px;
+}
+
 .filter-search {
   position: relative;
   flex: 1;
@@ -2220,6 +2232,29 @@ body.dialog-open {
   .dialog-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 540px) {
+  .admin-toolbar,
+  .list-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .admin-toolbar .filter-search,
+  .list-toolbar .filter-search {
+    flex-basis: 100%;
+    max-width: none;
+    order: 2;
+  }
+
+  .list-language-switch {
+    order: 1;
+  }
+
+  .list-filter-button {
+    order: 1;
+    margin-left: auto;
   }
 }
 

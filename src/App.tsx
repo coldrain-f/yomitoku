@@ -49,6 +49,7 @@ import type {
   ListFilters,
   ReadingAttempt,
   ReadingItem,
+  ReadingLanguage,
   ReadingResult,
   Role,
   Screen,
@@ -56,14 +57,14 @@ import type {
 } from "./types";
 
 const defaultListFilters: ListFilters = {
-  language: "all",
+  language: defaultGenerationLanguage,
   level: "all",
   length: "all",
   status: "all",
   sort: "published-desc",
 };
 const defaultAdminFilters: AdminFilters = {
-  language: "all",
+  language: defaultGenerationLanguage,
   level: "all",
   length: "all",
   topic: "all",
@@ -73,6 +74,10 @@ const defaultAdminFilters: AdminFilters = {
 const listFiltersStorageKey = "yomitoku.list-filters";
 const adminFiltersStorageKey = "yomitoku.admin-filters";
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
+
+function normalizeReadingLanguage(value: unknown): ReadingLanguage {
+  return value === "ko" ? "ko" : defaultGenerationLanguage;
+}
 
 function readStoredFilters<T extends object>(key: string, fallback: T): T {
   try {
@@ -287,9 +292,9 @@ export default function App() {
   );
   const filters = useMemo<ListFilters>(
     () => ({
-      language:
-        (searchParams.get("language") as ListFilters["language"] | null) ??
-        storedListFilters.language,
+      language: normalizeReadingLanguage(
+        searchParams.get("language") ?? storedListFilters.language,
+      ),
       level:
         (searchParams.get("level") as ListFilters["level"] | null) ??
         storedListFilters.level,
@@ -306,9 +311,13 @@ export default function App() {
     [searchParams, storedListFilters],
   );
   const query = searchParams.get("q") ?? "";
-  const [adminFilters, setAdminFilters] = useState<AdminFilters>(() =>
-    readStoredFilters(adminFiltersStorageKey, defaultAdminFilters),
-  );
+  const [adminFilters, setAdminFilters] = useState<AdminFilters>(() => {
+    const stored = readStoredFilters(adminFiltersStorageKey, defaultAdminFilters);
+    return {
+      ...stored,
+      language: normalizeReadingLanguage(stored.language),
+    };
+  });
   const [filterDraft, setFilterDraft] = useState(filters);
   const [adminFilterDraft, setAdminFilterDraft] = useState(adminFilters);
   const filterDraftRef = useRef(filterDraft);
@@ -491,7 +500,9 @@ export default function App() {
     });
     const params = new URLSearchParams();
     if (next.query) params.set("q", next.query);
-    if (next.language !== "all") params.set("language", next.language);
+    if (next.language !== defaultGenerationLanguage) {
+      params.set("language", next.language);
+    }
     if (next.level !== "all") params.set("level", next.level);
     if (next.length !== "all") params.set("length", next.length);
     if (next.status !== "all") params.set("status", next.status);
@@ -975,7 +986,7 @@ export default function App() {
           <Route path="/readings/:itemId" element={<RequireAuth authenticated={authenticated}><ReadingRoute items={items} attempt={attempt} result={result} onChoose={(id) => setAttempt((current) => current ? { ...current, selectedChoiceId: id, message: "" } : current)} onSubmit={submit} onAbandon={goHome} onReport={openReport} onResult={() => result && navigate(`/results/${result.itemId}`)} /></RequireAuth>} />
           <Route path="/results/:itemId" element={<RequireAuth authenticated={authenticated}><ResultRoute result={result} onFeedback={openFeedback} onContinue={continueReading} onHome={goHome} /></RequireAuth>} />
           <Route path="/statistics" element={<RequireAuth authenticated={authenticated}><StatsScreen statistics={statistics} /></RequireAuth>} />
-          <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} filters={adminFilters} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => { void loadGenerationModels(); navigate("/admin/readings/new"); }} /></RequireAdmin>} />
+          <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} filters={adminFilters} onLanguageChange={(language) => setAdminFilters((current) => ({ ...current, language, level: "all" }))} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => { void loadGenerationModels(); navigate("/admin/readings/new"); }} /></RequireAdmin>} />
           <Route path="/admin/readings/new" element={<RequireAdmin authenticated={authenticated} role={role}><GenerateScreen values={generation} setValues={setGeneration} modelOptions={generationModels} modelError={generationModelsError} isCreating={isGenerating} progressLabel={generationProgress} error={generationError} onCreate={createDraft} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
           <Route path="/admin/readings/:itemId/edit" element={<RequireAdmin authenticated={authenticated} role={role}><AdminEditRoute items={adminItems} draft={draft} setDraft={setDraft} onSave={() => draft && void updateAdminItem(draft)} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={leaveEditor} /></RequireAdmin>} />
           <Route path="/admin/readings/:itemId/preview" element={<RequireAdmin authenticated={authenticated} role={role}><PreviewRoute items={adminItems} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
