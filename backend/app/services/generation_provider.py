@@ -12,6 +12,7 @@ from app.schemas import (
     GenerationConditions,
     ValidatorOutcome,
 )
+from app.services.reading_policy import TOPIC_LABELS
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -32,19 +33,7 @@ class StubGenerationProvider:
     async def generate(
         self, conditions: GenerationConditions, revision_feedback: list[str]
     ) -> GeneratedReading:
-        topic_label = {
-            "생활": "日々の暮らし",
-            "사회": "社会の変化",
-            "경제": "身近な経済",
-            "과학": "科学の見方",
-            "기술": "技術との距離",
-            "문화": "文化の役割",
-            "여행": "旅先の発見",
-            "요리": "料理の工夫",
-            "게임": "遊びの価値",
-            "교육": "学びの時間",
-            "환경": "環境との関わり",
-        }.get(conditions.topic, "身近なテーマ")
+        topic_label = TOPIC_LABELS.get(conditions.topic, "身近なテーマ")
         base = (
             f"{topic_label}について考えるとき、すぐに答えを一つに決めることは簡単ではない。"
             "人によって置かれた状況や大切にしていることが違うからである。"

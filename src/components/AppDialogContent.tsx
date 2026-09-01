@@ -1,7 +1,7 @@
 import { OptionButtons } from "./ui/OptionButtons";
-import { topics } from "../data";
 import { GoogleSignInButton } from "../features/auth/GoogleSignInButton";
 import { lengthLabels } from "../lib/reading";
+import { difficultyLevels, readingTopics } from "../lib/readingPolicy";
 import type {
   AdminFilters,
   DialogConfig,
@@ -67,11 +67,7 @@ export function AppDialogContent({
             value={filterDraft.level}
             options={[
               { value: "all", label: "전체" },
-              "N5",
-              "N4",
-              "N3",
-              "N2",
-              "N1",
+              ...difficultyLevels,
             ]}
             onChange={(level) =>
               setFilterDraft({
@@ -156,11 +152,7 @@ export function AppDialogContent({
             value={adminFilterDraft.level}
             options={[
               { value: "all", label: "전체" },
-              "N5",
-              "N4",
-              "N3",
-              "N2",
-              "N1",
+              ...difficultyLevels,
             ]}
             onChange={(level) =>
               setAdminFilterDraft({
@@ -204,7 +196,7 @@ export function AppDialogContent({
             }
           >
             <option value="all">전체</option>
-            {topics.map((topic) => (
+            {readingTopics.map((topic) => (
               <option key={topic}>{topic}</option>
             ))}
           </select>
@@ -300,7 +292,7 @@ export function AppDialogContent({
           <span className="form-label">체감 난이도</span>
           <OptionButtons
             value={feedback.level}
-            options={["N5", "N4", "N3", "N2", "N1"]}
+            options={difficultyLevels}
             onChange={(level) =>
               setFeedback({
                 ...feedback,

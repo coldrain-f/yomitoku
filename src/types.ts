@@ -1,22 +1,17 @@
 import type { Dispatch, ReactNode, SetStateAction } from "react";
+import type {
+  difficultyLevels,
+  lengthTypes,
+  readingTopics,
+  recommendedTopic,
+} from "./lib/readingPolicy";
 
-export type DifficultyLevel = "N5" | "N4" | "N3" | "N2" | "N1";
-export type LengthType = "short" | "medium" | "long";
+export type DifficultyLevel = (typeof difficultyLevels)[number];
+export type LengthType = (typeof lengthTypes)[number];
 export type ReadingStatus = "review" | "held" | "published";
 export type AttemptStatus = "unstarted" | "wrong" | "correct";
 export type Role = "admin" | "learner";
-export type Topic =
-  | "생활"
-  | "사회"
-  | "경제"
-  | "과학"
-  | "기술"
-  | "문화"
-  | "여행"
-  | "요리"
-  | "게임"
-  | "교육"
-  | "환경";
+export type Topic = (typeof readingTopics)[number];
 
 export interface Choice {
   id: string;
@@ -125,7 +120,7 @@ export interface AdminFilters {
 export interface GenerationValues {
   level: DifficultyLevel;
   length: LengthType;
-  topic: Topic | "추천";
+  topic: Topic | typeof recommendedTopic;
 }
 
 export interface FeedbackValues {

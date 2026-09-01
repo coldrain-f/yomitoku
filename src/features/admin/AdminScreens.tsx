@@ -15,7 +15,6 @@ import { Icon } from "../../components/ui/Icon";
 import { ListPagination } from "../../components/ui/ListPagination";
 import { LoadingBar } from "../../components/ui/LoadingBar";
 import { OptionButtons } from "../../components/ui/OptionButtons";
-import { topics } from "../../data";
 import {
   difficultyRank,
   formatDate,
@@ -26,6 +25,11 @@ import {
   statusClass,
   statusLabel,
 } from "../../lib/reading";
+import {
+  difficultyLevels,
+  readingTopics,
+  recommendedTopic,
+} from "../../lib/readingPolicy";
 import type {
   AdminFilters,
   DifficultyLevel,
@@ -306,7 +310,7 @@ export function AdminEdit({
                   })
                 }
               >
-                {["N5", "N4", "N3", "N2", "N1"].map((value) => (
+                {difficultyLevels.map((value) => (
                   <option key={value}>{value}</option>
                 ))}
               </select>
@@ -352,7 +356,7 @@ export function AdminEdit({
                   })
                 }
               >
-                {topics.map((topic) => (
+                {readingTopics.map((topic) => (
                   <option key={topic}>{topic}</option>
                 ))}
               </select>
@@ -555,7 +559,7 @@ export function GenerateScreen({
             <span className="form-label">난이도</span>
             <OptionButtons
               value={values.level}
-              options={["N5", "N4", "N3", "N2", "N1"]}
+              options={difficultyLevels}
               onChange={(level) =>
                 setValues({
                   ...values,
@@ -598,8 +602,8 @@ export function GenerateScreen({
                   })
                 }
               >
-                <option value="추천">추천 (랜덤)</option>
-                {topics.map((topic) => (
+                <option value={recommendedTopic}>추천 (랜덤)</option>
+                {readingTopics.map((topic) => (
                   <option key={topic}>{topic}</option>
                 ))}
               </select>

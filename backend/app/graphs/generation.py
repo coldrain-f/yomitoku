@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.db.models import GenerationJob, ItemValidation, ReadingChoice, ReadingItem
 from app.schemas import GeneratedReading, GenerationConditions, ValidatorOutcome
 from app.services.generation_provider import GenerationProvider
+from app.services.reading_policy import RECOMMENDED_SECONDS
 from app.services.validation import validate_generated_reading
 
 
@@ -24,9 +25,6 @@ class GenerationState(TypedDict):
     answer_validation: NotRequired[dict[str, Any]]
     quality_validation: NotRequired[dict[str, Any]]
     terminal_status: NotRequired[str]
-
-
-RECOMMENDED_SECONDS = {"short": 60, "medium": 150, "long": 270}
 
 
 async def update_job_progress(

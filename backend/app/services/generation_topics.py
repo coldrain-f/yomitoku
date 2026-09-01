@@ -3,20 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from random import choice
 
-RECOMMENDED_TOPIC = "추천"
-GENERATION_TOPICS = (
-    "생활",
-    "사회",
-    "경제",
-    "과학",
-    "기술",
-    "문화",
-    "여행",
-    "요리",
-    "게임",
-    "교육",
-    "환경",
-)
+from app.services.reading_policy import GENERATION_TOPICS, RECOMMENDED_TOPIC
 
 
 def resolve_generation_topic(

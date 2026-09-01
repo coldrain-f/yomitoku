@@ -27,6 +27,12 @@ import { Breadcrumb } from "./components/ui/Breadcrumb";
 import { Dialog } from "./components/ui/Dialog";
 import { Icon } from "./components/ui/Icon";
 import { api, recordFromResult, type GenerationJob, type Statistics } from "./lib/api";
+import {
+  apiListPageSize,
+  defaultGenerationLength,
+  defaultGenerationLevel,
+  recommendedTopic,
+} from "./lib/readingPolicy";
 import type {
   AdminFilters,
   AttemptRecord,
@@ -271,9 +277,9 @@ export default function App() {
   const [result, setResult] = useState<ReadingResult | null>(null);
   const [draft, setDraft] = useState<ReadingItem | null>(null);
   const [generation, setGeneration] = useState<GenerationValues>({
-    level: "N2",
-    length: "medium",
-    topic: "추천",
+    level: defaultGenerationLevel,
+    length: defaultGenerationLength,
+    topic: recommendedTopic,
   });
   const [dialogError, setDialogError] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -295,7 +301,7 @@ export default function App() {
   const loadPublicItems = async () => {
     setIsListLoading(true);
     try {
-      const response = await api.listReadings({ pageSize: 50 });
+      const response = await api.listReadings({ pageSize: apiListPageSize });
       setItems((current) =>
         response.items.map((item) => {
           const loaded = current.find((entry) => entry.id === item.id);
@@ -318,7 +324,7 @@ export default function App() {
   const loadAdminItems = async () => {
     setIsAdminListLoading(true);
     try {
-      const response = await api.listAdminReadings({ pageSize: 50 });
+      const response = await api.listAdminReadings({ pageSize: apiListPageSize });
       setAdminItems(response.items);
       setAdminLoaded(true);
     } finally {

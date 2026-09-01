@@ -6,7 +6,7 @@ interface OptionButtonOption {
 
 interface OptionButtonsProps {
   value: string;
-  options: Array<string | OptionButtonOption>;
+  options: ReadonlyArray<string | OptionButtonOption>;
   onChange: (value: string) => void;
   ariaLabel: string;
   disabled?: boolean;

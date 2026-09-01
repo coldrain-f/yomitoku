@@ -1,16 +1,5 @@
 from app.schemas import GeneratedReading, LengthType
-
-MINIMUM_PASSAGE_CHARACTERS: dict[LengthType, int] = {
-    "short": 80,
-    "medium": 180,
-    "long": 360,
-}
-
-MAXIMUM_PASSAGE_CHARACTERS: dict[LengthType, int] = {
-    "short": 500,
-    "medium": 1_000,
-    "long": 1_800,
-}
+from app.services.reading_policy import PASSAGE_CHARACTER_LIMITS
 
 
 def validate_generated_reading(
@@ -20,9 +9,11 @@ def validate_generated_reading(
     issues: list[str] = []
     passage_length = len(item.passage.replace("\n", "").strip())
 
-    if passage_length < MINIMUM_PASSAGE_CHARACTERS[length_type]:
+    minimum_characters, maximum_characters = PASSAGE_CHARACTER_LIMITS[length_type]
+
+    if passage_length < minimum_characters:
         issues.append("passage_too_short")
-    if passage_length > MAXIMUM_PASSAGE_CHARACTERS[length_type]:
+    if passage_length > maximum_characters:
         issues.append("passage_too_long")
     if any("(" in choice.text or "（" in choice.text for choice in item.choices):
         issues.append("furigana_not_supported")

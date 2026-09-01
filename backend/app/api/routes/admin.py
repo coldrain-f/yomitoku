@@ -22,18 +22,19 @@ from app.schemas import (
     AdminReadingItemUpdate,
     GenerationConditions,
     GenerationJobResponse,
+    JlptLevel,
+    LengthType,
     ReadingChoiceInput,
     ReadingItemPage,
     ReadingItemSummary,
 )
 from app.services.generation_topics import resolve_generation_topic
-from app.services.item_metrics import LEVEL_ORDER, ItemMetrics, collect_item_metrics
+from app.services.item_metrics import ItemMetrics, collect_item_metrics
+from app.services.reading_policy import LEVEL_ORDER, MINIMUM_PERCEIVED_LEVEL_VOTES
 from app.services.users import ensure_user
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
-Level = Literal["N5", "N4", "N3", "N2", "N1"]
-Length = Literal["short", "medium", "long"]
 ItemStatus = Literal["review", "held", "published"]
 
 
@@ -88,7 +89,7 @@ def serialize_summary(
         created_at=item.created_at,
         updated_at=item.updated_at,
         perceived_level=perceived_level if isinstance(perceived_level, str) else None,
-        perceived_level_visible=vote_count >= 10,
+        perceived_level_visible=vote_count >= MINIMUM_PERCEIVED_LEVEL_VOTES,
         perceived_vote_count=vote_count,
     )
 
@@ -234,8 +235,8 @@ async def list_admin_reading_items(
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Annotated[CurrentUser, Depends(require_admin)],
     q: Annotated[str | None, Query(max_length=100)] = None,
-    level: Level | None = None,
-    length: Length | None = None,
+    level: JlptLevel | None = None,
+    length: LengthType | None = None,
     topic: Annotated[str | None, Query(max_length=32)] = None,
     item_status: Annotated[ItemStatus | None, Query(alias="status")] = None,
     sort: Annotated[

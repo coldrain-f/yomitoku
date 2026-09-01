@@ -5,8 +5,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Attempt, ItemFeedback, ItemReport
+from app.services.reading_policy import LEVEL_ORDER
 
-LEVEL_ORDER = {"N5": 1, "N4": 2, "N3": 3, "N2": 4, "N1": 5}
 ItemMetrics = dict[str, float | int | str | None]
 
 

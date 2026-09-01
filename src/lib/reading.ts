@@ -1,29 +1,17 @@
-import { difficultyRank, lengthLabels } from "../data";
-import type {
-  AttemptRecord,
-  DifficultyLevel,
-  LengthType,
-  ReadingItem,
-  ReadingStatus,
-} from "../types";
+import type { AttemptRecord, ReadingItem, ReadingStatus } from "../types";
+import {
+  difficultyRank,
+  displayTimeZone,
+  lengthLabels,
+  listPageSize,
+  minimumPerceivedLevelVotes,
+  newBadgeWindowMs,
+} from "./readingPolicy";
 
 export { difficultyRank, lengthLabels };
 
-export const pageSize = 10;
-export const totalGeneratedInitial = 60;
-export const minimumVotes = 10;
-export const typeTotals: Record<LengthType, number> = {
-  short: 20,
-  medium: 22,
-  long: 18,
-};
-export const levelTotals: Record<DifficultyLevel, number> = {
-  N5: 10,
-  N4: 12,
-  N3: 13,
-  N2: 15,
-  N1: 10,
-};
+export const pageSize = listPageSize;
+export const minimumVotes = minimumPerceivedLevelVotes;
 
 export function formatTime(value = 0): string {
   return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(
@@ -36,7 +24,7 @@ export function formatDate(value: string | Date): string {
     year: "2-digit",
     month: "2-digit",
     day: "2-digit",
-    timeZone: "Asia/Seoul",
+    timeZone: displayTimeZone,
   })
     .format(new Date(value))
     .replace(/\. /g, ".")
@@ -73,7 +61,7 @@ export function statusClass(status: ReadingStatus): string {
 export function isNew(item: Pick<ReadingItem, "publishedAt">): boolean {
   return Boolean(
     item.publishedAt &&
-    Date.now() - new Date(item.publishedAt).getTime() < 72 * 60 * 60 * 1000
+    Date.now() - new Date(item.publishedAt).getTime() < newBadgeWindowMs
   );
 }
 

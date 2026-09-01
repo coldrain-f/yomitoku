@@ -22,6 +22,8 @@ from app.schemas import (
     AttemptStarted,
     AttemptSubmitRequest,
     FeedbackRequest,
+    JlptLevel,
+    LengthType,
     ReadingChoicePublic,
     ReadingItemDetail,
     ReadingItemPage,
@@ -30,7 +32,13 @@ from app.schemas import (
     StatisticGroup,
     StatisticsResponse,
 )
-from app.services.item_metrics import LEVEL_ORDER, ItemMetrics, collect_item_metrics
+from app.services.item_metrics import ItemMetrics, collect_item_metrics
+from app.services.reading_policy import (
+    JLPT_LEVELS,
+    LENGTH_TYPES,
+    LEVEL_ORDER,
+    MINIMUM_PERCEIVED_LEVEL_VOTES,
+)
 from app.services.users import ensure_user
 
 router = APIRouter(prefix="/reading-items", tags=["reading items"])
@@ -73,7 +81,9 @@ def serialize_public_summary(
         created_at=item.created_at,
         updated_at=item.updated_at,
         perceived_level=perceived_level if isinstance(perceived_level, str) else None,
-        perceived_level_visible=perceived_vote_count >= 10,
+        perceived_level_visible=(
+            perceived_vote_count >= MINIMUM_PERCEIVED_LEVEL_VOTES
+        ),
         perceived_vote_count=perceived_vote_count,
         my_latest_status=my_latest_status,
     )
@@ -108,8 +118,8 @@ def sort_public_items(
 async def list_published_reading_items(
     session: Annotated[AsyncSession, Depends(get_session)],
     q: Annotated[str | None, Query(max_length=100)] = None,
-    level: Annotated[str | None, Query(pattern="^N[1-5]$")] = None,
-    length: Annotated[str | None, Query(pattern="^(short|medium|long)$")] = None,
+    level: JlptLevel | None = None,
+    length: LengthType | None = None,
     attempt_status: Annotated[
         Literal["correct", "wrong", "unstarted"] | None,
         Query(alias="status"),
@@ -384,11 +394,7 @@ async def create_report(
 def group_statistics(
     items: list[ReadingItem], latest_attempts: dict[UUID, Attempt], key: str
 ) -> list[StatisticGroup]:
-    order = (
-        ["short", "medium", "long"]
-        if key == "length_type"
-        else ["N5", "N4", "N3", "N2", "N1"]
-    )
+    order = LENGTH_TYPES if key == "length_type" else JLPT_LEVELS
     groups: list[StatisticGroup] = []
     for value in order:
         group_items = [item for item in items if getattr(item, key) == value]
