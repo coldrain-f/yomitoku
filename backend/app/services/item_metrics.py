@@ -42,7 +42,9 @@ async def collect_item_metrics(
     language_rows = await session.execute(
         select(ReadingItem.id, ReadingItem.language).where(ReadingItem.id.in_(item_ids))
     )
-    language_by_item = dict(language_rows)
+    language_by_item = {
+        item_id: language for item_id, language in language_rows.tuples().all()
+    }
     for item_id, entries in feedback_by_item.items():
         language = language_by_item[item_id]
         valid_entries = [
