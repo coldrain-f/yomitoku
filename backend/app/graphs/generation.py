@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any, NotRequired, TypedDict
+from typing import Any, Final, NotRequired, TypedDict
 from uuid import UUID
 
 from langgraph.graph import END, START, StateGraph
@@ -28,6 +28,9 @@ class GenerationState(TypedDict):
     terminal_status: NotRequired[str]
 
 
+VALIDATION_SCORE_FLOORS: Final = {"answer": 85, "quality": 85}
+
+
 async def update_job_progress(
     session_factory: async_sessionmaker[AsyncSession],
     job_id: str,
@@ -49,8 +52,26 @@ def validation_feedback(state: GenerationState) -> list[str]:
     for key in ("answer_validation", "quality_validation"):
         outcome_data = state.get(key)
         if outcome_data:
-            feedback.extend(ValidatorOutcome.model_validate(outcome_data).issue_codes)
+            outcome = ValidatorOutcome.model_validate(outcome_data)
+            role = key.removesuffix("_validation")
+            feedback.extend(f"{role}: {code}" for code in outcome.issue_codes)
+            feedback.extend(f"{role}: {evidence}" for evidence in outcome.evidence)
     return list(dict.fromkeys(feedback))
+
+
+def enforce_validation_gate(
+    outcome: ValidatorOutcome, role: str
+) -> ValidatorOutcome:
+    issue_codes = list(dict.fromkeys(outcome.issue_codes))
+    minimum_score = VALIDATION_SCORE_FLOORS[role]
+    if outcome.score < minimum_score:
+        issue_codes.append(f"{role}_score_below_{minimum_score}")
+    if outcome.status != "passed" and not issue_codes:
+        issue_codes.append(f"{role}_validator_{outcome.status}")
+    status = "warning" if outcome.status == "passed" and issue_codes else outcome.status
+    return outcome.model_copy(
+        update={"status": status, "issue_codes": list(dict.fromkeys(issue_codes))}
+    )
 
 
 def build_generation_graph(
@@ -118,6 +139,7 @@ def build_generation_graph(
                     "issue_codes": [*outcome.issue_codes, "answer_mismatch"],
                 }
             )
+        outcome = enforce_validation_gate(outcome, "answer")
         return {"answer_validation": outcome.model_dump(mode="json", by_alias=False)}
 
     async def verify_quality(state: GenerationState) -> dict[str, Any]:
@@ -130,9 +152,10 @@ def build_generation_graph(
         conditions = GenerationConditions.model_validate(state["conditions"])
         outcome = await provider.verify_quality(
             GeneratedReading.model_validate(state["item"]),
-            conditions.language,
+            conditions,
             state["models"]["quality_validator_model"],
         )
+        outcome = enforce_validation_gate(outcome, "quality")
         return {"quality_validation": outcome.model_dump(mode="json", by_alias=False)}
 
     async def decide(state: GenerationState) -> dict[str, Any]:

@@ -1553,6 +1553,13 @@ textarea:focus-visible {
   color: var(--ok);
 }
 
+[data-reading-language="ko"] .title-jp,
+[data-reading-language="ko"] .passage,
+[data-reading-language="ko"] .answer-choice,
+[data-reading-language="ko"] .preview-choice {
+  font-family: "Yu Gothic", YuGothic, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, "Malgun Gothic", Arial, sans-serif;
+}
+
 .preview-answer-key {
   display: inline-flex;
   align-items: center;

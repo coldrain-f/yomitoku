@@ -27,4 +27,16 @@ def validate_generated_reading(
         if not choice.is_correct
     ):
         issues.append("missing_wrong_explanation")
+    correct_choice = next(choice for choice in item.choices if choice.is_correct)
+    if correct_choice.distractor_type is not None:
+        issues.append("correct_choice_has_distractor_type")
+    distractor_types = [
+        choice.distractor_type
+        for choice in item.choices
+        if not choice.is_correct
+    ]
+    if any(distractor_type is None for distractor_type in distractor_types):
+        issues.append("missing_distractor_type")
+    elif len(set(distractor_types)) != len(distractor_types):
+        issues.append("duplicate_distractor_type")
     return issues

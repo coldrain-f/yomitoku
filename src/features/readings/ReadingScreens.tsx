@@ -319,7 +319,11 @@ export function ReadingScreen({
     : "";
 
   return (
-    <section className="screen screen-reading" aria-label="풀이">
+    <section
+      className="screen screen-reading"
+      aria-label="풀이"
+      data-reading-language={item.language}
+    >
       <article className="paper flush">
         <div className="paper-head">
           <div>
@@ -452,7 +456,11 @@ export function ResultScreen({
     choices.findIndex((choice) => choice.id === result.correctChoiceId) + 1;
 
   return (
-    <section className="screen screen-result" aria-label="결과">
+    <section
+      className="screen screen-result"
+      aria-label="결과"
+      data-reading-language={item.language}
+    >
       <div className="paper">
         <p className="kicker">Result</p>
         <h1 className="title-jp">{item.title}</h1>

@@ -33,6 +33,13 @@ KoreanLevel = Literal[
 ReadingLevel = JapaneseLevel | KoreanLevel
 LengthType = Literal["short", "medium", "long"]
 ValidationStatus = Literal["passed", "warning", "failed"]
+DistractorType = Literal[
+    "background_knowledge_trap",
+    "relation_or_agent_reversal",
+    "partial_truth_off_focus",
+    "scope_or_degree_distortion",
+    "unsupported_inference",
+]
 
 
 class GenerationConditions(ApiModel):
@@ -65,6 +72,7 @@ class GeneratedChoice(ApiModel):
     text: str = Field(min_length=1)
     is_correct: bool
     wrong_explanation: str | None = None
+    distractor_type: DistractorType | None = None
 
 
 class GeneratedReading(ApiModel):

@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.graphs.generation import enforce_validation_gate, validation_feedback
 from app.schemas import (
     GeneratedChoice,
     GeneratedReading,
@@ -21,10 +22,25 @@ def _sample_generated_reading() -> GeneratedReading:
         passage="結果だけを見ると、理由を見落とすことがある。",
         question="筆者が大切だと考えていることは何か。",
         choices=[
-            GeneratedChoice(text="早く決めること。", is_correct=False),
+            GeneratedChoice(
+                text="早く決めること。",
+                is_correct=False,
+                wrong_explanation="本文は結論を急がず理由を確かめるよう述べている。",
+                distractor_type="relation_or_agent_reversal",
+            ),
             GeneratedChoice(text="理由を確かめること。", is_correct=True),
-            GeneratedChoice(text="数だけを比べること。", is_correct=False),
-            GeneratedChoice(text="意見を避けること。", is_correct=False),
+            GeneratedChoice(
+                text="数だけを比べること。",
+                is_correct=False,
+                wrong_explanation="本文の一部の表現だけに注目している。",
+                distractor_type="partial_truth_off_focus",
+            ),
+            GeneratedChoice(
+                text="意見を必ず避けること。",
+                is_correct=False,
+                wrong_explanation="本文は意見を避けるよう述べていない。",
+                distractor_type="scope_or_degree_distortion",
+            ),
         ],
         explanation="本文は理由を確かめる大切さを述べている。",
     )
@@ -110,9 +126,12 @@ async def test_anthropic_validators_use_native_structured_output() -> None:
     messages = FakeAnthropicMessages()
     provider = _anthropic_provider_with_fake_client(messages)
     item = _sample_generated_reading()
+    conditions = GenerationConditions(
+        official_level="N2", length_type="medium", topic="교육"
+    )
 
     answer = await provider.verify_answer(item, "ja", "validator-model")
-    quality = await provider.verify_quality(item, "ja", "validator-model")
+    quality = await provider.verify_quality(item, conditions, "validator-model")
 
     assert answer.status == "passed"
     assert quality.correct_choice_index == 2
@@ -124,6 +143,7 @@ async def test_anthropic_validators_use_native_structured_output() -> None:
         "validator-model",
         "validator-model",
     ]
+    assert "DISTRACTOR_TYPE_MISMATCH" in messages.calls[1]["messages"][0]["content"]
 
 
 @pytest.mark.asyncio
@@ -164,3 +184,38 @@ def test_validator_outcome_accepts_structured_evidence_entries() -> None:
         "WEAK_DISTRACTOR: Distractor choice is too easy to eliminate.",
         "DISTRACTOR_OVERLAP: Two incorrect choices overlap in meaning.",
     ]
+
+
+def test_deterministic_validation_requires_distinct_distractor_types() -> None:
+    item = _sample_generated_reading()
+    item.choices[2] = item.choices[2].model_copy(
+        update={"distractor_type": "relation_or_agent_reversal"}
+    )
+
+    issues = validate_generated_reading(item, "short")
+
+    assert "duplicate_distractor_type" in issues
+
+
+def test_validation_gate_rejects_low_scores_and_preserves_repair_feedback() -> None:
+    answer = enforce_validation_gate(
+        ValidatorOutcome(status="passed", score=61), "answer"
+    )
+    quality = ValidatorOutcome(
+        status="warning",
+        score=82,
+        issue_codes=["WEAK_DISTRACTOR"],
+        evidence=["Choice 3 is unrelated to the passage."],
+    )
+    feedback = validation_feedback(
+        {
+            "schema_issues": [],
+            "answer_validation": answer.model_dump(mode="json"),
+            "quality_validation": quality.model_dump(mode="json"),
+        }
+    )
+
+    assert answer.status == "warning"
+    assert "answer_score_below_85" in answer.issue_codes
+    assert "quality: WEAK_DISTRACTOR" in feedback
+    assert "quality: Choice 3 is unrelated to the passage." in feedback

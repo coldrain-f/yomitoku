@@ -772,7 +772,11 @@ export function PreviewScreen({
   const held = item.status === "held";
 
   return (
-    <section className="screen screen-preview" aria-label="생성된 문항 검토">
+    <section
+      className="screen screen-preview"
+      aria-label="생성된 문항 검토"
+      data-reading-language={item.language}
+    >
       <article className="paper flush">
         <div className="paper-head">
           <div>
