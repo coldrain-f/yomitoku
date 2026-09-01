@@ -30,6 +30,17 @@ class GenerationConditions(ApiModel):
     topic: str = Field(min_length=1, max_length=32)
 
 
+class GenerationJobCreateRequest(GenerationConditions):
+    generator_model: str | None = Field(default=None, min_length=1, max_length=128)
+    validator_model: str | None = Field(default=None, min_length=1, max_length=128)
+
+
+class GenerationModelOptionsResponse(ApiModel):
+    models: list[str]
+    default_generator_model: str
+    default_validator_model: str
+
+
 class GeneratedChoice(ApiModel):
     text: str = Field(min_length=1)
     is_correct: bool

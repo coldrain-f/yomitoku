@@ -35,7 +35,7 @@ async def test_stub_generation_passes_deterministic_checks() -> None:
     conditions = GenerationConditions(
         official_level="N2", length_type="medium", topic="교육"
     )
-    item = await StubGenerationProvider().generate(conditions, [])
+    item = await StubGenerationProvider().generate(conditions, [], "stub")
 
     assert validate_generated_reading(item, "medium") == []
     assert len(item.choices) == 4
@@ -48,8 +48,8 @@ async def test_stub_answer_validator_identifies_the_only_correct_choice() -> Non
         official_level="N3", length_type="short", topic="생활"
     )
     provider = StubGenerationProvider()
-    item = await provider.generate(conditions, [])
-    outcome = await provider.verify_answer(item)
+    item = await provider.generate(conditions, [], "stub")
+    outcome = await provider.verify_answer(item, "stub")
 
     assert outcome.status == "passed"
     assert outcome.correct_choice_index == 3
@@ -86,9 +86,6 @@ def _anthropic_provider_with_fake_client(
 ) -> AnthropicGenerationProvider:
     provider = AnthropicGenerationProvider.__new__(AnthropicGenerationProvider)
     provider.client = SimpleNamespace(messages=messages)
-    provider.generator_model = "claude-fable-5"
-    provider.answer_validator_model = "claude-fable-5"
-    provider.quality_validator_model = "claude-fable-5"
     return provider
 
 
@@ -100,11 +97,12 @@ async def test_anthropic_generation_uses_native_structured_output() -> None:
         official_level="N2", length_type="medium", topic="교육"
     )
 
-    item = await provider.generate(conditions, [])
+    item = await provider.generate(conditions, [], "generator-model")
 
     assert item.title == "背景を考える"
     assert item.choices[1].is_correct is True
     assert messages.calls[0]["output_format"] is GeneratedReading
+    assert messages.calls[0]["model"] == "generator-model"
 
 
 @pytest.mark.asyncio
@@ -113,14 +111,18 @@ async def test_anthropic_validators_use_native_structured_output() -> None:
     provider = _anthropic_provider_with_fake_client(messages)
     item = _sample_generated_reading()
 
-    answer = await provider.verify_answer(item)
-    quality = await provider.verify_quality(item)
+    answer = await provider.verify_answer(item, "validator-model")
+    quality = await provider.verify_quality(item, "validator-model")
 
     assert answer.status == "passed"
     assert quality.correct_choice_index == 2
     assert [call["output_format"] for call in messages.calls] == [
         ValidatorOutcome,
         ValidatorOutcome,
+    ]
+    assert [call["model"] for call in messages.calls] == [
+        "validator-model",
+        "validator-model",
     ]
 
 

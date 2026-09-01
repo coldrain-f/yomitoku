@@ -19,19 +19,25 @@ ModelT = TypeVar("ModelT", bound=BaseModel)
 
 class GenerationProvider(Protocol):
     async def generate(
-        self, conditions: GenerationConditions, revision_feedback: list[str]
+        self,
+        conditions: GenerationConditions,
+        revision_feedback: list[str],
+        model: str,
     ) -> GeneratedReading: ...
 
-    async def verify_answer(self, item: GeneratedReading) -> ValidatorOutcome: ...
+    async def verify_answer(self, item: GeneratedReading, model: str) -> ValidatorOutcome: ...
 
-    async def verify_quality(self, item: GeneratedReading) -> ValidatorOutcome: ...
+    async def verify_quality(self, item: GeneratedReading, model: str) -> ValidatorOutcome: ...
 
 
 class StubGenerationProvider:
     """Local provider used to test every workflow stage without model spend."""
 
     async def generate(
-        self, conditions: GenerationConditions, revision_feedback: list[str]
+        self,
+        conditions: GenerationConditions,
+        revision_feedback: list[str],
+        model: str,
     ) -> GeneratedReading:
         topic_label = TOPIC_LABELS.get(conditions.topic, "身近なテーマ")
         base = (
@@ -70,7 +76,7 @@ class StubGenerationProvider:
             explanation="本文は、目に見える結果だけで判断せず、その背景にある理由を確かめる姿勢が大切だと述べています。したがって03が正解です。",
         )
 
-    async def verify_answer(self, item: GeneratedReading) -> ValidatorOutcome:
+    async def verify_answer(self, item: GeneratedReading, model: str) -> ValidatorOutcome:
         correct_index = next(
             index
             for index, choice in enumerate(item.choices, start=1)
@@ -83,7 +89,7 @@ class StubGenerationProvider:
             correct_choice_index=correct_index,
         )
 
-    async def verify_quality(self, item: GeneratedReading) -> ValidatorOutcome:
+    async def verify_quality(self, item: GeneratedReading, model: str) -> ValidatorOutcome:
         return ValidatorOutcome(
             status="passed",
             score=95,
@@ -98,12 +104,12 @@ class AnthropicGenerationProvider:
         self.client = AsyncAnthropic(
             api_key=settings.anthropic_api_key.get_secret_value()
         )
-        self.generator_model = settings.generator_model
-        self.answer_validator_model = settings.answer_validator_model
-        self.quality_validator_model = settings.quality_validator_model
 
     async def generate(
-        self, conditions: GenerationConditions, revision_feedback: list[str]
+        self,
+        conditions: GenerationConditions,
+        revision_feedback: list[str],
+        model: str,
     ) -> GeneratedReading:
         feedback = "\n".join(f"- {issue}" for issue in revision_feedback) or "없음"
         prompt = f"""Create one Japanese reading-comprehension item as strict JSON only.
@@ -117,12 +123,12 @@ Each choice must include text, isCorrect, and wrongExplanation for incorrect cho
 Exactly one choice must have isCorrect true. Do not use furigana.
 """
         return await self._structured_response(
-            self.generator_model,
+            model,
             prompt,
             GeneratedReading,
         )
 
-    async def verify_answer(self, item: GeneratedReading) -> ValidatorOutcome:
+    async def verify_answer(self, item: GeneratedReading, model: str) -> ValidatorOutcome:
         choices = "\n".join(
             f"{index}. {choice.text}"
             for index, choice in enumerate(item.choices, start=1)
@@ -134,12 +140,12 @@ Return strict JSON with status (passed, warning, or failed), score (0-100),
 issueCodes (string array), evidence (string array), and correctChoiceIndex (1-4).
 """
         return await self._structured_response(
-            self.answer_validator_model,
+            model,
             prompt,
             ValidatorOutcome,
         )
 
-    async def verify_quality(self, item: GeneratedReading) -> ValidatorOutcome:
+    async def verify_quality(self, item: GeneratedReading, model: str) -> ValidatorOutcome:
         prompt = f"""Review this Japanese reading item for ambiguous choices, weak distractors,
 and whether the explanation follows from the passage. Return strict JSON with
 status (passed, warning, or failed), score (0-100), issueCodes, and evidence.
@@ -147,7 +153,7 @@ status (passed, warning, or failed), score (0-100), issueCodes, and evidence.
 {item.model_dump_json(by_alias=True)}
 """
         return await self._structured_response(
-            self.quality_validator_model,
+            model,
             prompt,
             ValidatorOutcome,
         )

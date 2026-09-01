@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     generator_model: str = "claude-fable-5"
     answer_validator_model: str = "claude-fable-5"
     quality_validator_model: str = "claude-fable-5"
+    generation_model_options: str = ""
     anthropic_api_key: SecretStr | None = None
     max_generation_revisions: int = 2
     worker_poll_interval_seconds: float = 1.5
@@ -51,6 +52,36 @@ class Settings(BaseSettings):
             for email in self.admin_google_emails.split(",")
             if email.strip()
         )
+
+    @property
+    def available_generation_models(self) -> tuple[str, ...]:
+        configured_models = [
+            model.strip()
+            for model in self.generation_model_options.split(",")
+            if model.strip()
+        ]
+        defaults = [
+            self.generator_model,
+            self.answer_validator_model,
+            self.quality_validator_model,
+        ]
+        return tuple(dict.fromkeys(configured_models or defaults))
+
+    @model_validator(mode="after")
+    def validate_generation_model_options(self) -> "Settings":
+        if not self.generation_model_options.strip():
+            return self
+        configured_models = set(self.available_generation_models)
+        defaults = {
+            self.generator_model,
+            self.answer_validator_model,
+            self.quality_validator_model,
+        }
+        if missing_models := defaults - configured_models:
+            raise ValueError(
+                "GENERATION_MODEL_OPTIONS must include every configured default model."
+            )
+        return self
 
     @model_validator(mode="after")
     def validate_production_settings(self) -> "Settings":

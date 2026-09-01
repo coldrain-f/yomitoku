@@ -22,6 +22,26 @@ def test_production_settings_accept_required_values() -> None:
     assert settings.app_env == "production"
 
 
+def test_generation_model_options_default_to_configured_models() -> None:
+    settings = Settings(
+        generator_model="generator",
+        answer_validator_model="validator",
+        quality_validator_model="validator",
+    )
+
+    assert settings.available_generation_models == ("generator", "validator")
+
+
+def test_generation_model_options_reject_missing_default_model() -> None:
+    with pytest.raises(ValidationError, match="GENERATION_MODEL_OPTIONS"):
+        Settings(
+            generator_model="generator",
+            answer_validator_model="validator",
+            quality_validator_model="validator",
+            generation_model_options="generator",
+        )
+
+
 @pytest.mark.parametrize(
     ("key", "value"),
     [

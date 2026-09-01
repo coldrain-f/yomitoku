@@ -22,6 +22,8 @@ from app.schemas import (
     AdminReadingItemUpdate,
     GenerationConditions,
     GenerationJobResponse,
+    GenerationJobCreateRequest,
+    GenerationModelOptionsResponse,
     JlptLevel,
     LengthType,
     ReadingChoiceInput,
@@ -168,7 +170,7 @@ def sort_items(
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def create_generation_job(
-    conditions: GenerationConditions,
+    request: GenerationJobCreateRequest,
     response: Response,
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Annotated[CurrentUser, Depends(require_admin)],
@@ -193,8 +195,17 @@ async def create_generation_job(
             return serialize_generation_job(existing)
 
     settings = get_settings()
+    generator_model = request.generator_model or settings.generator_model
+    validator_model = request.validator_model or settings.answer_validator_model
+    available_models = settings.available_generation_models
+    for model in (generator_model, validator_model):
+        if model not in available_models:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Selected model is not available.",
+            )
     job_id = uuid4()
-    topic = resolve_generation_topic(conditions.topic)
+    topic = resolve_generation_topic(request.topic)
     job = GenerationJob(
         id=job_id,
         requested_by=current_user.id,
@@ -202,18 +213,30 @@ async def create_generation_job(
         graph_thread_id=str(job_id),
         status="queued",
         current_node="queued",
-        official_level=conditions.official_level,
-        length_type=conditions.length_type,
+        official_level=request.official_level,
+        length_type=request.length_type,
         topic=topic,
-        generator_model=settings.generator_model,
-        answer_validator_model=settings.answer_validator_model,
-        quality_validator_model=settings.quality_validator_model,
+        generator_model=generator_model,
+        answer_validator_model=validator_model,
+        quality_validator_model=validator_model,
         prompt_version="v1",
     )
     session.add(job)
     await session.commit()
     await session.refresh(job)
     return serialize_generation_job(job)
+
+
+@router.get("/generation-model-options", response_model=GenerationModelOptionsResponse)
+async def get_generation_model_options(
+    current_user: Annotated[CurrentUser, Depends(require_admin)],
+) -> GenerationModelOptionsResponse:
+    settings = get_settings()
+    return GenerationModelOptionsResponse(
+        models=list(settings.available_generation_models),
+        default_generator_model=settings.generator_model,
+        default_validator_model=settings.answer_validator_model,
+    )
 
 
 @router.get("/generation-jobs/{job_id}", response_model=GenerationJobResponse)

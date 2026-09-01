@@ -126,6 +126,12 @@ export interface GenerationJob {
   errorDetail: string | null;
 }
 
+export interface GenerationModelOptions {
+  models: string[];
+  defaultGeneratorModel: string;
+  defaultValidatorModel: string;
+}
+
 export interface CurrentUser {
   id: string;
   role: Role;
@@ -340,8 +346,12 @@ export const api = {
         officialLevel: values.level,
         lengthType: values.length,
         topic: values.topic,
+        generatorModel: values.generatorModel,
+        validatorModel: values.validatorModel,
       }),
     }),
+  generationModelOptions: () =>
+    request<GenerationModelOptions>("/admin/generation-model-options"),
   generationJob: (jobId: string) => request<GenerationJob>(`/admin/generation-jobs/${jobId}`),
 };
 

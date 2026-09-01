@@ -79,6 +79,11 @@ async def run_worker() -> None:
                             "length_type": job.length_type,
                             "topic": job.topic,
                         },
+                        "models": {
+                            "generator_model": job.generator_model,
+                            "answer_validator_model": job.answer_validator_model,
+                            "quality_validator_model": job.quality_validator_model,
+                        },
                         "revision_count": job.revision_count,
                         "revision_feedback": [],
                     }

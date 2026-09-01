@@ -18,6 +18,7 @@ from app.services.validation import validate_generated_reading
 class GenerationState(TypedDict):
     job_id: str
     conditions: dict[str, Any]
+    models: dict[str, str]
     revision_count: int
     revision_feedback: list[str]
     item: NotRequired[dict[str, Any]]
@@ -68,6 +69,7 @@ def build_generation_graph(
         item = await provider.generate(
             GenerationConditions.model_validate(state["conditions"]),
             state["revision_feedback"],
+            state["models"]["generator_model"],
         )
         return {"item": item.model_dump(mode="json", by_alias=False), "schema_issues": []}
 
@@ -94,7 +96,10 @@ def build_generation_graph(
             current_node="verify_answer",
         )
         item = GeneratedReading.model_validate(state["item"])
-        outcome = await provider.verify_answer(item)
+        outcome = await provider.verify_answer(
+            item,
+            state["models"]["answer_validator_model"],
+        )
         expected_choice = next(
             index
             for index, choice in enumerate(item.choices, start=1)
@@ -117,7 +122,8 @@ def build_generation_graph(
             current_node="verify_quality",
         )
         outcome = await provider.verify_quality(
-            GeneratedReading.model_validate(state["item"])
+            GeneratedReading.model_validate(state["item"]),
+            state["models"]["quality_validator_model"],
         )
         return {"quality_validation": outcome.model_dump(mode="json", by_alias=False)}
 

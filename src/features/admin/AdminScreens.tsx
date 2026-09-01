@@ -15,6 +15,7 @@ import { Icon } from "../../components/ui/Icon";
 import { ListPagination } from "../../components/ui/ListPagination";
 import { LoadingBar } from "../../components/ui/LoadingBar";
 import { OptionButtons } from "../../components/ui/OptionButtons";
+import type { GenerationModelOptions } from "../../lib/api";
 import {
   difficultyRank,
   formatDate,
@@ -63,6 +64,8 @@ interface AdminEditProps {
 interface GenerateScreenProps {
   values: GenerationValues;
   setValues: StateSetter<GenerationValues>;
+  modelOptions: GenerationModelOptions | null;
+  modelError: string;
   isCreating: boolean;
   progressLabel: string;
   error: string;
@@ -539,6 +542,8 @@ export function AdminEdit({
 export function GenerateScreen({
   values,
   setValues,
+  modelOptions,
+  modelError,
   isCreating,
   progressLabel,
   error,
@@ -554,7 +559,7 @@ export function GenerateScreen({
       <div className="paper">
         <p className="kicker">Generate</p>
         <h1 className="screen-title">새 독해 지문 생성</h1>
-        <div className="form-grid">
+        <div className="form-grid generation-form-grid">
           <div className="form-section">
             <span className="form-label">난이도</span>
             <OptionButtons
@@ -609,6 +614,50 @@ export function GenerateScreen({
               </select>
             </div>
           </div>
+          <div className="form-section">
+            <span className="form-label">문제 생성 AI</span>
+            <select
+              className="select-field"
+              value={values.generatorModel}
+              disabled={isCreating || !modelOptions}
+              onChange={(event) =>
+                setValues({
+                  ...values,
+                  generatorModel: event.target.value,
+                })
+              }
+            >
+              {modelOptions ? (
+                modelOptions.models.map((model) => (
+                  <option key={model} value={model}>{model}</option>
+                ))
+              ) : (
+                <option value="">{modelError || "모델 목록을 불러오는 중입니다."}</option>
+              )}
+            </select>
+          </div>
+          <div className="form-section">
+            <span className="form-label">검증 AI</span>
+            <select
+              className="select-field"
+              value={values.validatorModel}
+              disabled={isCreating || !modelOptions}
+              onChange={(event) =>
+                setValues({
+                  ...values,
+                  validatorModel: event.target.value,
+                })
+              }
+            >
+              {modelOptions ? (
+                modelOptions.models.map((model) => (
+                  <option key={model} value={model}>{model}</option>
+                ))
+              ) : (
+                <option value="">{modelError || "모델 목록을 불러오는 중입니다."}</option>
+              )}
+            </select>
+          </div>
         </div>
         <div className="furigana-row">
           <span className="form-label">후리가나</span>
@@ -631,7 +680,7 @@ export function GenerateScreen({
           <button className="link-button" type="button" onClick={onBack} disabled={isCreating}>
             관리 목록으로
           </button>
-          <button className="primary-button" type="button" onClick={onCreate} disabled={isCreating}>
+          <button className="primary-button" type="button" onClick={onCreate} disabled={isCreating || !modelOptions || !values.generatorModel || !values.validatorModel}>
             <Icon icon={Sparkles} />
             {isCreating ? "지문 생성 중" : "지문 만들기"}
           </button>

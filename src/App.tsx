@@ -26,7 +26,13 @@ import { AppHeader } from "./components/AppHeader";
 import { Breadcrumb } from "./components/ui/Breadcrumb";
 import { Dialog } from "./components/ui/Dialog";
 import { Icon } from "./components/ui/Icon";
-import { api, recordFromResult, type GenerationJob, type Statistics } from "./lib/api";
+import {
+  api,
+  recordFromResult,
+  type GenerationJob,
+  type GenerationModelOptions,
+  type Statistics,
+} from "./lib/api";
 import {
   apiListPageSize,
   defaultGenerationLength,
@@ -280,7 +286,11 @@ export default function App() {
     level: defaultGenerationLevel,
     length: defaultGenerationLength,
     topic: recommendedTopic,
+    generatorModel: "",
+    validatorModel: "",
   });
+  const [generationModels, setGenerationModels] = useState<GenerationModelOptions | null>(null);
+  const [generationModelsError, setGenerationModelsError] = useState("");
   const [dialogError, setDialogError] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState("");
@@ -321,6 +331,27 @@ export default function App() {
     }
   };
   const loadStatistics = async () => setStatistics(await api.statistics());
+  const loadGenerationModels = async () => {
+    setGenerationModelsError("");
+    try {
+      const modelOptions = await api.generationModelOptions();
+      setGenerationModels(modelOptions);
+      setGeneration((current) => ({
+        ...current,
+        generatorModel: modelOptions.models.includes(current.generatorModel)
+          ? current.generatorModel
+          : modelOptions.defaultGeneratorModel,
+        validatorModel: modelOptions.models.includes(current.validatorModel)
+          ? current.validatorModel
+          : modelOptions.defaultValidatorModel,
+      }));
+    } catch (error) {
+      setGenerationModels(null);
+      setGenerationModelsError(
+        error instanceof Error ? error.message : "AI 모델 목록을 불러오지 못했습니다.",
+      );
+    }
+  };
   const loadAdminItems = async () => {
     setIsAdminListLoading(true);
     try {
@@ -347,7 +378,9 @@ export default function App() {
         setAuthenticated(true);
         setRole(user.role);
         const requests: Promise<unknown>[] = [loadPublicItems(), loadStatistics()];
-        if (user.role === "admin") requests.push(loadAdminItems());
+        if (user.role === "admin") {
+          requests.push(loadAdminItems(), loadGenerationModels());
+        }
         await Promise.all(requests);
       } catch (error) {
         if (!active) return;
@@ -586,6 +619,12 @@ export default function App() {
       onConfirm: () => {
         closeDialog();
         void (async () => {
+          if (!generation.generatorModel || !generation.validatorModel) {
+            const message = "AI 모델 목록을 불러온 뒤 다시 시도해 주세요.";
+            setGenerationError(message);
+            setToast(message);
+            return;
+          }
           setIsGenerating(true);
           setGenerationError("");
           setGenerationProgress("생성 작업을 준비하는 중입니다.");
@@ -704,7 +743,7 @@ export default function App() {
       await Promise.all([
         loadPublicItems(),
         loadStatistics(),
-        ...(user.role === "admin" ? [loadAdminItems()] : []),
+        ...(user.role === "admin" ? [loadAdminItems(), loadGenerationModels()] : []),
       ]);
       setPendingStart(null);
       closeDialog();
@@ -885,8 +924,8 @@ export default function App() {
           <Route path="/readings/:itemId" element={<RequireAuth authenticated={authenticated}><ReadingRoute items={items} attempt={attempt} result={result} onChoose={(id) => setAttempt((current) => current ? { ...current, selectedChoiceId: id, message: "" } : current)} onSubmit={submit} onAbandon={goHome} onReport={openReport} onResult={() => result && navigate(`/results/${result.itemId}`)} /></RequireAuth>} />
           <Route path="/results/:itemId" element={<RequireAuth authenticated={authenticated}><ResultRoute result={result} onFeedback={openFeedback} onContinue={continueReading} onHome={goHome} /></RequireAuth>} />
           <Route path="/statistics" element={<RequireAuth authenticated={authenticated}><StatsScreen statistics={statistics} /></RequireAuth>} />
-          <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} filters={adminFilters} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => navigate("/admin/readings/new")} /></RequireAdmin>} />
-          <Route path="/admin/readings/new" element={<RequireAdmin authenticated={authenticated} role={role}><GenerateScreen values={generation} setValues={setGeneration} isCreating={isGenerating} progressLabel={generationProgress} error={generationError} onCreate={createDraft} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
+          <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} filters={adminFilters} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => { void loadGenerationModels(); navigate("/admin/readings/new"); }} /></RequireAdmin>} />
+          <Route path="/admin/readings/new" element={<RequireAdmin authenticated={authenticated} role={role}><GenerateScreen values={generation} setValues={setGeneration} modelOptions={generationModels} modelError={generationModelsError} isCreating={isGenerating} progressLabel={generationProgress} error={generationError} onCreate={createDraft} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
           <Route path="/admin/readings/:itemId/edit" element={<RequireAdmin authenticated={authenticated} role={role}><AdminEditRoute items={adminItems} draft={draft} setDraft={setDraft} onSave={() => draft && void updateAdminItem(draft)} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={leaveEditor} /></RequireAdmin>} />
           <Route path="/admin/readings/:itemId/preview" element={<RequireAdmin authenticated={authenticated} role={role}><PreviewRoute items={adminItems} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
           <Route path="*" element={<Navigate to="/" replace />} />
