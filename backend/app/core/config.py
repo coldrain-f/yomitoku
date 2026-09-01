@@ -28,8 +28,6 @@ class Settings(BaseSettings):
     generation_model_options: str = ""
     anthropic_api_key: SecretStr | None = None
     max_generation_revisions: int = Field(default=2, ge=0, le=3)
-    generator_temperature: float = Field(default=0.4, ge=0.0, le=1.0)
-    validator_temperature: float = Field(default=0.0, ge=0.0, le=1.0)
     worker_poll_interval_seconds: float = 1.5
     dev_admin_id: UUID = UUID("00000000-0000-0000-0000-000000000001")
     google_oauth_client_id: str | None = None

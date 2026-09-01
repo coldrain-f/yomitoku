@@ -102,8 +102,6 @@ def _anthropic_provider_with_fake_client(
 ) -> AnthropicGenerationProvider:
     provider = AnthropicGenerationProvider.__new__(AnthropicGenerationProvider)
     provider.client = SimpleNamespace(messages=messages)
-    provider.generator_temperature = 0.4
-    provider.validator_temperature = 0.0
     return provider
 
 
@@ -121,7 +119,6 @@ async def test_anthropic_generation_uses_native_structured_output() -> None:
     assert item.choices[1].is_correct is True
     assert messages.calls[0]["output_format"] is GeneratedReading
     assert messages.calls[0]["model"] == "generator-model"
-    assert messages.calls[0]["temperature"] == 0.4
 
 
 @pytest.mark.asyncio
@@ -146,7 +143,6 @@ async def test_anthropic_validators_use_native_structured_output() -> None:
         "validator-model",
         "validator-model",
     ]
-    assert [call["temperature"] for call in messages.calls] == [0.0, 0.0]
     assert "DISTRACTOR_TYPE_MISMATCH" in messages.calls[1]["messages"][0]["content"]
 
 
