@@ -4,8 +4,12 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Attempt, ItemFeedback, ItemReport
-from app.services.reading_policy import LEVEL_ORDER
+from app.db.models import Attempt, ItemFeedback, ItemReport, ReadingItem
+from app.services.reading_policy import (
+    LEVELS_BY_LANGUAGE,
+    is_level_for_language,
+    level_rank,
+)
 
 ItemMetrics = dict[str, float | int | str | None]
 
@@ -35,16 +39,26 @@ async def collect_item_metrics(
     feedback_by_item: dict[UUID, list[ItemFeedback]] = defaultdict(list)
     for feedback in feedbacks:
         feedback_by_item[feedback.reading_item_id].append(feedback)
+    language_rows = await session.execute(
+        select(ReadingItem.id, ReadingItem.language).where(ReadingItem.id.in_(item_ids))
+    )
+    language_by_item = dict(language_rows)
     for item_id, entries in feedback_by_item.items():
-        levels = sorted(LEVEL_ORDER[entry.perceived_level] for entry in entries)
-        metrics[item_id]["perceived_level"] = next(
-            level
-            for level, rank in LEVEL_ORDER.items()
-            if rank == levels[len(levels) // 2]
-        )
-        metrics[item_id]["perceived_vote_count"] = len(entries)
+        language = language_by_item[item_id]
+        valid_entries = [
+            entry
+            for entry in entries
+            if is_level_for_language(language, entry.perceived_level)
+        ]
+        if not valid_entries:
+            continue
+        levels = sorted(level_rank(language, entry.perceived_level) for entry in valid_entries)
+        metrics[item_id]["perceived_level"] = LEVELS_BY_LANGUAGE[language][
+            levels[len(levels) // 2] - 1
+        ]
+        metrics[item_id]["perceived_vote_count"] = len(valid_entries)
         metrics[item_id]["quality_average"] = round(
-            sum(entry.quality_rating for entry in entries) / len(entries), 1
+            sum(entry.quality_rating for entry in valid_entries) / len(valid_entries), 1
         )
 
     report_rows = await session.execute(

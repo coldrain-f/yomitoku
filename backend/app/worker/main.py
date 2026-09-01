@@ -75,6 +75,7 @@ async def run_worker() -> None:
                     initial_state = {
                         "job_id": str(job.id),
                         "conditions": {
+                            "language": job.language,
                             "official_level": job.official_level,
                             "length_type": job.length_type,
                             "topic": job.topic,

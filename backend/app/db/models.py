@@ -49,7 +49,10 @@ class ReadingItem(TimestampedModel, Base):
     passage: Mapped[str] = mapped_column(Text, nullable=False)
     question: Mapped[str] = mapped_column(Text, nullable=False)
     explanation: Mapped[str] = mapped_column(Text, nullable=False)
-    official_level: Mapped[str] = mapped_column(String(2), nullable=False, index=True)
+    language: Mapped[str] = mapped_column(
+        String(8), default="ja", server_default="ja", nullable=False, index=True
+    )
+    official_level: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     length_type: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     topic: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     recommended_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -111,7 +114,7 @@ class ItemFeedback(TimestampedModel, Base):
         Uuid, ForeignKey("reading_items.id", ondelete="CASCADE"), nullable=False
     )
     quality_rating: Mapped[int] = mapped_column(Integer, nullable=False)
-    perceived_level: Mapped[str] = mapped_column(String(2), nullable=False)
+    perceived_level: Mapped[str] = mapped_column(String(16), nullable=False)
     comment: Mapped[str | None] = mapped_column(Text)
 
 
@@ -145,7 +148,10 @@ class GenerationJob(TimestampedModel, Base):
     graph_thread_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="queued", nullable=False, index=True)
     current_node: Mapped[str] = mapped_column(String(64), default="queued", nullable=False)
-    official_level: Mapped[str] = mapped_column(String(2), nullable=False)
+    language: Mapped[str] = mapped_column(
+        String(8), default="ja", server_default="ja", nullable=False
+    )
+    official_level: Mapped[str] = mapped_column(String(16), nullable=False)
     length_type: Mapped[str] = mapped_column(String(16), nullable=False)
     topic: Mapped[str] = mapped_column(String(32), nullable=False)
     revision_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

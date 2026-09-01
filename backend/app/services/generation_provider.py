@@ -10,6 +10,7 @@ from app.schemas import (
     GeneratedChoice,
     GeneratedReading,
     GenerationConditions,
+    ReadingLanguage,
     ValidatorOutcome,
 )
 from app.services.reading_policy import TOPIC_LABELS
@@ -25,9 +26,13 @@ class GenerationProvider(Protocol):
         model: str,
     ) -> GeneratedReading: ...
 
-    async def verify_answer(self, item: GeneratedReading, model: str) -> ValidatorOutcome: ...
+    async def verify_answer(
+        self, item: GeneratedReading, language: ReadingLanguage, model: str
+    ) -> ValidatorOutcome: ...
 
-    async def verify_quality(self, item: GeneratedReading, model: str) -> ValidatorOutcome: ...
+    async def verify_quality(
+        self, item: GeneratedReading, language: ReadingLanguage, model: str
+    ) -> ValidatorOutcome: ...
 
 
 class StubGenerationProvider:
@@ -39,15 +44,52 @@ class StubGenerationProvider:
         revision_feedback: list[str],
         model: str,
     ) -> GeneratedReading:
-        topic_label = TOPIC_LABELS.get(conditions.topic, "身近なテーマ")
-        base = (
-            f"{topic_label}について考えるとき、すぐに答えを一つに決めることは簡単ではない。"
-            "人によって置かれた状況や大切にしていることが違うからである。"
-            "そこで必要なのは、目に見える結果だけで判断せず、その背景にある理由を確かめる姿勢だ。"
-            "時間をかけて話を聞くと、最初は小さく見えた違いが、考え方を変える手がかりになることもある。"
-        )
+        if conditions.language == "ko":
+            topic_label = conditions.topic
+            base = (
+                f"{topic_label}을 생각할 때 하나의 답을 바로 정하기는 쉽지 않다. "
+                "사람마다 처한 상황과 중요하게 여기는 기준이 다르기 때문이다. "
+                "그래서 눈에 보이는 결과만으로 판단하지 않고 그 배경의 이유를 살피는 태도가 필요하다. "
+                "충분히 이야기를 들어 보면 처음에는 작아 보였던 차이가 생각을 바꾸는 단서가 되기도 한다."
+            )
+        else:
+            topic_label = TOPIC_LABELS.get(conditions.topic, "身近なテーマ")
+            base = (
+                f"{topic_label}について考えるとき、すぐに答えを一つに決めることは簡単ではない。"
+                "人によって置かれた状況や大切にしていることが違うからである。"
+                "そこで必要なのは、目に見える結果だけで判断せず、その背景にある理由を確かめる姿勢だ。"
+                "時間をかけて話を聞くと、最初は小さく見えた違いが、考え方を変える手がかりになることもある。"
+            )
         repeats = {"short": 1, "medium": 2, "long": 4}[conditions.length_type]
         passage = "\n\n".join(base for _ in range(repeats))
+        if conditions.language == "ko":
+            return GeneratedReading(
+                title=f"{topic_label}을 생각하며",
+                passage=passage,
+                question="글쓴이가 가장 중요하게 생각하는 태도는 무엇인가?",
+                choices=[
+                    GeneratedChoice(
+                        text="짧은 시간 안에 결론만 정하는 것",
+                        is_correct=False,
+                        wrong_explanation="글은 성급히 결론을 내리기보다 배경을 살피는 태도를 강조합니다.",
+                    ),
+                    GeneratedChoice(
+                        text="눈에 보이는 결과만 비교하는 것",
+                        is_correct=False,
+                        wrong_explanation="글은 결과만으로 판단하지 말아야 한다고 설명합니다.",
+                    ),
+                    GeneratedChoice(
+                        text="배경의 이유를 살피며 생각하는 것",
+                        is_correct=True,
+                    ),
+                    GeneratedChoice(
+                        text="자신과 같은 의견만 듣는 것",
+                        is_correct=False,
+                        wrong_explanation="글은 서로 다른 상황과 생각에 귀를 기울이는 태도를 말합니다.",
+                    ),
+                ],
+                explanation="글은 눈에 보이는 결과만으로 판단하지 않고 그 배경의 이유를 살피는 태도가 중요하다고 말합니다. 따라서 3번이 정답입니다.",
+            )
         return GeneratedReading(
             title=f"{topic_label}を考えるために",
             passage=passage,
@@ -76,7 +118,9 @@ class StubGenerationProvider:
             explanation="本文は、目に見える結果だけで判断せず、その背景にある理由を確かめる姿勢が大切だと述べています。したがって03が正解です。",
         )
 
-    async def verify_answer(self, item: GeneratedReading, model: str) -> ValidatorOutcome:
+    async def verify_answer(
+        self, item: GeneratedReading, language: ReadingLanguage, model: str
+    ) -> ValidatorOutcome:
         correct_index = next(
             index
             for index, choice in enumerate(item.choices, start=1)
@@ -89,7 +133,9 @@ class StubGenerationProvider:
             correct_choice_index=correct_index,
         )
 
-    async def verify_quality(self, item: GeneratedReading, model: str) -> ValidatorOutcome:
+    async def verify_quality(
+        self, item: GeneratedReading, language: ReadingLanguage, model: str
+    ) -> ValidatorOutcome:
         return ValidatorOutcome(
             status="passed",
             score=95,
@@ -112,15 +158,24 @@ class AnthropicGenerationProvider:
         model: str,
     ) -> GeneratedReading:
         feedback = "\n".join(f"- {issue}" for issue in revision_feedback) or "없음"
-        prompt = f"""Create one Japanese reading-comprehension item as strict JSON only.
-Requested JLPT level: {conditions.official_level}
+        language_name = "Japanese" if conditions.language == "ja" else "Korean"
+        level_name = "JLPT" if conditions.language == "ja" else "TOPIK"
+        topic = (
+            TOPIC_LABELS.get(conditions.topic, conditions.topic)
+            if conditions.language == "ja"
+            else conditions.topic
+        )
+        furigana_rule = "Do not use furigana." if conditions.language == "ja" else ""
+        prompt = f"""Create one {language_name} reading-comprehension item as strict JSON only.
+Write the title, passage, question, choices, and explanation naturally in {language_name}.
+Requested {level_name} level: {conditions.official_level}
 Requested length: {conditions.length_type}
-Topic: {conditions.topic}
+Topic: {topic}
 Revision feedback from the prior attempt: {feedback}
 
 Return title, passage, question, explanation, and exactly four choices.
 Each choice must include text, isCorrect, and wrongExplanation for incorrect choices.
-Exactly one choice must have isCorrect true. Do not use furigana.
+Exactly one choice must have isCorrect true. {furigana_rule}
 """
         return await self._structured_response(
             model,
@@ -128,12 +183,15 @@ Exactly one choice must have isCorrect true. Do not use furigana.
             GeneratedReading,
         )
 
-    async def verify_answer(self, item: GeneratedReading, model: str) -> ValidatorOutcome:
+    async def verify_answer(
+        self, item: GeneratedReading, language: ReadingLanguage, model: str
+    ) -> ValidatorOutcome:
         choices = "\n".join(
             f"{index}. {choice.text}"
             for index, choice in enumerate(item.choices, start=1)
         )
-        prompt = f"""Independently solve this Japanese reading question. Do not assume a supplied answer.
+        language_name = "Japanese" if language == "ja" else "Korean"
+        prompt = f"""Independently solve this {language_name} reading question. Do not assume a supplied answer.
 Passage:\n{item.passage}\n\nQuestion:\n{item.question}\n\nChoices:\n{choices}
 
 Return strict JSON with status (passed, warning, or failed), score (0-100),
@@ -145,8 +203,11 @@ issueCodes (string array), evidence (string array), and correctChoiceIndex (1-4)
             ValidatorOutcome,
         )
 
-    async def verify_quality(self, item: GeneratedReading, model: str) -> ValidatorOutcome:
-        prompt = f"""Review this Japanese reading item for ambiguous choices, weak distractors,
+    async def verify_quality(
+        self, item: GeneratedReading, language: ReadingLanguage, model: str
+    ) -> ValidatorOutcome:
+        language_name = "Japanese" if language == "ja" else "Korean"
+        prompt = f"""Review this {language_name} reading item for ambiguous choices, weak distractors,
 and whether the explanation follows from the passage. Return strict JSON with
 status (passed, warning, or failed), score (0-100), issueCodes, and evidence.
 

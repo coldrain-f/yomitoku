@@ -2,14 +2,46 @@ from __future__ import annotations
 
 from typing import Final
 
-from app.schemas import JlptLevel, LengthType
+from app.schemas import LengthType, ReadingLanguage, ReadingLevel
 
-JLPT_LEVELS: Final[tuple[JlptLevel, ...]] = ("N5", "N4", "N3", "N2", "N1")
+JAPANESE_LEVELS: Final[tuple[ReadingLevel, ...]] = (
+    "N5",
+    "N4",
+    "N3",
+    "N2",
+    "N1",
+    "N1+",
+)
+KOREAN_LEVELS: Final[tuple[ReadingLevel, ...]] = (
+    "TOPIK 1급",
+    "TOPIK 2급",
+    "TOPIK 3급",
+    "TOPIK 4급",
+    "TOPIK 5급",
+    "TOPIK 6급",
+    "TOPIK 6급+",
+)
+LEVELS_BY_LANGUAGE: Final[dict[ReadingLanguage, tuple[ReadingLevel, ...]]] = {
+    "ja": JAPANESE_LEVELS,
+    "ko": KOREAN_LEVELS,
+}
+LANGUAGE_ORDER: Final[dict[ReadingLanguage, int]] = {"ja": 0, "ko": 1}
 LENGTH_TYPES: Final[tuple[LengthType, ...]] = ("short", "medium", "long")
 
-LEVEL_ORDER: Final[dict[JlptLevel, int]] = {
-    level: index for index, level in enumerate(JLPT_LEVELS, start=1)
-}
+
+def is_level_for_language(language: ReadingLanguage, level: str) -> bool:
+    return level in LEVELS_BY_LANGUAGE[language]
+
+
+def level_rank(language: ReadingLanguage, level: str) -> int:
+    try:
+        return LEVELS_BY_LANGUAGE[language].index(level) + 1
+    except ValueError:
+        return 0
+
+
+def level_sort_key(language: ReadingLanguage, level: str) -> tuple[int, int]:
+    return LANGUAGE_ORDER[language], level_rank(language, level)
 
 RECOMMENDED_TOPIC: Final = "추천"
 TOPIC_LABELS: Final[dict[str, str]] = {
@@ -66,9 +98,9 @@ TOPIC_LABELS: Final[dict[str, str]] = {
 GENERATION_TOPICS: Final[tuple[str, ...]] = tuple(TOPIC_LABELS)
 
 RECOMMENDED_SECONDS: Final[dict[LengthType, int]] = {
-    "short": 60,
-    "medium": 150,
-    "long": 270,
+    "short": 180,
+    "medium": 300,
+    "long": 420,
 }
 
 MINIMUM_PERCEIVED_LEVEL_VOTES: Final = 10

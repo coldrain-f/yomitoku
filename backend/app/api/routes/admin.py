@@ -24,15 +24,20 @@ from app.schemas import (
     GenerationJobResponse,
     GenerationJobCreateRequest,
     GenerationModelOptionsResponse,
-    JlptLevel,
     LengthType,
+    ReadingLanguage,
+    ReadingLevel,
     ReadingChoiceInput,
     ReadingItemPage,
     ReadingItemSummary,
 )
 from app.services.generation_topics import resolve_generation_topic
 from app.services.item_metrics import ItemMetrics, collect_item_metrics
-from app.services.reading_policy import LEVEL_ORDER, MINIMUM_PERCEIVED_LEVEL_VOTES
+from app.services.reading_policy import (
+    MINIMUM_PERCEIVED_LEVEL_VOTES,
+    is_level_for_language,
+    level_sort_key,
+)
 from app.services.users import ensure_user
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -47,6 +52,7 @@ def serialize_generation_job(job: GenerationJob) -> GenerationJobResponse:
         status=job.status,
         current_node=job.current_node,
         conditions=GenerationConditions(
+            language=job.language,
             official_level=job.official_level,
             length_type=job.length_type,
             topic=job.topic,
@@ -83,6 +89,7 @@ def serialize_summary(
     return ReadingItemSummary(
         id=item.id,
         title=item.title,
+        language=item.language,
         official_level=item.official_level,
         length_type=item.length_type,
         topic=item.topic,
@@ -139,14 +146,18 @@ def sort_items(
     reverse = sort.endswith("_desc")
     if sort.startswith("perceived_level"):
 
-        def perceived_rank(item: ReadingItem) -> tuple[bool, int]:
+        def perceived_rank(item: ReadingItem) -> tuple[bool, tuple[int, int]]:
             level = metrics_by_item[item.id]["perceived_level"]
-            return level is None, LEVEL_ORDER.get(str(level), 0)
+            return level is None, level_sort_key(item.language, str(level))
 
         if reverse:
             return sorted(
                 items,
-                key=lambda item: (perceived_rank(item)[0], -perceived_rank(item)[1]),
+                key=lambda item: (
+                    perceived_rank(item)[0],
+                    -perceived_rank(item)[1][0],
+                    -perceived_rank(item)[1][1],
+                ),
             )
         return sorted(
             items,
@@ -154,7 +165,9 @@ def sort_items(
         )
     if sort.startswith("level"):
         return sorted(
-            items, key=lambda item: LEVEL_ORDER[item.official_level], reverse=reverse
+            items,
+            key=lambda item: level_sort_key(item.language, item.official_level),
+            reverse=reverse,
         )
     if sort.startswith("created"):
         return sorted(items, key=lambda item: item.created_at, reverse=reverse)
@@ -214,13 +227,14 @@ async def create_generation_job(
         graph_thread_id=str(job_id),
         status="queued",
         current_node="queued",
+        language=request.language,
         official_level=request.official_level,
         length_type=request.length_type,
         topic=topic,
         generator_model=generator_model,
         answer_validator_model=validator_model,
         quality_validator_model=validator_model,
-        prompt_version="v1",
+        prompt_version="v2",
     )
     session.add(job)
     await session.commit()
@@ -265,7 +279,8 @@ async def list_admin_reading_items(
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Annotated[CurrentUser, Depends(require_admin)],
     q: Annotated[str | None, Query(max_length=100)] = None,
-    level: JlptLevel | None = None,
+    language: ReadingLanguage | None = None,
+    level: ReadingLevel | None = None,
     length: LengthType | None = None,
     topic: Annotated[str | None, Query(max_length=32)] = None,
     item_status: Annotated[ItemStatus | None, Query(alias="status")] = None,
@@ -287,11 +302,18 @@ async def list_admin_reading_items(
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=50)] = 10,
 ) -> ReadingItemPage:
+    if language and level and not is_level_for_language(language, level):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="The selected level does not belong to the content language.",
+        )
     filters = []
     if q:
         filters.append(ReadingItem.title.ilike(f"%{q.strip()}%"))
     if level:
         filters.append(ReadingItem.official_level == level)
+    if language:
+        filters.append(ReadingItem.language == language)
     if length:
         filters.append(ReadingItem.length_type == length)
     if topic:
@@ -331,6 +353,7 @@ async def create_admin_reading_item(
         passage=request.passage.strip(),
         question=request.question.strip(),
         explanation=request.explanation.strip(),
+        language=request.language,
         official_level=request.official_level,
         length_type=request.length_type,
         topic=request.topic.strip(),
@@ -377,6 +400,12 @@ async def update_admin_reading_item(
     values = request.model_dump(exclude_none=True, exclude={"choices"})
     for key, value in values.items():
         setattr(item, key, value.strip() if isinstance(value, str) else value)
+
+    if not is_level_for_language(item.language, item.official_level):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="The selected level does not belong to the content language.",
+        )
 
     if request.choices is not None:
         existing_choices = {choice.id: choice for choice in item.choices}

@@ -23,6 +23,7 @@ import {
   pageSize,
   perceivedLabel,
 } from "../../lib/reading";
+import { languageLabels } from "../../lib/readingPolicy";
 import type {
   AttemptRecord,
   Choice,
@@ -82,6 +83,7 @@ export function ReadingListScreen({
       const attempt = latest[item.id];
       const learningStatus = attempt?.status ?? item.myLatestStatus ?? "unstarted";
       return (
+        (filters.language === "all" || item.language === filters.language) &&
         (filters.level === "all" || item.officialLevel === filters.level) &&
         (filters.length === "all" || item.lengthType === filters.length) &&
         (!authenticated ||
@@ -138,6 +140,7 @@ export function ReadingListScreen({
     currentPage * pageSize,
   );
   const hasAppliedFilters =
+    filters.language !== "all" ||
     filters.level !== "all" ||
     filters.length !== "all" ||
     filters.sort !== "published-desc" ||
@@ -148,6 +151,7 @@ export function ReadingListScreen({
   const reset = () => {
     setQuery("");
     setFilters({
+      language: "all",
       level: "all",
       length: "all",
       status: "all",
@@ -214,6 +218,7 @@ export function ReadingListScreen({
                     <span className="badge row-level">
                       {item.officialLevel}
                     </span>
+                    <span className="badge">{languageLabels[item.language]}</span>
                     <span
                       className={`badge row-perceived${item.perceivedVotes < minimumVotes ? " is-pending" : ""}`}
                     >
@@ -298,7 +303,7 @@ export function ReadingScreen({
         <div className="paper-head">
           <div>
             <p className="kicker">
-              {item.officialLevel} 실제 · {perceivedLabel(item)} ·{" "}
+              {languageLabels[item.language]} · {item.officialLevel} 실제 · {perceivedLabel(item)} ·{" "}
               {lengthLabels[item.lengthType]}
             </p>
             <h1 className="title-jp">{item.title}</h1>
@@ -433,7 +438,7 @@ export function ResultScreen({
         <div className="result-context">
           <span className="badge">{lengthLabels[item.lengthType]}</span>
           <span>
-            {item.officialLevel} 실제 · {perceivedLabel(item)} · {item.topic}
+            {languageLabels[item.language]} · {item.officialLevel} 실제 · {perceivedLabel(item)} · {item.topic}
           </span>
         </div>
         <div className="result-metrics">

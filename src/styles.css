@@ -1239,18 +1239,26 @@ textarea:focus-visible {
   border-right: 0;
 }
 
-.generation-form-grid .form-section:nth-child(3) {
-  border-bottom: 1px solid var(--line);
-}
-
-.generation-form-grid .form-section:last-child {
-  border-right: 1px solid var(--line);
+.list-filter-button {
+  position: relative;
 }
 
 .list-filter-button.is-active {
-  border-color: var(--accent);
-  background: #f1f2ed;
-  color: var(--accent);
+  border-color: var(--line-strong);
+  background: #fffefa;
+  color: var(--ink);
+}
+
+.list-filter-button.is-active::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 7px;
+  height: 7px;
+  border: 1px solid #fffefa;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 .generate-topic-field {
@@ -2183,10 +2191,6 @@ body.dialog-open {
 
   .generation-form-grid .form-section:nth-child(n + 4) {
     border-top: 0;
-  }
-
-  .generation-form-grid .form-section:last-child {
-    border-right: 0;
   }
 
   .furigana-row {

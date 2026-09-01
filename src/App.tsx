@@ -35,8 +35,9 @@ import {
 } from "./lib/api";
 import {
   apiListPageSize,
+  defaultGenerationLanguage,
   defaultGenerationLength,
-  defaultGenerationLevel,
+  defaultGenerationLevelByLanguage,
   recommendedTopic,
 } from "./lib/readingPolicy";
 import type {
@@ -55,12 +56,14 @@ import type {
 } from "./types";
 
 const defaultListFilters: ListFilters = {
+  language: "all",
   level: "all",
   length: "all",
   status: "all",
   sort: "published-desc",
 };
 const defaultAdminFilters: AdminFilters = {
+  language: "all",
   level: "all",
   length: "all",
   topic: "all",
@@ -284,6 +287,9 @@ export default function App() {
   );
   const filters = useMemo<ListFilters>(
     () => ({
+      language:
+        (searchParams.get("language") as ListFilters["language"] | null) ??
+        storedListFilters.language,
       level:
         (searchParams.get("level") as ListFilters["level"] | null) ??
         storedListFilters.level,
@@ -314,7 +320,8 @@ export default function App() {
   const [result, setResult] = useState<ReadingResult | null>(null);
   const [draft, setDraft] = useState<ReadingItem | null>(null);
   const [generation, setGeneration] = useState<GenerationValues>({
-    level: defaultGenerationLevel,
+    language: defaultGenerationLanguage,
+    level: defaultGenerationLevelByLanguage[defaultGenerationLanguage],
     length: defaultGenerationLength,
     topic: recommendedTopic,
     generatorModel: "",
@@ -476,6 +483,7 @@ export default function App() {
     { replace = false }: { replace?: boolean } = {},
   ) => {
     storeFilters(listFiltersStorageKey, {
+      language: next.language,
       level: next.level,
       length: next.length,
       status: next.status,
@@ -483,6 +491,7 @@ export default function App() {
     });
     const params = new URLSearchParams();
     if (next.query) params.set("q", next.query);
+    if (next.language !== "all") params.set("language", next.language);
     if (next.level !== "all") params.set("level", next.level);
     if (next.length !== "all") params.set("length", next.length);
     if (next.status !== "all") params.set("status", next.status);
@@ -516,6 +525,7 @@ export default function App() {
             const readingItem: ReadingItem = {
               ...item,
               title: detail.title,
+              language: detail.language,
               officialLevel: detail.officialLevel,
               lengthType: detail.lengthType,
               topic: detail.topic,
@@ -832,6 +842,7 @@ export default function App() {
     const snapshot = (item: ReadingItem) =>
       JSON.stringify({
         title: item.title,
+        language: item.language,
         officialLevel: item.officialLevel,
         lengthType: item.lengthType,
         topic: item.topic,
@@ -978,7 +989,7 @@ export default function App() {
         </nav>
       ) : null}
       <Dialog dialog={dialog} onClose={closeDialog}>
-        <AppDialogContent type={dialog?.type} authenticated={authenticated} filterDraft={filterDraft} setFilterDraft={setFilterDraft} adminFilterDraft={adminFilterDraft} setAdminFilterDraft={setAdminFilterDraft} reportText={reportText} setReportText={setReportText} feedback={feedback} setFeedback={setFeedback} dialogError={dialogError} googleClientId={googleClientId} onGoogleCredential={completeGoogleLogin} onGoogleError={setDialogError} />
+        <AppDialogContent type={dialog?.type} authenticated={authenticated} filterDraft={filterDraft} setFilterDraft={setFilterDraft} adminFilterDraft={adminFilterDraft} setAdminFilterDraft={setAdminFilterDraft} reportText={reportText} setReportText={setReportText} feedback={feedback} feedbackLanguage={result?.item.language ?? defaultGenerationLanguage} setFeedback={setFeedback} dialogError={dialogError} googleClientId={googleClientId} onGoogleCredential={completeGoogleLogin} onGoogleError={setDialogError} />
       </Dialog>
       {toast ? <div className="toast is-visible" role="status">{toast}</div> : null}
     </main>

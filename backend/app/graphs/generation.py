@@ -82,7 +82,11 @@ def build_generation_graph(
         )
         conditions = GenerationConditions.model_validate(state["conditions"])
         item = GeneratedReading.model_validate(state["item"])
-        issues = validate_generated_reading(item, conditions.length_type)
+        issues = validate_generated_reading(
+            item,
+            conditions.length_type,
+            conditions.language,
+        )
         result: dict[str, Any] = {"schema_issues": issues}
         if issues and state["revision_count"] >= settings.max_generation_revisions:
             result["terminal_status"] = "held"
@@ -96,8 +100,10 @@ def build_generation_graph(
             current_node="verify_answer",
         )
         item = GeneratedReading.model_validate(state["item"])
+        conditions = GenerationConditions.model_validate(state["conditions"])
         outcome = await provider.verify_answer(
             item,
+            conditions.language,
             state["models"]["answer_validator_model"],
         )
         expected_choice = next(
@@ -121,8 +127,10 @@ def build_generation_graph(
             status="validating",
             current_node="verify_quality",
         )
+        conditions = GenerationConditions.model_validate(state["conditions"])
         outcome = await provider.verify_quality(
             GeneratedReading.model_validate(state["item"]),
+            conditions.language,
             state["models"]["quality_validator_model"],
         )
         return {"quality_validation": outcome.model_dump(mode="json", by_alias=False)}
@@ -168,6 +176,7 @@ def build_generation_graph(
                 passage=item.passage,
                 question=item.question,
                 explanation=item.explanation,
+                language=conditions.language,
                 official_level=conditions.official_level,
                 length_type=conditions.length_type,
                 topic=conditions.topic,

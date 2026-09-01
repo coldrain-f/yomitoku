@@ -49,7 +49,7 @@ async def test_stub_answer_validator_identifies_the_only_correct_choice() -> Non
     )
     provider = StubGenerationProvider()
     item = await provider.generate(conditions, [], "stub")
-    outcome = await provider.verify_answer(item, "stub")
+    outcome = await provider.verify_answer(item, "ja", "stub")
 
     assert outcome.status == "passed"
     assert outcome.correct_choice_index == 3
@@ -111,8 +111,8 @@ async def test_anthropic_validators_use_native_structured_output() -> None:
     provider = _anthropic_provider_with_fake_client(messages)
     item = _sample_generated_reading()
 
-    answer = await provider.verify_answer(item, "validator-model")
-    quality = await provider.verify_quality(item, "validator-model")
+    answer = await provider.verify_answer(item, "ja", "validator-model")
+    quality = await provider.verify_quality(item, "ja", "validator-model")
 
     assert answer.status == "passed"
     assert quality.correct_choice_index == 2
@@ -124,6 +124,21 @@ async def test_anthropic_validators_use_native_structured_output() -> None:
         "validator-model",
         "validator-model",
     ]
+
+
+@pytest.mark.asyncio
+async def test_stub_generation_supports_korean_topik_conditions() -> None:
+    conditions = GenerationConditions(
+        language="ko",
+        official_level="TOPIK 6급+",
+        length_type="short",
+        topic="과학",
+    )
+
+    item = await StubGenerationProvider().generate(conditions, [], "stub")
+
+    assert "글쓴이" in item.question
+    assert validate_generated_reading(item, "short", "ko") == []
 
 
 def test_validator_outcome_accepts_structured_evidence_entries() -> None:

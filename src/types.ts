@@ -1,12 +1,14 @@
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type {
   difficultyLevels,
+  readingLanguages,
   lengthTypes,
   readingTopics,
   recommendedTopic,
 } from "./lib/readingPolicy";
 
 export type DifficultyLevel = (typeof difficultyLevels)[number];
+export type ReadingLanguage = (typeof readingLanguages)[number];
 export type LengthType = (typeof lengthTypes)[number];
 export type ReadingStatus = "review" | "held" | "published";
 export type AttemptStatus = "unstarted" | "wrong" | "correct";
@@ -31,6 +33,7 @@ export interface ReadingItem {
   id: string;
   status: ReadingStatus;
   title: string;
+  language: ReadingLanguage;
   officialLevel: DifficultyLevel;
   perceivedLevel: DifficultyLevel;
   perceivedVotes: number;
@@ -87,6 +90,7 @@ export interface ReadingResult {
 }
 
 export interface ListFilters {
+  language: ReadingLanguage | "all";
   level: DifficultyLevel | "all";
   length: LengthType | "all";
   status: AttemptStatus | "all";
@@ -100,6 +104,7 @@ export interface ListFilters {
 }
 
 export interface AdminFilters {
+  language: ReadingLanguage | "all";
   level: DifficultyLevel | "all";
   length: LengthType | "all";
   topic: Topic | "all";
@@ -118,6 +123,7 @@ export interface AdminFilters {
 }
 
 export interface GenerationValues {
+  language: ReadingLanguage;
   level: DifficultyLevel;
   length: LengthType;
   topic: Topic | typeof recommendedTopic;

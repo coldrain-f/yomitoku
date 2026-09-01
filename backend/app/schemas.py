@@ -19,15 +19,35 @@ class ApiModel(BaseModel):
     )
 
 
-JlptLevel = Literal["N5", "N4", "N3", "N2", "N1"]
+ReadingLanguage = Literal["ja", "ko"]
+JapaneseLevel = Literal["N5", "N4", "N3", "N2", "N1", "N1+"]
+KoreanLevel = Literal[
+    "TOPIK 1급",
+    "TOPIK 2급",
+    "TOPIK 3급",
+    "TOPIK 4급",
+    "TOPIK 5급",
+    "TOPIK 6급",
+    "TOPIK 6급+",
+]
+ReadingLevel = JapaneseLevel | KoreanLevel
 LengthType = Literal["short", "medium", "long"]
 ValidationStatus = Literal["passed", "warning", "failed"]
 
 
 class GenerationConditions(ApiModel):
-    official_level: JlptLevel
+    official_level: ReadingLevel
     length_type: LengthType
     topic: str = Field(min_length=1, max_length=32)
+    language: ReadingLanguage = "ja"
+
+    @model_validator(mode="after")
+    def validate_level_for_language(self) -> "GenerationConditions":
+        from app.services.reading_policy import is_level_for_language
+
+        if not is_level_for_language(self.language, self.official_level):
+            raise ValueError("The selected level does not belong to the content language.")
+        return self
 
 
 class GenerationJobCreateRequest(GenerationConditions):
@@ -110,7 +130,8 @@ class GenerationJobResponse(ApiModel):
 class ReadingItemSummary(ApiModel):
     id: UUID
     title: str
-    official_level: JlptLevel
+    language: ReadingLanguage
+    official_level: ReadingLevel
     length_type: LengthType
     topic: str
     recommended_seconds: int
@@ -118,7 +139,7 @@ class ReadingItemSummary(ApiModel):
     published_at: datetime | None
     created_at: datetime
     updated_at: datetime
-    perceived_level: JlptLevel | None = None
+    perceived_level: ReadingLevel | None = None
     perceived_level_visible: bool = False
     perceived_vote_count: int = 0
     my_latest_status: Literal["correct", "wrong"] | None = None
@@ -161,7 +182,8 @@ class ReadingChoicePublic(ApiModel):
 class ReadingItemDetail(ApiModel):
     id: UUID
     title: str
-    official_level: JlptLevel
+    language: ReadingLanguage
+    official_level: ReadingLevel
     length_type: LengthType
     topic: str
     recommended_seconds: int
@@ -198,7 +220,7 @@ class AttemptResult(ApiModel):
 
 class FeedbackRequest(ApiModel):
     quality_rating: int = Field(ge=1, le=5)
-    perceived_level: JlptLevel
+    perceived_level: ReadingLevel
     comment: str | None = Field(default=None, max_length=2_000)
 
 
@@ -246,7 +268,8 @@ class AdminReadingItemCreate(ApiModel):
     passage: str = Field(min_length=1)
     question: str = Field(min_length=1)
     explanation: str = Field(min_length=1)
-    official_level: JlptLevel
+    language: ReadingLanguage = "ja"
+    official_level: ReadingLevel
     length_type: LengthType
     topic: str = Field(min_length=1, max_length=32)
     recommended_seconds: int = Field(ge=1, le=14_400)
@@ -255,6 +278,10 @@ class AdminReadingItemCreate(ApiModel):
     @model_validator(mode="after")
     def validate_choices(self) -> "AdminReadingItemCreate":
         validate_choice_inputs(self.choices)
+        from app.services.reading_policy import is_level_for_language
+
+        if not is_level_for_language(self.language, self.official_level):
+            raise ValueError("The selected level does not belong to the content language.")
         return self
 
 
@@ -263,7 +290,8 @@ class AdminReadingItemUpdate(ApiModel):
     passage: str | None = Field(default=None, min_length=1)
     question: str | None = Field(default=None, min_length=1)
     explanation: str | None = Field(default=None, min_length=1)
-    official_level: JlptLevel | None = None
+    language: ReadingLanguage | None = None
+    official_level: ReadingLevel | None = None
     length_type: LengthType | None = None
     topic: str | None = Field(default=None, min_length=1, max_length=32)
     recommended_seconds: int | None = Field(default=None, ge=1, le=14_400)

@@ -5,6 +5,7 @@ import type {
   GenerationValues,
   LengthType,
   ReadingItem,
+  ReadingLanguage,
   ReadingStatus,
   Role,
   Topic,
@@ -35,6 +36,7 @@ interface ApiChoice {
 interface ApiReadingSummary {
   id: string;
   title: string;
+  language: ReadingLanguage;
   officialLevel: DifficultyLevel;
   lengthType: LengthType;
   topic: Topic;
@@ -63,6 +65,7 @@ interface ApiReadingDetail extends ApiReadingSummary {
 interface ApiPublicReadingDetail {
   id: string;
   title: string;
+  language: ReadingLanguage;
   officialLevel: DifficultyLevel;
   lengthType: LengthType;
   topic: Topic;
@@ -155,6 +158,7 @@ function toItem(summary: ApiReadingSummary, detail?: ApiReadingDetail): ReadingI
     id: summary.id,
     status: summary.status,
     title: summary.title,
+    language: summary.language,
     officialLevel: summary.officialLevel,
     perceivedLevel: summary.perceivedLevel ?? summary.officialLevel,
     perceivedVotes: summary.perceivedVoteCount,
@@ -233,6 +237,7 @@ export const api = {
   async listReadings(
     filters: {
       q?: string;
+      language?: ReadingLanguage;
       level?: DifficultyLevel;
       length?: LengthType;
       status?: "correct" | "wrong" | "unstarted";
@@ -278,6 +283,7 @@ export const api = {
   async listAdminReadings(
     filters: {
       q?: string;
+      language?: ReadingLanguage;
       level?: DifficultyLevel;
       length?: LengthType;
       topic?: Topic;
@@ -304,6 +310,7 @@ export const api = {
         passage: item.passage,
         question: item.question,
         explanation: item.explanation,
+        language: item.language,
         officialLevel: item.officialLevel,
         lengthType: item.lengthType,
         topic: item.topic,
@@ -344,6 +351,7 @@ export const api = {
       headers: { "Idempotency-Key": crypto.randomUUID() },
       body: JSON.stringify({
         officialLevel: values.level,
+        language: values.language,
         lengthType: values.length,
         topic: values.topic,
         generatorModel: values.generatorModel,

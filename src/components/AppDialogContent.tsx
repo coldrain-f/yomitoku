@@ -1,12 +1,20 @@
 import { OptionButtons } from "./ui/OptionButtons";
 import { GoogleSignInButton } from "../features/auth/GoogleSignInButton";
 import { lengthLabels } from "../lib/reading";
-import { difficultyLevels, readingTopics } from "../lib/readingPolicy";
+import {
+  difficultyLevels,
+  isDifficultyLevelForLanguage,
+  languageLabels,
+  levelsForLanguage,
+  readingLanguages,
+  readingTopics,
+} from "../lib/readingPolicy";
 import type {
   AdminFilters,
   DialogConfig,
   FeedbackValues,
   ListFilters,
+  ReadingLanguage,
   StateSetter,
 } from "../types";
 
@@ -20,6 +28,7 @@ interface AppDialogContentProps {
   reportText: string;
   setReportText: StateSetter<string>;
   feedback: FeedbackValues;
+  feedbackLanguage: ReadingLanguage;
   setFeedback: StateSetter<FeedbackValues>;
   dialogError: string;
   googleClientId: string;
@@ -37,6 +46,7 @@ export function AppDialogContent({
   reportText,
   setReportText,
   feedback,
+  feedbackLanguage,
   setFeedback,
   dialogError,
   googleClientId,
@@ -62,12 +72,41 @@ export function AppDialogContent({
     return (
       <div className="dialog-filter-field">
         <div className="dialog-filter-section">
+          <span className="form-label">언어</span>
+          <OptionButtons
+            value={filterDraft.language}
+            options={[
+              { value: "all", label: "전체" },
+              ...readingLanguages.map((language) => ({
+                value: language,
+                label: languageLabels[language],
+              })),
+            ]}
+            onChange={(value) => {
+              const language = value as ListFilters["language"];
+              setFilterDraft({
+                ...filterDraft,
+                language,
+                level:
+                  language === "all" ||
+                  filterDraft.level === "all" ||
+                  isDifficultyLevelForLanguage(language, filterDraft.level)
+                    ? filterDraft.level
+                    : "all",
+              });
+            }}
+            ariaLabel="언어 필터"
+          />
+        </div>
+        <div className="dialog-filter-section">
           <span className="form-label">난이도</span>
           <OptionButtons
             value={filterDraft.level}
             options={[
               { value: "all", label: "전체" },
-              ...difficultyLevels,
+              ...(filterDraft.language === "all"
+                ? difficultyLevels
+                : levelsForLanguage(filterDraft.language)),
             ]}
             onChange={(level) =>
               setFilterDraft({
@@ -147,12 +186,41 @@ export function AppDialogContent({
     return (
       <div className="dialog-admin-filter-field">
         <div className="dialog-filter-section">
+          <span className="form-label">언어</span>
+          <OptionButtons
+            value={adminFilterDraft.language}
+            options={[
+              { value: "all", label: "전체" },
+              ...readingLanguages.map((language) => ({
+                value: language,
+                label: languageLabels[language],
+              })),
+            ]}
+            onChange={(value) => {
+              const language = value as AdminFilters["language"];
+              setAdminFilterDraft({
+                ...adminFilterDraft,
+                language,
+                level:
+                  language === "all" ||
+                  adminFilterDraft.level === "all" ||
+                  isDifficultyLevelForLanguage(language, adminFilterDraft.level)
+                    ? adminFilterDraft.level
+                    : "all",
+              });
+            }}
+            ariaLabel="언어 필터"
+          />
+        </div>
+        <div className="dialog-filter-section">
           <span className="form-label">난이도</span>
           <OptionButtons
             value={adminFilterDraft.level}
             options={[
               { value: "all", label: "전체" },
-              ...difficultyLevels,
+              ...(adminFilterDraft.language === "all"
+                ? difficultyLevels
+                : levelsForLanguage(adminFilterDraft.language)),
             ]}
             onChange={(level) =>
               setAdminFilterDraft({
@@ -292,7 +360,7 @@ export function AppDialogContent({
           <span className="form-label">체감 난이도</span>
           <OptionButtons
             value={feedback.level}
-            options={difficultyLevels}
+            options={levelsForLanguage(feedbackLanguage)}
             onChange={(level) =>
               setFeedback({
                 ...feedback,

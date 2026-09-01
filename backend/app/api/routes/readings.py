@@ -22,8 +22,9 @@ from app.schemas import (
     AttemptStarted,
     AttemptSubmitRequest,
     FeedbackRequest,
-    JlptLevel,
     LengthType,
+    ReadingLanguage,
+    ReadingLevel,
     ReadingChoicePublic,
     ReadingItemDetail,
     ReadingItemPage,
@@ -34,10 +35,11 @@ from app.schemas import (
 )
 from app.services.item_metrics import ItemMetrics, collect_item_metrics
 from app.services.reading_policy import (
-    JLPT_LEVELS,
+    LEVELS_BY_LANGUAGE,
     LENGTH_TYPES,
-    LEVEL_ORDER,
     MINIMUM_PERCEIVED_LEVEL_VOTES,
+    is_level_for_language,
+    level_sort_key,
 )
 from app.services.users import ensure_user
 
@@ -72,6 +74,7 @@ def serialize_public_summary(
     return ReadingItemSummary(
         id=item.id,
         title=item.title,
+        language=item.language,
         official_level=item.official_level,
         length_type=item.length_type,
         topic=item.topic,
@@ -95,16 +98,24 @@ def sort_public_items(
     sort: str,
 ) -> list[ReadingItem]:
     if sort.startswith("perceived_level"):
-        def perceived_rank(item: ReadingItem) -> tuple[bool, int]:
+        def perceived_rank(item: ReadingItem) -> tuple[bool, tuple[int, int]]:
             level = metrics_by_item[item.id]["perceived_level"]
-            rank = LEVEL_ORDER.get(str(level), 0)
-            return level is None, rank if sort.endswith("asc") else -rank
+            return level is None, level_sort_key(item.language, str(level))
 
+        if sort.endswith("desc"):
+            return sorted(
+                items,
+                key=lambda item: (
+                    perceived_rank(item)[0],
+                    -perceived_rank(item)[1][0],
+                    -perceived_rank(item)[1][1],
+                ),
+            )
         return sorted(items, key=perceived_rank)
     if sort.startswith("level"):
         return sorted(
             items,
-            key=lambda item: LEVEL_ORDER[item.official_level],
+            key=lambda item: level_sort_key(item.language, item.official_level),
             reverse=sort.endswith("desc"),
         )
     return sorted(
@@ -118,7 +129,8 @@ def sort_public_items(
 async def list_published_reading_items(
     session: Annotated[AsyncSession, Depends(get_session)],
     q: Annotated[str | None, Query(max_length=100)] = None,
-    level: JlptLevel | None = None,
+    language: ReadingLanguage | None = None,
+    level: ReadingLevel | None = None,
     length: LengthType | None = None,
     attempt_status: Annotated[
         Literal["correct", "wrong", "unstarted"] | None,
@@ -145,10 +157,17 @@ async def list_published_reading_items(
             detail="Sign in to filter by learning status.",
         )
     filters = [ReadingItem.status == "published"]
+    if language and level and not is_level_for_language(language, level):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="The selected level does not belong to the content language.",
+        )
     if q:
         filters.append(ReadingItem.title.ilike(f"%{q.strip()}%"))
     if level:
         filters.append(ReadingItem.official_level == level)
+    if language:
+        filters.append(ReadingItem.language == language)
     if length:
         filters.append(ReadingItem.length_type == length)
 
@@ -210,6 +229,7 @@ async def get_reading_item(
     return ReadingItemDetail(
         id=item.id,
         title=item.title,
+        language=item.language,
         official_level=item.official_level,
         length_type=item.length_type,
         topic=item.topic,
@@ -345,7 +365,12 @@ async def upsert_feedback(
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> Response:
-    await get_published_item(session, item_id)
+    item = await get_published_item(session, item_id)
+    if not is_level_for_language(item.language, request.perceived_level):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="The selected level does not belong to the content language.",
+        )
     await ensure_user(session, current_user)
     feedback = await session.scalar(
         select(ItemFeedback).where(
@@ -394,7 +419,11 @@ async def create_report(
 def group_statistics(
     items: list[ReadingItem], latest_attempts: dict[UUID, Attempt], key: str
 ) -> list[StatisticGroup]:
-    order = LENGTH_TYPES if key == "length_type" else JLPT_LEVELS
+    order = (
+        LENGTH_TYPES
+        if key == "length_type"
+        else tuple(level for levels in LEVELS_BY_LANGUAGE.values() for level in levels)
+    )
     groups: list[StatisticGroup] = []
     for value in order:
         group_items = [item for item in items if getattr(item, key) == value]

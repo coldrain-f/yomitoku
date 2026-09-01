@@ -27,7 +27,10 @@ import {
   statusLabel,
 } from "../../lib/reading";
 import {
-  difficultyLevels,
+  defaultGenerationLevelByLanguage,
+  languageLabels,
+  levelsForLanguage,
+  readingLanguages,
   readingTopics,
   recommendedTopic,
 } from "../../lib/readingPolicy";
@@ -37,6 +40,7 @@ import type {
   GenerationValues,
   LengthType,
   ReadingItem,
+  ReadingLanguage,
   StateSetter,
   Topic,
 } from "../../types";
@@ -97,6 +101,7 @@ export function AdminScreen({
         .filter(
           (item) =>
             (filters.level === "all" || filters.level === item.officialLevel) &&
+            (filters.language === "all" || filters.language === item.language) &&
             (filters.length === "all" || filters.length === item.lengthType) &&
             (filters.topic === "all" || filters.topic === item.topic) &&
             (filters.status === "all" || filters.status === item.status) &&
@@ -168,6 +173,7 @@ export function AdminScreen({
     currentPage * pageSize,
   );
   const hasAppliedFilters =
+    filters.language !== "all" ||
     filters.level !== "all" ||
     filters.length !== "all" ||
     filters.topic !== "all" ||
@@ -224,6 +230,7 @@ export function AdminScreen({
                 <span className="admin-row-title">{item.title}</span>
                 <span className="row-meta">
                   <span className="badge row-level">{item.officialLevel}</span>
+                  <span className="badge">{languageLabels[item.language]}</span>
                   <span className="badge row-perceived">
                     {perceivedLabel(item)} · {item.perceivedVotes}명
                   </span>
@@ -309,6 +316,29 @@ export function AdminEdit({
           </label>
           <div className="admin-metadata-grid">
             <label className="admin-field">
+              <span className="form-label">콘텐츠 언어</span>
+              <select
+                className="select-field"
+                value={draft.language}
+                onChange={(event) => {
+                  const language = event.target.value as ReadingLanguage;
+                  setDraft({
+                    ...draft,
+                    language,
+                    officialLevel: levelsForLanguage(language).includes(draft.officialLevel)
+                      ? draft.officialLevel
+                      : defaultGenerationLevelByLanguage[language],
+                  });
+                }}
+              >
+                {readingLanguages.map((language) => (
+                  <option key={language} value={language}>
+                    {languageLabels[language]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="admin-field">
               <span className="form-label">난이도</span>
               <select
                 className="select-field"
@@ -320,7 +350,7 @@ export function AdminEdit({
                   })
                 }
               >
-                {difficultyLevels.map((value) => (
+                {levelsForLanguage(draft.language).map((value) => (
                   <option key={value}>{value}</option>
                 ))}
               </select>
@@ -568,10 +598,30 @@ export function GenerateScreen({
         <h1 className="screen-title">새 독해 지문 생성</h1>
         <div className="form-grid generation-form-grid">
           <div className="form-section">
+            <span className="form-label">콘텐츠 언어</span>
+            <OptionButtons
+              value={values.language}
+              options={readingLanguages.map((language) => ({
+                value: language,
+                label: languageLabels[language],
+              }))}
+              onChange={(value) => {
+                const language = value as ReadingLanguage;
+                setValues({
+                  ...values,
+                  language,
+                  level: defaultGenerationLevelByLanguage[language],
+                });
+              }}
+              ariaLabel="콘텐츠 언어"
+              disabled={isCreating}
+            />
+          </div>
+          <div className="form-section">
             <span className="form-label">난이도</span>
             <OptionButtons
               value={values.level}
-              options={difficultyLevels}
+              options={levelsForLanguage(values.language)}
               onChange={(level) =>
                 setValues({
                   ...values,
@@ -666,19 +716,21 @@ export function GenerateScreen({
             </select>
           </div>
         </div>
-        <div className="furigana-row">
-          <span className="form-label">후리가나</span>
-          <OptionButtons
-            value="off"
-            options={[
-              { value: "off", label: "미표기" },
-              { value: "on", label: "표기", disabled: true },
-            ]}
-            onChange={() => {}}
-            ariaLabel="후리가나"
-            disabled={isCreating}
-          />
-        </div>
+        {values.language === "ja" ? (
+          <div className="furigana-row">
+            <span className="form-label">후리가나</span>
+            <OptionButtons
+              value="off"
+              options={[
+                { value: "off", label: "미표기" },
+                { value: "on", label: "표기", disabled: true },
+              ]}
+              onChange={() => {}}
+              ariaLabel="후리가나"
+              disabled={isCreating}
+            />
+          </div>
+        ) : null}
         {isCreating ? (
           <LoadingBar className="generation-progress" label={progressLabel} />
         ) : null}
@@ -718,7 +770,7 @@ export function PreviewScreen({
                 {statusLabel(item.status)}
               </span>
               <span>
-                {item.officialLevel} · {lengthLabels[item.lengthType]} ·{" "}
+                {languageLabels[item.language]} · {item.officialLevel} · {lengthLabels[item.lengthType]} ·{" "}
                 {item.topic}
               </span>
             </div>
