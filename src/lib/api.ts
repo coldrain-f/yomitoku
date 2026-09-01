@@ -246,8 +246,9 @@ export const api = {
       pageSize?: number;
     } = {},
   ) {
+    const { pageSize, ...query } = filters;
     const response = await request<ApiPage<ApiReadingSummary>>(
-      `/reading-items${queryString(filters)}`,
+      `/reading-items${queryString({ ...query, page_size: pageSize })}`,
     );
     return { ...response, items: response.items.map((item) => toItem(item)) };
   },
@@ -293,8 +294,9 @@ export const api = {
       pageSize?: number;
     } = {},
   ) {
+    const { pageSize, ...query } = filters;
     const response = await request<ApiPage<ApiReadingSummary>>(
-      `/admin/reading-items${queryString(filters)}`,
+      `/admin/reading-items${queryString({ ...query, page_size: pageSize })}`,
     );
     return { ...response, items: response.items.map((item) => toItem(item)) };
   },

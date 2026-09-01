@@ -500,9 +500,7 @@ export default function App() {
     });
     const params = new URLSearchParams();
     if (next.query) params.set("q", next.query);
-    if (next.language !== defaultGenerationLanguage) {
-      params.set("language", next.language);
-    }
+    params.set("language", next.language);
     if (next.level !== "all") params.set("level", next.level);
     if (next.length !== "all") params.set("length", next.length);
     if (next.status !== "all") params.set("status", next.status);

@@ -2,7 +2,7 @@ from functools import lru_cache
 from typing import Literal
 from uuid import UUID
 
-from pydantic import SecretStr, model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,7 +27,9 @@ class Settings(BaseSettings):
     quality_validator_model: str = "claude-fable-5"
     generation_model_options: str = ""
     anthropic_api_key: SecretStr | None = None
-    max_generation_revisions: int = 2
+    max_generation_revisions: int = Field(default=2, ge=0, le=3)
+    generator_temperature: float = Field(default=0.4, ge=0.0, le=1.0)
+    validator_temperature: float = Field(default=0.0, ge=0.0, le=1.0)
     worker_poll_interval_seconds: float = 1.5
     dev_admin_id: UUID = UUID("00000000-0000-0000-0000-000000000001")
     google_oauth_client_id: str | None = None

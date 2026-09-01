@@ -244,9 +244,11 @@ export function AdminScreen({
                 <span className="admin-row-title">{item.title}</span>
                 <span className="row-meta">
                   <span className="badge row-level">{item.officialLevel}</span>
-                  <span className="badge row-perceived">
-                    {perceivedLabel(item)} · {item.perceivedVotes}명
-                  </span>
+                  {item.perceivedVotes >= minimumVotes ? (
+                    <span className="badge row-perceived">
+                      {perceivedLabel(item)} · {item.perceivedVotes}명
+                    </span>
+                  ) : null}
                   <span className="badge">{lengthLabels[item.lengthType]}</span>
                   <span className="row-topic">{item.topic}</span>
                 </span>

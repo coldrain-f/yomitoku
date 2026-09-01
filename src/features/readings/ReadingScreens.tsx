@@ -240,11 +240,11 @@ export function ReadingListScreen({
                     <span className="badge row-level">
                       {item.officialLevel}
                     </span>
-                    <span
-                      className={`badge row-perceived${item.perceivedVotes < minimumVotes ? " is-pending" : ""}`}
-                    >
-                      {perceivedLabel(item)}
-                    </span>
+                    {item.perceivedVotes >= minimumVotes ? (
+                      <span className="badge row-perceived">
+                        {perceivedLabel(item)}
+                      </span>
+                    ) : null}
                     <span className="badge">
                       {lengthLabels[item.lengthType]}
                     </span>
@@ -328,8 +328,11 @@ export function ReadingScreen({
         <div className="paper-head">
           <div>
             <p className="kicker">
-              {languageLabels[item.language]} · {item.officialLevel} 실제 · {perceivedLabel(item)} ·{" "}
-              {lengthLabels[item.lengthType]}
+              {languageLabels[item.language]} · {item.officialLevel} 실제
+              {item.perceivedVotes >= minimumVotes ? (
+                <> · {perceivedLabel(item)}</>
+              ) : null}
+              {" · "}{lengthLabels[item.lengthType]}
             </p>
             <h1 className="title-jp">{item.title}</h1>
           </div>
@@ -467,7 +470,11 @@ export function ResultScreen({
         <div className="result-context">
           <span className="badge">{lengthLabels[item.lengthType]}</span>
           <span>
-            {languageLabels[item.language]} · {item.officialLevel} 실제 · {perceivedLabel(item)} · {item.topic}
+            {languageLabels[item.language]} · {item.officialLevel} 실제
+            {item.perceivedVotes >= minimumVotes ? (
+              <> · {perceivedLabel(item)}</>
+            ) : null}
+            {" · "}{item.topic}
           </span>
         </div>
         <div className="result-metrics">

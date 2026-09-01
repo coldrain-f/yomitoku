@@ -844,7 +844,10 @@ textarea:focus-visible {
 }
 
 .list-language-switch .text-button {
-  min-width: 58px;
+  min-width: 52px;
+  min-height: 34px;
+  padding: 0 8px;
+  font-size: 12px;
 }
 
 .filter-search {
@@ -1020,11 +1023,6 @@ textarea:focus-visible {
   border-style: dashed;
   border-color: var(--line-strong);
   color: var(--ink);
-}
-
-.row-meta .row-perceived.is-pending {
-  border-style: solid;
-  color: var(--muted);
 }
 
 .row-topic {

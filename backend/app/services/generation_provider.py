@@ -156,6 +156,8 @@ class AnthropicGenerationProvider:
         self.client = AsyncAnthropic(
             api_key=settings.anthropic_api_key.get_secret_value()
         )
+        self.generator_temperature = settings.generator_temperature
+        self.validator_temperature = settings.validator_temperature
 
     async def generate(
         self,
@@ -202,6 +204,7 @@ Exactly one choice must have isCorrect true. {furigana_rule}
             model,
             prompt,
             GeneratedReading,
+            temperature=self.generator_temperature,
         )
 
     async def verify_answer(
@@ -230,6 +233,7 @@ evidence (string array), and correctChoiceIndex (1-4).
             model,
             prompt,
             ValidatorOutcome,
+            temperature=self.validator_temperature,
         )
 
     async def verify_quality(
@@ -261,6 +265,7 @@ Return strict JSON with status (passed, warning, or failed), score (0-100), issu
             model,
             prompt,
             ValidatorOutcome,
+            temperature=self.validator_temperature,
         )
 
     async def _structured_response(
@@ -268,10 +273,13 @@ Return strict JSON with status (passed, warning, or failed), score (0-100), issu
         model: str,
         prompt: str,
         output_format: type[ModelT],
+        *,
+        temperature: float,
     ) -> ModelT:
         response = await self.client.messages.parse(
             model=model,
             max_tokens=3_000,
+            temperature=temperature,
             messages=[{"role": "user", "content": prompt}],
             output_format=output_format,
         )
