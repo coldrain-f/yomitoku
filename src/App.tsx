@@ -34,7 +34,6 @@ import {
   type Statistics,
 } from "./lib/api";
 import {
-  apiListPageSize,
   defaultGenerationLanguage,
   defaultGenerationLength,
   defaultGenerationLevelByLanguage,
@@ -358,7 +357,7 @@ export default function App() {
   const loadPublicItems = async () => {
     setIsListLoading(true);
     try {
-      const response = await api.listReadings({ pageSize: apiListPageSize });
+      const response = await api.listAllReadings();
       setItems((current) =>
         response.items.map((item) => {
           const loaded = current.find((entry) => entry.id === item.id);
@@ -402,7 +401,7 @@ export default function App() {
   const loadAdminItems = async () => {
     setIsAdminListLoading(true);
     try {
-      const response = await api.listAdminReadings({ pageSize: apiListPageSize });
+      const response = await api.listAllAdminReadings();
       setAdminItems(response.items);
       setAdminLoaded(true);
     } finally {

@@ -83,6 +83,25 @@ interface ApiPage<T> {
   totalPages: number;
 }
 
+interface ReadingListRequest {
+  q?: string;
+  language?: ReadingLanguage;
+  level?: DifficultyLevel;
+  length?: LengthType;
+  status?: "correct" | "wrong" | "unstarted";
+  sort?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+interface AdminReadingListRequest extends Omit<ReadingListRequest, "status"> {
+  topic?: Topic;
+  status?: ReadingStatus;
+}
+
+const apiMaximumPageSize = 50;
+const concurrentPageRequests = 4;
+
 interface ApiStatisticGroup {
   key: string;
   completedCount: number;
@@ -218,6 +237,62 @@ async function request<T>(
   return response.json() as Promise<T>;
 }
 
+async function collectAllPages<T>(
+  loadPage: (page: number) => Promise<ApiPage<T>>,
+): Promise<ApiPage<T>> {
+  const firstPage = await loadPage(1);
+  if (firstPage.totalPages <= 1) return firstPage;
+
+  const pageNumbers = Array.from(
+    { length: firstPage.totalPages - 1 },
+    (_, index) => index + 2,
+  );
+  const remainingPages: ApiPage<T>[] = [];
+  for (let index = 0; index < pageNumbers.length; index += concurrentPageRequests) {
+    remainingPages.push(
+      ...(await Promise.all(
+        pageNumbers
+          .slice(index, index + concurrentPageRequests)
+          .map((page) => loadPage(page)),
+      )),
+    );
+  }
+  return {
+    ...firstPage,
+    items: [firstPage, ...remainingPages].flatMap((page) => page.items),
+  };
+}
+
+async function listReadings(filters: ReadingListRequest = {}) {
+  const { pageSize, ...query } = filters;
+  const response = await request<ApiPage<ApiReadingSummary>>(
+    `/reading-items${queryString({ ...query, page_size: pageSize })}`,
+  );
+  return { ...response, items: response.items.map((item) => toItem(item)) };
+}
+
+async function listAllReadings(filters: Omit<ReadingListRequest, "page" | "pageSize"> = {}) {
+  return collectAllPages((page) =>
+    listReadings({ ...filters, page, pageSize: apiMaximumPageSize }),
+  );
+}
+
+async function listAdminReadings(filters: AdminReadingListRequest = {}) {
+  const { pageSize, ...query } = filters;
+  const response = await request<ApiPage<ApiReadingSummary>>(
+    `/admin/reading-items${queryString({ ...query, page_size: pageSize })}`,
+  );
+  return { ...response, items: response.items.map((item) => toItem(item)) };
+}
+
+async function listAllAdminReadings(
+  filters: Omit<AdminReadingListRequest, "page" | "pageSize"> = {},
+) {
+  return collectAllPages((page) =>
+    listAdminReadings({ ...filters, page, pageSize: apiMaximumPageSize }),
+  );
+}
+
 export const api = {
   async signInWithGoogle(credential: string): Promise<CurrentUser> {
     const response = await request<AuthenticationResponse>("/auth/google", {
@@ -234,24 +309,8 @@ export const api = {
   },
   me: () => request<CurrentUser>("/me"),
   logout: () => request<void>("/auth/logout", { method: "POST" }),
-  async listReadings(
-    filters: {
-      q?: string;
-      language?: ReadingLanguage;
-      level?: DifficultyLevel;
-      length?: LengthType;
-      status?: "correct" | "wrong" | "unstarted";
-      sort?: string;
-      page?: number;
-      pageSize?: number;
-    } = {},
-  ) {
-    const { pageSize, ...query } = filters;
-    const response = await request<ApiPage<ApiReadingSummary>>(
-      `/reading-items${queryString({ ...query, page_size: pageSize })}`,
-    );
-    return { ...response, items: response.items.map((item) => toItem(item)) };
-  },
+  listReadings,
+  listAllReadings,
   reading: (itemId: string) =>
     request<ApiPublicReadingDetail>(`/reading-items/${itemId}`),
   async startAttempt(itemId: string): Promise<StartedAttempt> {
@@ -281,25 +340,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ content }),
     }),
-  async listAdminReadings(
-    filters: {
-      q?: string;
-      language?: ReadingLanguage;
-      level?: DifficultyLevel;
-      length?: LengthType;
-      topic?: Topic;
-      status?: ReadingStatus;
-      sort?: string;
-      page?: number;
-      pageSize?: number;
-    } = {},
-  ) {
-    const { pageSize, ...query } = filters;
-    const response = await request<ApiPage<ApiReadingSummary>>(
-      `/admin/reading-items${queryString({ ...query, page_size: pageSize })}`,
-    );
-    return { ...response, items: response.items.map((item) => toItem(item)) };
-  },
+  listAdminReadings,
+  listAllAdminReadings,
   async adminReading(itemId: string) {
     const response = await request<ApiReadingDetail>(`/admin/reading-items/${itemId}`);
     return toItem(response, response);
