@@ -48,6 +48,11 @@ class GenerationState(TypedDict):
 
 VALIDATION_SCORE_FLOORS: Final = {"answer": 85, "quality": 85}
 OUTPUT_RETRY_EXHAUSTED_CODE: Final = "generation_output_retry_exhausted"
+COMPACT_OUTPUT_RETRY_FEEDBACK: Final = (
+    "The previous response was incomplete. Return one complete object only, keep every "
+    "choice and explanation concise, and keep the passage near the lower end of the "
+    "requested target range."
+)
 
 
 async def update_job_progress(
@@ -117,12 +122,17 @@ def structured_output_retry_update(
             "usage_events": usage_events,
         }
     if isinstance(error, GenerationOutputTruncatedError):
-        retry_error = "AI 응답이 중간에 잘려 동일한 조건으로 한 번 더 생성합니다."
+        retry_error = "AI 응답이 중간에 잘려 더 간결한 형식으로 한 번 더 생성합니다."
     else:
-        retry_error = "AI 응답 형식이 올바르지 않아 동일한 조건으로 한 번 더 생성합니다."
+        retry_error = "AI 응답 형식이 올바르지 않아 더 간결한 형식으로 한 번 더 생성합니다."
     return {
         "output_retry_count": next_retry_count,
         "output_retry_error": retry_error,
+        "revision_feedback": list(
+            dict.fromkeys(
+                [*state.get("revision_feedback", []), COMPACT_OUTPUT_RETRY_FEEDBACK]
+            )
+        ),
         "usage_events": usage_events,
     }
 

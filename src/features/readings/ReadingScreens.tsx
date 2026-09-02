@@ -336,19 +336,19 @@ export function ReadingScreen({
             </p>
             <h1 className="title-jp">{item.title}</h1>
           </div>
-          <div className="reading-meta">
-            <div
-              className={`time-block${attempt.elapsedSeconds > item.recommendedSeconds ? " is-over" : ""}`}
-            >
-              <span>권장 {formatTime(item.recommendedSeconds)}</span>
-              <strong>{formatTime(attempt.elapsedSeconds)}</strong>
-              <div className="progress-track">
-                <span
-                  style={{
-                    width: `${Math.min(100, (attempt.elapsedSeconds / item.recommendedSeconds) * 100)}%`,
-                  }}
-                />
-              </div>
+        </div>
+        <div className="reading-time-sticky">
+          <div
+            className={`time-block${attempt.elapsedSeconds > item.recommendedSeconds ? " is-over" : ""}`}
+          >
+            <span>권장 {formatTime(item.recommendedSeconds)}</span>
+            <strong>{formatTime(attempt.elapsedSeconds)}</strong>
+            <div className="progress-track">
+              <span
+                style={{
+                  width: `${Math.min(100, (attempt.elapsedSeconds / item.recommendedSeconds) * 100)}%`,
+                }}
+              />
             </div>
           </div>
         </div>

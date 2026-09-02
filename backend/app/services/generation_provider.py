@@ -18,13 +18,17 @@ from app.services.reading_policy import PASSAGE_CHARACTER_LIMITS, TOPIC_LABELS
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
-GENERATOR_MAX_TOKENS: Final = 5_000
+GENERATOR_MAX_TOKENS_BY_LENGTH: Final = {
+    "short": 3_500,
+    "medium": 5_000,
+    "long": 7_000,
+}
 VALIDATOR_MAX_TOKENS: Final = 3_000
 CACHE_CONTROL: Final = {"type": "ephemeral"}
 PASSAGE_CHARACTER_TARGETS: Final = {
     "short": (140, 320),
     "medium": (320, 720),
-    "long": (800, 1_300),
+    "long": (800, 1_050),
 }
 
 GENERATOR_SYSTEM_PROMPT: Final = """You create rigorous exam-style reading-comprehension items.
@@ -313,6 +317,9 @@ Topic: {topic}
 The passage must contain {minimum_characters}-{maximum_characters} non-whitespace characters,
 excluding line breaks. Aim for {target_minimum}-{target_maximum} characters unless the level demands
 slightly more context. Revision feedback from the prior attempt: {feedback}
+Return only the complete requested object. Keep the title brief, use one direct question,
+and keep every choice and explanation concise. Do not include drafting notes, analysis, or
+text outside the requested object.
 {furigana_rule}
 </generation_request>"""
         return await self._structured_response(
@@ -320,7 +327,7 @@ slightly more context. Revision feedback from the prior attempt: {feedback}
             GENERATOR_SYSTEM_PROMPT,
             prompt,
             GeneratedReading,
-            max_tokens=GENERATOR_MAX_TOKENS,
+            max_tokens=GENERATOR_MAX_TOKENS_BY_LENGTH[conditions.length_type],
         )
 
     async def verify_answer(

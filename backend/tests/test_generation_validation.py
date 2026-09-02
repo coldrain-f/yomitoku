@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.graphs.generation import (
+    COMPACT_OUTPUT_RETRY_FEEDBACK,
     OUTPUT_RETRY_EXHAUSTED_CODE,
     enforce_validation_gate,
     structured_output_retry_update,
@@ -18,7 +19,7 @@ from app.services.generation_provider import (
     AnthropicGenerationProvider,
     GenerationOutputFormatError,
     GenerationOutputTruncatedError,
-    GENERATOR_MAX_TOKENS,
+    GENERATOR_MAX_TOKENS_BY_LENGTH,
     ModelUsage,
     StubGenerationProvider,
     estimate_usage_cost,
@@ -140,7 +141,7 @@ async def test_anthropic_generation_uses_native_structured_output() -> None:
     assert item.choices[1].is_correct is True
     assert messages.calls[0]["output_format"] is GeneratedReading
     assert messages.calls[0]["model"] == "generator-model"
-    assert messages.calls[0]["max_tokens"] == GENERATOR_MAX_TOKENS
+    assert messages.calls[0]["max_tokens"] == GENERATOR_MAX_TOKENS_BY_LENGTH["medium"]
     assert messages.calls[0]["system"][0]["cache_control"] == {"type": "ephemeral"}
     assert result.usage.total_input_tokens == 900
 
@@ -260,13 +261,20 @@ def test_structured_output_retry_is_limited_and_keeps_failed_attempt_usage() -> 
         ModelUsage(model="claude-fable-5", input_tokens=120, output_tokens=5_000),
     )
     first_retry = structured_output_retry_update(
-        {"output_retry_count": 0},
+        {
+            "output_retry_count": 0,
+            "revision_feedback": ["quality: WEAK_DISTRACTOR"],
+        },
         error,
         maximum_retries=1,
     )
 
     assert first_retry["output_retry_count"] == 1
     assert "중간에 잘려" in first_retry["output_retry_error"]
+    assert first_retry["revision_feedback"] == [
+        "quality: WEAK_DISTRACTOR",
+        COMPACT_OUTPUT_RETRY_FEEDBACK,
+    ]
     assert first_retry["usage_events"] == [
         {
             "stage": "generate",
@@ -287,6 +295,20 @@ def test_structured_output_retry_is_limited_and_keeps_failed_attempt_usage() -> 
 
     assert exhausted["terminal_status"] == "failed"
     assert exhausted["failure_code"] == OUTPUT_RETRY_EXHAUSTED_CODE
+
+
+@pytest.mark.parametrize(
+    ("length_type", "expected_max_tokens"),
+    [
+        ("short", 3_500),
+        ("medium", 5_000),
+        ("long", 7_000),
+    ],
+)
+def test_generation_output_budget_scales_by_requested_length(
+    length_type: str, expected_max_tokens: int
+) -> None:
+    assert GENERATOR_MAX_TOKENS_BY_LENGTH[length_type] == expected_max_tokens
 
 
 def test_deterministic_validation_requires_distinct_distractor_types() -> None:

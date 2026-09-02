@@ -230,6 +230,7 @@ textarea:focus-visible {
 
 .app[data-screen="home"] .screen-home,
 .app[data-screen="admin"] .screen-admin,
+.app[data-screen="generation-history"] .screen-generation-history,
 .app[data-screen="admin-edit"] .screen-admin-edit,
 .app[data-screen="manual-create"] .screen-manual-create,
 .app[data-screen="stats"] .screen-stats,
@@ -951,10 +952,24 @@ fieldset.admin-edit-form {
   font-weight: 500;
 }
 
-.reading-meta {
-  display: grid;
-  gap: 10px;
-  justify-items: end;
+.screen-reading .paper.flush {
+  overflow: visible;
+}
+
+.screen-reading .paper-head {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.reading-time-sticky {
+  position: sticky;
+  top: 8px;
+  z-index: 10;
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 30px;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-solid);
+  box-shadow: 0 4px 10px rgba(46, 48, 40, 0.04);
 }
 
 .time-block {
@@ -999,6 +1014,13 @@ fieldset.admin-edit-form {
   height: 100%;
   background: var(--accent);
   transition: width 180ms linear;
+}
+
+@media (max-width: 720px) {
+  .reading-time-sticky {
+    top: 0;
+    padding: 9px 18px;
+  }
 }
 
 .badge {
