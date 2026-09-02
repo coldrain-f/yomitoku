@@ -1,0 +1,248 @@
+[
+  {
+    "id": "ja-n5-short-library",
+    "conditions": {
+      "language": "ja",
+      "official_level": "N5",
+      "length_type": "short",
+      "topic": "생활"
+    },
+    "item": {
+      "title": "新しい図書館",
+      "passage": "駅の近くに新しい図書館ができました。図書館には本だけでなく、新聞を読める場所や、静かに勉強できる部屋もあります。私は学校の帰りに行きました。本を一冊借りてから、宿題をしました。帰る前に職員の人から、来月は料理の本を集めた展示があると聞きました。",
+      "question": "筆者は図書館で何をしましたか。",
+      "choices": [
+        {
+          "text": "職員から展示の予定を聞いた。",
+          "isCorrect": false,
+          "wrongExplanation": "展示の予定を聞いたのは本文の事実ですが、筆者が図書館で主にしたことを答えていません。",
+          "distractorType": "partial_truth_off_focus"
+        },
+        {
+          "text": "本を借りて宿題をした。",
+          "isCorrect": true,
+          "wrongExplanation": null,
+          "distractorType": null
+        },
+        {
+          "text": "職員が筆者から展示の予定を聞いた。",
+          "isCorrect": false,
+          "wrongExplanation": "本文では職員が筆者に展示の予定を伝えており、話した人と聞いた人が逆です。",
+          "distractorType": "relation_or_agent_reversal"
+        },
+        {
+          "text": "図書館には勉強する部屋しかない。",
+          "isCorrect": false,
+          "wrongExplanation": "図書館には本や新聞を読む場所もあるため、しかないという限定は本文と合いません。",
+          "distractorType": "scope_or_degree_distortion"
+        }
+      ],
+      "explanation": "筆者は本を一冊借り、その後で宿題をしたと書いてあります。"
+    }
+  },
+  {
+    "id": "ja-n3-medium-workshop",
+    "conditions": {
+      "language": "ja",
+      "official_level": "N3",
+      "length_type": "medium",
+      "topic": "교육"
+    },
+    "item": {
+      "title": "意見を集める方法",
+      "passage": "地域の学習会では、参加者から次のテーマについて意見を集めることにした。以前は会の最後に自由に話してもらっていたが、発言する人がいつも同じになりやすかった。そこで今回は、最初に一人で考えを書き、その後で三人ずつ意見を交換する時間を作った。集まった意見はスタッフが分類し、次の会で紹介する予定である。この方法にした理由は、結論をすぐに決めるためではなく、話すことに慣れていない人の考えも会に生かすためだ。",
+      "question": "今回の方法に変えた主な理由は何か。",
+      "choices": [
+        {
+          "text": "スタッフが次の会で結論を発表しやすくするため。",
+          "isCorrect": false,
+          "wrongExplanation": "スタッフは意見を分類して紹介しますが、方法を変えた主な目的は結論を急ぐことではありません。",
+          "distractorType": "partial_truth_off_focus"
+        },
+        {
+          "text": "参加者全員に自由な発言をすぐ求めるため。",
+          "isCorrect": false,
+          "wrongExplanation": "以前の自由な発言では同じ人に偏りやすかったため、一人で考える時間と小グループの時間を設けています。",
+          "distractorType": "relation_or_agent_reversal"
+        },
+        {
+          "text": "発言に慣れていない人の考えも集めるため。",
+          "isCorrect": true,
+          "wrongExplanation": null,
+          "distractorType": null
+        },
+        {
+          "text": "全ての参加者が同じ意見になるようにするため。",
+          "isCorrect": false,
+          "wrongExplanation": "本文は多様な考えを会に生かすことを目的としており、意見を一つにそろえるとは述べていません。",
+          "distractorType": "scope_or_degree_distortion"
+        }
+      ],
+      "explanation": "自由な発言だけでは意見が偏りやすいため、話すことに慣れていない人も考えを出せる方法に変えました。"
+    }
+  },
+  {
+    "id": "ja-n1-plus-long-city-data",
+    "conditions": {
+      "language": "ja",
+      "official_level": "N1+",
+      "length_type": "long",
+      "topic": "지역사회"
+    },
+    "item": {
+      "title": "数字と対話の間",
+      "passage": "市は公共施設の利用状況を見直すため、予約件数や滞在時間の記録を公開した。数字を見ると、平日の午後は利用が少ない施設がある一方、休日には予約が集中する施設もある。しかし、担当者は利用件数だけで施設の必要性を判断してはならないと説明する。例えば、相談窓口は利用者数が多くなくても、一人の相談に長い時間を要する場合がある。また、記録上は利用が少なく見える時間帯でも、交通手段や開館時間が利用を難しくしている可能性がある。さらに、予約の方法を知らない人や、利用に必要な書類を準備しにくい人がいるかもしれない。利用者が数字に表れない理由を話せる場を整えることも、記録を読む際には重要になる。市は数字を減らすための根拠ではなく、利用者への聞き取りを始める手がかりとして使う方針を示した。今後は記録と聞き取りの両方を踏まえ、施設ごとに改善策を考えるという。",
+      "question": "市が利用記録を使おうとしている目的として最も適切なものは何か。",
+      "choices": [
+        {
+          "text": "利用件数が少ない施設を直ちに減らす根拠にすること。",
+          "isCorrect": false,
+          "wrongExplanation": "市は数字を施設を減らす根拠ではなく、利用者への聞き取りを始める手がかりとして使うと述べています。",
+          "distractorType": "relation_or_agent_reversal"
+        },
+        {
+          "text": "施設ごとの事情を調べ、改善策を考える手がかりにすること。",
+          "isCorrect": true,
+          "wrongExplanation": null,
+          "distractorType": null
+        },
+        {
+          "text": "休日に予約が集中する施設だけを優先して残すこと。",
+          "isCorrect": false,
+          "wrongExplanation": "休日の予約集中は記録の一部ですが、市は各施設の事情を聞き取りも含めて考える方針です。",
+          "distractorType": "partial_truth_off_focus"
+        },
+        {
+          "text": "利用件数が多ければ施設の必要性は必ず高いと判断すること。",
+          "isCorrect": false,
+          "wrongExplanation": "本文は利用件数だけで必要性を判断してはならないと明確に述べています。",
+          "distractorType": "scope_or_degree_distortion"
+        }
+      ],
+      "explanation": "市は記録を一律の削減判断に使うのではなく、聞き取りと合わせて施設ごとの改善策を考えるための手がかりにします。"
+    }
+  },
+  {
+    "id": "ko-topik1-short-market",
+    "conditions": {
+      "language": "ko",
+      "official_level": "TOPIK 1급",
+      "length_type": "short",
+      "topic": "쇼핑"
+    },
+    "item": {
+      "title": "토요일 시장",
+      "passage": "토요일 아침에 저는 어머니와 시장에 갔습니다. 시장에는 과일과 채소가 많이 있었습니다. 우리는 저녁에 먹을 사과와 감자를 샀습니다. 어머니는 빵도 사고 싶었지만, 빵집이 아직 열지 않았습니다. 그래서 다음에 다시 오기로 했습니다.",
+      "question": "글쓴이와 어머니는 시장에서 무엇을 샀습니까?",
+      "choices": [
+        {
+          "text": "사과와 감자",
+          "isCorrect": true,
+          "wrongExplanation": null,
+          "distractorType": null
+        },
+        {
+          "text": "빵과 사과",
+          "isCorrect": false,
+          "wrongExplanation": "어머니는 빵을 사고 싶어 했지만 빵집이 열지 않아 사지 못했습니다.",
+          "distractorType": "relation_or_agent_reversal"
+        },
+        {
+          "text": "시장에 과일과 채소가 많았다",
+          "isCorrect": false,
+          "wrongExplanation": "시장에 과일과 채소가 많았다는 내용은 맞지만, 무엇을 샀는지에 대한 답은 아닙니다.",
+          "distractorType": "partial_truth_off_focus"
+        },
+        {
+          "text": "시장에 있는 빵을 모두 샀다",
+          "isCorrect": false,
+          "wrongExplanation": "빵집이 아직 열지 않았으므로 빵을 샀다는 내용은 본문과 맞지 않습니다.",
+          "distractorType": "scope_or_degree_distortion"
+        }
+      ],
+      "explanation": "글쓴이와 어머니는 저녁에 먹을 사과와 감자를 샀습니다."
+    }
+  },
+  {
+    "id": "ko-topik4-medium-commute",
+    "conditions": {
+      "language": "ko",
+      "official_level": "TOPIK 4급",
+      "length_type": "medium",
+      "topic": "교통"
+    },
+    "item": {
+      "title": "출근 시간의 선택",
+      "passage": "한 회사는 출근 시간대의 혼잡을 줄이기 위해 한 달 동안 선택 출근제를 운영했다. 직원들은 오전 일곱 시부터 열 시 사이에 원하는 시간에 출근할 수 있었고, 회의가 많은 부서는 미리 공통 근무 시간을 정했다. 제도 시행 뒤 가장 이른 시간에 출근한 직원 수가 크게 늘지는 않았지만, 기존 출근 시간인 아홉 시에 몰리던 인원은 줄었다. 회사는 이 결과만으로 제도가 모든 직원에게 편리했다고 판단하지 않았다. 대중교통 노선이 적은 지역에 사는 직원은 선택할 수 있는 시간이 제한적이라는 의견을 냈기 때문이다. 회사는 다음 시행 때 부서별 안내와 교통 지원 방안을 함께 검토하기로 했다.",
+      "question": "회사가 다음 시행에서 추가로 검토하려는 이유는 무엇입니까?",
+      "choices": [
+        {
+          "text": "모든 직원이 이른 시간 출근을 원하기 때문이다.",
+          "isCorrect": false,
+          "wrongExplanation": "가장 이른 시간에 출근한 직원 수가 크게 늘지는 않았으며, 모든 직원의 선호가 같다고 본문은 말하지 않습니다.",
+          "distractorType": "scope_or_degree_distortion"
+        },
+        {
+          "text": "아홉 시 출근 인원이 줄었다는 결과만 확인하기 위해서이다.",
+          "isCorrect": false,
+          "wrongExplanation": "아홉 시 혼잡이 줄어든 것은 결과의 일부이며, 회사는 그 결과만으로 편리함을 판단하지 않았습니다.",
+          "distractorType": "partial_truth_off_focus"
+        },
+        {
+          "text": "직원의 교통 여건에 따라 제도 이용이 어려울 수 있어서이다.",
+          "isCorrect": true,
+          "wrongExplanation": null,
+          "distractorType": null
+        },
+        {
+          "text": "교통 지원 때문에 직원들이 출근 시간을 정하게 하기 위해서이다.",
+          "isCorrect": false,
+          "wrongExplanation": "본문에서는 교통 여건 때문에 선택 시간이 제한될 수 있어 지원 방안을 검토한다고 했으므로, 원인과 대응이 뒤바뀌었습니다.",
+          "distractorType": "relation_or_agent_reversal"
+        }
+      ],
+      "explanation": "일부 직원은 대중교통 여건 때문에 선택 출근제를 충분히 이용하기 어려웠습니다. 그래서 회사는 안내와 교통 지원을 함께 검토하려고 합니다."
+    }
+  },
+  {
+    "id": "ko-topik6-plus-long-community-records",
+    "conditions": {
+      "language": "ko",
+      "official_level": "TOPIK 6급+",
+      "length_type": "long",
+      "topic": "미디어"
+    },
+    "item": {
+      "title": "기록의 빈자리",
+      "passage": "지역 기록관은 주민이 기증한 사진과 인터뷰를 디지털로 정리하는 사업을 시작했다. 처음에는 자료의 수를 빠르게 늘리는 데 관심이 쏠렸다. 그러나 담당자들은 사진 속 인물의 이름이나 촬영 장소를 확인하지 못한 자료가 적지 않다는 사실을 발견했다. 정보가 부족한 자료를 제외하면 목록은 깔끔해질 수 있지만, 그렇게 하면 특정 시기의 평범한 생활이 기록에서 사라질 위험이 있다. 기록관은 불확실한 정보를 사실처럼 단정하지 않는 원칙을 유지하면서도, 빈칸 자체를 자료의 한계로 표시하기로 했다. 이후 주민 설명회를 열어 사진을 본 사람이 추가 정보를 남길 수 있게 했고, 새 정보가 들어오면 언제 확인되었는지도 함께 기록했다. 이 방식은 모든 빈칸을 채우려는 시도라기보다, 자료가 만들어지고 해석되는 과정까지 공개하려는 선택에 가깝다.",
+      "question": "기록관이 정보가 부족한 자료를 다루는 방식으로 가장 적절한 것은 무엇입니까?",
+      "choices": [
+        {
+          "text": "정보가 불완전한 자료는 목록의 신뢰성을 위해 모두 제외한다.",
+          "isCorrect": false,
+          "wrongExplanation": "정보가 부족한 자료를 제외하면 평범한 생활의 기록이 사라질 위험이 있어, 기록관은 빈칸을 표시하고 자료를 남기기로 했습니다.",
+          "distractorType": "relation_or_agent_reversal"
+        },
+        {
+          "text": "사진의 수를 늘리기 위해 주민의 추측도 사실로 기록한다.",
+          "isCorrect": false,
+          "wrongExplanation": "기록관은 불확실한 정보를 사실처럼 단정하지 않는 원칙을 유지한다고 밝혔습니다.",
+          "distractorType": "scope_or_degree_distortion"
+        },
+        {
+          "text": "주민 설명회를 열어 추가 정보를 받는다.",
+          "isCorrect": false,
+          "wrongExplanation": "설명회를 여는 것은 실제 방법의 한 부분이지만, 문제는 정보가 부족한 자료를 다루는 전체 원칙을 묻고 있습니다.",
+          "distractorType": "partial_truth_off_focus"
+        },
+        {
+          "text": "불확실한 부분은 한계로 표시하고, 확인 과정도 함께 남긴다.",
+          "isCorrect": true,
+          "wrongExplanation": null,
+          "distractorType": null
+        }
+      ],
+      "explanation": "기록관은 모르는 내용을 사실로 단정하거나 자료를 버리지 않고, 빈칸과 이후의 확인 과정을 공개하는 방식을 택했습니다."
+    }
+  }
+]
