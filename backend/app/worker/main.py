@@ -87,6 +87,7 @@ async def run_worker() -> None:
                         },
                         "revision_count": job.revision_count,
                         "revision_feedback": [],
+                        "usage_events": [],
                     }
                 await graph.ainvoke(
                     initial_state,

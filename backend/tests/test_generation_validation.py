@@ -11,7 +11,11 @@ from app.schemas import (
 )
 from app.services.generation_provider import (
     AnthropicGenerationProvider,
+    GenerationOutputTruncatedError,
+    GENERATOR_MAX_TOKENS,
+    ModelUsage,
     StubGenerationProvider,
+    estimate_usage_cost,
 )
 from app.services.validation import validate_generated_reading
 
@@ -51,7 +55,8 @@ async def test_stub_generation_passes_deterministic_checks() -> None:
     conditions = GenerationConditions(
         official_level="N2", length_type="medium", topic="교육"
     )
-    item = await StubGenerationProvider().generate(conditions, [], "stub")
+    result = await StubGenerationProvider().generate(conditions, [], "stub")
+    item = result.value
 
     assert validate_generated_reading(item, "medium") == []
     assert len(item.choices) == 4
@@ -64,27 +69,35 @@ async def test_stub_answer_validator_identifies_the_only_correct_choice() -> Non
         official_level="N3", length_type="short", topic="생활"
     )
     provider = StubGenerationProvider()
-    item = await provider.generate(conditions, [], "stub")
-    outcome = await provider.verify_answer(item, "ja", "stub")
+    item = (await provider.generate(conditions, [], "stub")).value
+    outcome = (await provider.verify_answer(item, "ja", "stub")).value
 
     assert outcome.status == "passed"
     assert outcome.correct_choice_index == 3
 
 
 class FakeParsedResponse:
-    def __init__(self, parsed_output: object) -> None:
+    def __init__(self, parsed_output: object, stop_reason: str = "end_turn") -> None:
         self.parsed_output = parsed_output
+        self.stop_reason = stop_reason
+        self.usage = SimpleNamespace(
+            input_tokens=300,
+            output_tokens=200,
+            cache_creation_input_tokens=600,
+            cache_read_input_tokens=0,
+        )
 
 
 class FakeAnthropicMessages:
-    def __init__(self) -> None:
+    def __init__(self, stop_reason: str = "end_turn") -> None:
         self.calls: list[dict[str, object]] = []
+        self.stop_reason = stop_reason
 
     async def parse(self, **kwargs: object) -> FakeParsedResponse:
         self.calls.append(kwargs)
         output_format = kwargs["output_format"]
         if output_format is GeneratedReading:
-            return FakeParsedResponse(_sample_generated_reading())
+            return FakeParsedResponse(_sample_generated_reading(), self.stop_reason)
         if output_format is ValidatorOutcome:
             return FakeParsedResponse(
                 ValidatorOutcome(
@@ -92,7 +105,8 @@ class FakeAnthropicMessages:
                     score=94,
                     evidence=["Supported by the passage."],
                     correct_choice_index=2,
-                )
+                ),
+                self.stop_reason,
             )
         raise AssertionError(f"Unexpected output format: {output_format}")
 
@@ -113,12 +127,28 @@ async def test_anthropic_generation_uses_native_structured_output() -> None:
         official_level="N2", length_type="medium", topic="교육"
     )
 
-    item = await provider.generate(conditions, [], "generator-model")
+    result = await provider.generate(conditions, [], "generator-model")
+    item = result.value
 
     assert item.title == "背景を考える"
     assert item.choices[1].is_correct is True
     assert messages.calls[0]["output_format"] is GeneratedReading
     assert messages.calls[0]["model"] == "generator-model"
+    assert messages.calls[0]["max_tokens"] == GENERATOR_MAX_TOKENS
+    assert messages.calls[0]["system"][0]["cache_control"] == {"type": "ephemeral"}
+    assert result.usage.total_input_tokens == 900
+
+
+@pytest.mark.asyncio
+async def test_anthropic_generation_rejects_truncated_structured_output() -> None:
+    messages = FakeAnthropicMessages(stop_reason="max_tokens")
+    provider = _anthropic_provider_with_fake_client(messages)
+    conditions = GenerationConditions(
+        official_level="N2", length_type="medium", topic="교육"
+    )
+
+    with pytest.raises(GenerationOutputTruncatedError, match="token limit"):
+        await provider.generate(conditions, [], "generator-model")
 
 
 @pytest.mark.asyncio
@@ -130,8 +160,8 @@ async def test_anthropic_validators_use_native_structured_output() -> None:
         official_level="N2", length_type="medium", topic="교육"
     )
 
-    answer = await provider.verify_answer(item, "ja", "validator-model")
-    quality = await provider.verify_quality(item, conditions, "validator-model")
+    answer = (await provider.verify_answer(item, "ja", "validator-model")).value
+    quality = (await provider.verify_quality(item, conditions, "validator-model")).value
 
     assert answer.status == "passed"
     assert quality.correct_choice_index == 2
@@ -143,7 +173,8 @@ async def test_anthropic_validators_use_native_structured_output() -> None:
         "validator-model",
         "validator-model",
     ]
-    assert "DISTRACTOR_TYPE_MISMATCH" in messages.calls[1]["messages"][0]["content"]
+    assert "DISTRACTOR_TYPE_MISMATCH" in messages.calls[1]["system"][0]["text"]
+    assert messages.calls[1]["system"][0]["cache_control"] == {"type": "ephemeral"}
 
 
 @pytest.mark.asyncio
@@ -155,7 +186,7 @@ async def test_stub_generation_supports_korean_topik_conditions() -> None:
         topic="과학",
     )
 
-    item = await StubGenerationProvider().generate(conditions, [], "stub")
+    item = (await StubGenerationProvider().generate(conditions, [], "stub")).value
 
     assert "글쓴이" in item.question
     assert validate_generated_reading(item, "short", "ko") == []
@@ -178,12 +209,23 @@ def test_validator_outcome_accepts_structured_evidence_entries() -> None:
             ],
         }
     )
-
     assert outcome.issue_codes == ["WEAK_DISTRACTOR", "DISTRACTOR_OVERLAP"]
     assert outcome.evidence == [
         "WEAK_DISTRACTOR: Distractor choice is too easy to eliminate.",
         "DISTRACTOR_OVERLAP: Two incorrect choices overlap in meaning.",
     ]
+
+
+def test_usage_cost_counts_cache_reads_separately() -> None:
+    usage = ModelUsage(
+        model="claude-fable-5",
+        input_tokens=1_000_000,
+        cache_creation_input_tokens=1_000_000,
+        cache_read_input_tokens=1_000_000,
+        output_tokens=1_000_000,
+    )
+
+    assert estimate_usage_cost(usage) == 73.5
 
 
 def test_deterministic_validation_requires_distinct_distractor_types() -> None:

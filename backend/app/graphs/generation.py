@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any, Final, NotRequired, TypedDict
+from operator import add
+from typing import Annotated, Any, Final, NotRequired, TypedDict
 from uuid import UUID
 
 from langgraph.graph import END, START, StateGraph
@@ -10,7 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.config import get_settings
 from app.db.models import GenerationJob, ItemValidation, ReadingChoice, ReadingItem
 from app.schemas import GeneratedReading, GenerationConditions, ValidatorOutcome
-from app.services.generation_provider import GenerationProvider
+from app.services.generation_provider import (
+    GenerationProvider,
+    ModelUsage,
+    estimate_usage_cost,
+)
 from app.services.reading_policy import RECOMMENDED_SECONDS
 from app.services.validation import validate_generated_reading
 
@@ -26,6 +31,7 @@ class GenerationState(TypedDict):
     answer_validation: NotRequired[dict[str, Any]]
     quality_validation: NotRequired[dict[str, Any]]
     terminal_status: NotRequired[str]
+    usage_events: Annotated[list[dict[str, Any]], add]
 
 
 VALIDATION_SCORE_FLOORS: Final = {"answer": 85, "quality": 85}
@@ -87,12 +93,16 @@ def build_generation_graph(
             status="generating",
             current_node="generate",
         )
-        item = await provider.generate(
+        result = await provider.generate(
             GenerationConditions.model_validate(state["conditions"]),
             state["revision_feedback"],
             state["models"]["generator_model"],
         )
-        return {"item": item.model_dump(mode="json", by_alias=False), "schema_issues": []}
+        return {
+            "item": result.value.model_dump(mode="json", by_alias=False),
+            "schema_issues": [],
+            "usage_events": [result.usage.model_dump(mode="json")],
+        }
 
     async def validate_schema(state: GenerationState) -> dict[str, Any]:
         await update_job_progress(
@@ -122,11 +132,12 @@ def build_generation_graph(
         )
         item = GeneratedReading.model_validate(state["item"])
         conditions = GenerationConditions.model_validate(state["conditions"])
-        outcome = await provider.verify_answer(
+        result = await provider.verify_answer(
             item,
             conditions.language,
             state["models"]["answer_validator_model"],
         )
+        outcome = result.value
         expected_choice = next(
             index
             for index, choice in enumerate(item.choices, start=1)
@@ -140,7 +151,10 @@ def build_generation_graph(
                 }
             )
         outcome = enforce_validation_gate(outcome, "answer")
-        return {"answer_validation": outcome.model_dump(mode="json", by_alias=False)}
+        return {
+            "answer_validation": outcome.model_dump(mode="json", by_alias=False),
+            "usage_events": [result.usage.model_dump(mode="json")],
+        }
 
     async def verify_quality(state: GenerationState) -> dict[str, Any]:
         await update_job_progress(
@@ -150,13 +164,17 @@ def build_generation_graph(
             current_node="verify_quality",
         )
         conditions = GenerationConditions.model_validate(state["conditions"])
-        outcome = await provider.verify_quality(
+        result = await provider.verify_quality(
             GeneratedReading.model_validate(state["item"]),
             conditions,
             state["models"]["quality_validator_model"],
         )
+        outcome = result.value
         outcome = enforce_validation_gate(outcome, "quality")
-        return {"quality_validation": outcome.model_dump(mode="json", by_alias=False)}
+        return {
+            "quality_validation": outcome.model_dump(mode="json", by_alias=False),
+            "usage_events": [result.usage.model_dump(mode="json")],
+        }
 
     async def decide(state: GenerationState) -> dict[str, Any]:
         answer = ValidatorOutcome.model_validate(state["answer_validation"])
@@ -193,6 +211,19 @@ def build_generation_graph(
                 raise RuntimeError(f"Generation job {job_id} was not found.")
             if job.generated_item_id:
                 return {}
+
+            usage = [
+                ModelUsage.model_validate(event)
+                for event in state.get("usage_events", [])
+            ]
+            costs = [estimate_usage_cost(event) for event in usage]
+            job.input_tokens = sum(event.total_input_tokens for event in usage)
+            job.output_tokens = sum(event.output_tokens for event in usage)
+            job.actual_cost_usd = (
+                sum(cost for cost in costs if cost is not None)
+                if all(cost is not None for cost in costs)
+                else None
+            )
 
             reading_item = ReadingItem(
                 title=item.title,
