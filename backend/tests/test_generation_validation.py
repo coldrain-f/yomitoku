@@ -269,6 +269,7 @@ def test_structured_output_retry_is_limited_and_keeps_failed_attempt_usage() -> 
     assert "중간에 잘려" in first_retry["output_retry_error"]
     assert first_retry["usage_events"] == [
         {
+            "stage": "generate",
             "model": "claude-fable-5",
             "input_tokens": 120,
             "output_tokens": 5_000,

@@ -11,6 +11,7 @@ import {
 } from "react-router-dom";
 import {
   AdminEdit,
+  GenerationHistoryScreen,
   AdminScreen,
   GenerateScreen,
   ManualCreateScreen,
@@ -31,6 +32,7 @@ import {
   api,
   recordFromResult,
   type GenerationJob,
+  type GenerationJobHistory,
   type GenerationModelOptions,
   type Statistics,
 } from "./lib/api";
@@ -119,6 +121,7 @@ function screenForPath(pathname: string): Screen {
   if (pathname === "/statistics") return "stats";
   if (pathname.startsWith("/results/")) return "result";
   if (pathname.startsWith("/readings/")) return "reading";
+  if (pathname === "/admin/generation-history") return "generation-history";
   if (pathname === "/admin/readings") return "admin";
   if (pathname === "/admin/readings/manual") return "manual-create";
   if (pathname === "/admin/readings/new") return "generate";
@@ -382,6 +385,12 @@ export default function App() {
   });
   const [generationModels, setGenerationModels] = useState<GenerationModelOptions | null>(null);
   const [generationModelsError, setGenerationModelsError] = useState("");
+  const [generationHistory, setGenerationHistory] = useState<GenerationJobHistory[]>([]);
+  const [generationHistoryPage, setGenerationHistoryPage] = useState(1);
+  const [generationHistoryTotalPages, setGenerationHistoryTotalPages] = useState(1);
+  const [generationHistoryTotalItems, setGenerationHistoryTotalItems] = useState(0);
+  const [isGenerationHistoryLoading, setIsGenerationHistoryLoading] = useState(false);
+  const [generationHistoryError, setGenerationHistoryError] = useState("");
   const [dialogError, setDialogError] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState("");
@@ -443,6 +452,23 @@ export default function App() {
       );
     }
   };
+  const loadGenerationHistory = async (page = 1) => {
+    setIsGenerationHistoryLoading(true);
+    setGenerationHistoryError("");
+    try {
+      const response = await api.generationJobs(page);
+      setGenerationHistory(response.items);
+      setGenerationHistoryPage(response.page);
+      setGenerationHistoryTotalPages(response.totalPages);
+      setGenerationHistoryTotalItems(response.totalItems);
+    } catch (error) {
+      setGenerationHistoryError(
+        error instanceof Error ? error.message : "생성 이력을 불러오지 못했습니다.",
+      );
+    } finally {
+      setIsGenerationHistoryLoading(false);
+    }
+  };
   const loadAdminItems = async () => {
     setIsAdminListLoading(true);
     try {
@@ -488,6 +514,16 @@ export default function App() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (
+      authenticated &&
+      role === "admin" &&
+      location.pathname === "/admin/generation-history"
+    ) {
+      void loadGenerationHistory();
+    }
+  }, [authenticated, location.pathname, role]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -1092,7 +1128,8 @@ export default function App() {
           <Route path="/readings/:itemId" element={<RequireAuth authenticated={authenticated}><ReadingRoute items={items} attempt={attempt} result={result} onChoose={(id) => setAttempt((current) => current ? { ...current, selectedChoiceId: id, message: "" } : current)} onSubmit={submit} onAbandon={goHome} onReport={openReport} onResult={() => result && navigate(`/results/${result.itemId}`)} /></RequireAuth>} />
           <Route path="/results/:itemId" element={<RequireAuth authenticated={authenticated}><ResultRoute result={result} onFeedback={openFeedback} onContinue={continueReading} onHome={goHome} /></RequireAuth>} />
           <Route path="/statistics" element={<RequireAuth authenticated={authenticated}><StatsScreen statistics={statistics} /></RequireAuth>} />
-          <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} filters={adminFilters} onLanguageChange={(language) => setAdminFilters((current) => ({ ...current, language, level: "all" }))} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => { void loadGenerationModels(); navigate("/admin/readings/new"); }} onManualCreate={() => { setManualDraft(createManualReadingDraft()); setManualError(""); navigate("/admin/readings/manual"); }} /></RequireAdmin>} />
+          <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} filters={adminFilters} onLanguageChange={(language) => setAdminFilters((current) => ({ ...current, language, level: "all" }))} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => { void loadGenerationModels(); navigate("/admin/readings/new"); }} onManualCreate={() => { setManualDraft(createManualReadingDraft()); setManualError(""); navigate("/admin/readings/manual"); }} onHistory={() => { void loadGenerationHistory(); navigate("/admin/generation-history"); }} /></RequireAdmin>} />
+          <Route path="/admin/generation-history" element={<RequireAdmin authenticated={authenticated} role={role}><GenerationHistoryScreen items={generationHistory} loading={isGenerationHistoryLoading} error={generationHistoryError} page={generationHistoryPage} totalPages={generationHistoryTotalPages} totalItems={generationHistoryTotalItems} onPageChange={(page) => void loadGenerationHistory(page)} onRefresh={() => void loadGenerationHistory(generationHistoryPage)} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
           <Route path="/admin/readings/manual" element={<RequireAdmin authenticated={authenticated} role={role}><ManualCreateScreen values={manualDraft} setValues={setManualDraft} isSaving={isManualSaving} error={manualError} onSave={() => void createManualReading()} onBack={leaveManualCreate} /></RequireAdmin>} />
           <Route path="/admin/readings/new" element={<RequireAdmin authenticated={authenticated} role={role}><GenerateScreen values={generation} setValues={setGeneration} modelOptions={generationModels} modelError={generationModelsError} isCreating={isGenerating} progressLabel={generationProgress} error={generationError} onCreate={createDraft} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
           <Route path="/admin/readings/:itemId/edit" element={<RequireAdmin authenticated={authenticated} role={role}><AdminEditRoute items={adminItems} draft={draft} setDraft={setDraft} onSave={() => draft && void updateAdminItem(draft)} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={leaveEditor} /></RequireAdmin>} />

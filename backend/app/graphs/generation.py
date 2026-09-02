@@ -9,7 +9,13 @@ from langgraph.graph import END, START, StateGraph
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import get_settings
-from app.db.models import GenerationJob, ItemValidation, ReadingChoice, ReadingItem
+from app.db.models import (
+    GenerationJob,
+    GenerationUsageEvent,
+    ItemValidation,
+    ReadingChoice,
+    ReadingItem,
+)
 from app.schemas import GeneratedReading, GenerationConditions, ValidatorOutcome
 from app.services.generation_provider import (
     GenerationProvider,
@@ -94,9 +100,7 @@ def structured_output_retry_update(
 ) -> dict[str, Any]:
     next_retry_count = state["output_retry_count"] + 1
     usage_events = (
-        [error.usage.model_dump(mode="json")]
-        if error.usage is not None
-        else []
+        [usage_event("generate", error.usage)] if error.usage is not None else []
     )
     if next_retry_count > maximum_retries:
         failure_detail = (
@@ -123,6 +127,10 @@ def structured_output_retry_update(
     }
 
 
+def usage_event(stage: str, usage: ModelUsage) -> dict[str, Any]:
+    return {"stage": stage, **usage.model_dump(mode="json")}
+
+
 def apply_usage_totals(job: GenerationJob, usage_events: list[dict[str, Any]]) -> None:
     usage = [ModelUsage.model_validate(event) for event in usage_events]
     costs = [estimate_usage_cost(event) for event in usage]
@@ -133,6 +141,26 @@ def apply_usage_totals(job: GenerationJob, usage_events: list[dict[str, Any]]) -
         if all(cost is not None for cost in costs)
         else None
     )
+
+
+def persist_usage_events(
+    job: GenerationJob, usage_events: list[dict[str, Any]]
+) -> None:
+    for event_index, payload in enumerate(usage_events, start=1):
+        usage = ModelUsage.model_validate(payload)
+        job.usage_events.append(
+            GenerationUsageEvent(
+                event_index=event_index,
+                stage=str(payload.get("stage", "unknown")),
+                model_id=usage.model,
+                input_tokens=usage.input_tokens,
+                cache_creation_input_tokens=usage.cache_creation_input_tokens,
+                cache_read_input_tokens=usage.cache_read_input_tokens,
+                output_tokens=usage.output_tokens,
+                actual_cost_usd=estimate_usage_cost(usage),
+                stop_reason=usage.stop_reason,
+            )
+        )
 
 
 def build_generation_graph(
@@ -172,7 +200,7 @@ def build_generation_graph(
             "item": result.value.model_dump(mode="json", by_alias=False),
             "schema_issues": [],
             "output_retry_error": None,
-            "usage_events": [result.usage.model_dump(mode="json")],
+            "usage_events": [usage_event("generate", result.usage)],
         }
 
     async def validate_schema(state: GenerationState) -> dict[str, Any]:
@@ -224,7 +252,7 @@ def build_generation_graph(
         outcome = enforce_validation_gate(outcome, "answer")
         return {
             "answer_validation": outcome.model_dump(mode="json", by_alias=False),
-            "usage_events": [result.usage.model_dump(mode="json")],
+            "usage_events": [usage_event("verify_answer", result.usage)],
         }
 
     async def verify_quality(state: GenerationState) -> dict[str, Any]:
@@ -244,7 +272,7 @@ def build_generation_graph(
         outcome = enforce_validation_gate(outcome, "quality")
         return {
             "quality_validation": outcome.model_dump(mode="json", by_alias=False),
-            "usage_events": [result.usage.model_dump(mode="json")],
+            "usage_events": [usage_event("verify_quality", result.usage)],
         }
 
     async def decide(state: GenerationState) -> dict[str, Any]:
@@ -284,6 +312,7 @@ def build_generation_graph(
                 return {}
 
             apply_usage_totals(job, state.get("usage_events", []))
+            persist_usage_events(job, state.get("usage_events", []))
 
             reading_item = ReadingItem(
                 title=item.title,
@@ -358,7 +387,10 @@ def build_generation_graph(
             job = await session.get(GenerationJob, UUID(state["job_id"]))
             if not job:
                 raise RuntimeError(f"Generation job {state['job_id']} was not found.")
+            if job.completed_at:
+                return {}
             apply_usage_totals(job, state.get("usage_events", []))
+            persist_usage_events(job, state.get("usage_events", []))
             job.status = "failed"
             job.current_node = "failed"
             job.error_code = state["failure_code"]

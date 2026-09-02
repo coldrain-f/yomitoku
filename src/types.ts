@@ -165,6 +165,7 @@ export type Screen =
   | "reading"
   | "result"
   | "admin"
+  | "generation-history"
   | "admin-edit"
   | "manual-create"
   | "generate"

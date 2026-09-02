@@ -170,6 +170,46 @@ class GenerationJob(TimestampedModel, Base):
     )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    usage_events: Mapped[list[GenerationUsageEvent]] = relationship(
+        back_populates="generation_job",
+        cascade="all, delete-orphan",
+        order_by="GenerationUsageEvent.event_index",
+        lazy="selectin",
+    )
+
+
+class GenerationUsageEvent(TimestampedModel, Base):
+    __tablename__ = "generation_usage_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "generation_job_id",
+            "event_index",
+            name="uq_generation_usage_event_position",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    generation_job_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("generation_jobs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    event_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    stage: Mapped[str] = mapped_column(String(32), nullable=False)
+    model_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    cache_creation_input_tokens: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False
+    )
+    cache_read_input_tokens: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False
+    )
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    actual_cost_usd: Mapped[float | None] = mapped_column(Numeric(12, 6))
+    stop_reason: Mapped[str | None] = mapped_column(String(32))
+
+    generation_job: Mapped[GenerationJob] = relationship(back_populates="usage_events")
 
 
 class ItemValidation(TimestampedModel, Base):

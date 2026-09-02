@@ -135,6 +135,40 @@ class GenerationJobResponse(ApiModel):
     completed_at: datetime | None
 
 
+class GenerationUsageEventResponse(ApiModel):
+    event_index: int
+    stage: str
+    model_id: str
+    input_tokens: int
+    cache_creation_input_tokens: int
+    cache_read_input_tokens: int
+    output_tokens: int
+    actual_cost_usd: float | None
+    stop_reason: str | None
+    created_at: datetime
+
+
+class GenerationJobHistoryItem(GenerationJobResponse):
+    generator_model: str
+    answer_validator_model: str
+    quality_validator_model: str
+    prompt_version: str
+    input_tokens: int | None
+    output_tokens: int | None
+    cache_creation_input_tokens: int
+    cache_read_input_tokens: int
+    actual_cost_usd: float | None
+    usage_events: list[GenerationUsageEventResponse]
+
+
+class GenerationJobHistoryPage(ApiModel):
+    items: list[GenerationJobHistoryItem]
+    page: int
+    page_size: int
+    total_items: int
+    total_pages: int
+
+
 class ReadingItemSummary(ApiModel):
     id: UUID
     title: str

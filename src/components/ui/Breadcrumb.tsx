@@ -11,6 +11,7 @@ export function Breadcrumb({ screen }: BreadcrumbProps) {
     reading: ["학습", "독해 목록", "문제 풀이"],
     result: ["학습", "독해 목록", "풀이 결과"],
     admin: ["관리자", "문항 관리"],
+    "generation-history": ["관리자", "문항 관리", "생성 이력"],
     "admin-edit": ["관리자", "문항 관리", "문항 편집"],
     "manual-create": ["관리자", "문항 관리", "직접 등록"],
     generate: ["관리자", "문항 관리", "새 독해 지문 생성"],

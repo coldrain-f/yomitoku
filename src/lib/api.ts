@@ -155,6 +155,56 @@ export interface GenerationModelOptions {
   defaultValidatorModel: string;
 }
 
+export interface GenerationUsageEvent {
+  eventIndex: number;
+  stage: string;
+  modelId: string;
+  inputTokens: number;
+  cacheCreationInputTokens: number;
+  cacheReadInputTokens: number;
+  outputTokens: number;
+  actualCostUsd: number | null;
+  stopReason: string | null;
+  createdAt: string;
+}
+
+export interface GenerationJobHistory {
+  id: string;
+  status: string;
+  currentNode: string;
+  conditions: {
+    language: ReadingLanguage;
+    officialLevel: DifficultyLevel;
+    lengthType: LengthType;
+    topic: Topic;
+  };
+  revisionCount: number;
+  generatedItemId: string | null;
+  errorCode: string | null;
+  errorDetail: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  generatorModel: string;
+  answerValidatorModel: string;
+  qualityValidatorModel: string;
+  promptVersion: string;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cacheCreationInputTokens: number;
+  cacheReadInputTokens: number;
+  actualCostUsd: number | null;
+  usageEvents: GenerationUsageEvent[];
+}
+
+export interface GenerationJobHistoryPage {
+  items: GenerationJobHistory[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
 export interface CurrentUser {
   id: string;
   role: Role;
@@ -427,6 +477,10 @@ export const api = {
   generationModelOptions: () =>
     request<GenerationModelOptions>("/admin/generation-model-options"),
   generationJob: (jobId: string) => request<GenerationJob>(`/admin/generation-jobs/${jobId}`),
+  generationJobs: (page = 1, pageSize = 25) =>
+    request<GenerationJobHistoryPage>(
+      `/admin/generation-jobs?page=${page}&page_size=${pageSize}`,
+    ),
 };
 
 export function recordFromResult(

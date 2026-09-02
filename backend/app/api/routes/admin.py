@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -12,6 +12,7 @@ from app.core.config import get_settings
 from app.core.security import CurrentUser, require_admin
 from app.db.models import (
     GenerationJob,
+    GenerationUsageEvent,
     ReadingChoice,
     ReadingItem,
 )
@@ -23,7 +24,10 @@ from app.schemas import (
     GenerationConditions,
     GenerationJobResponse,
     GenerationJobCreateRequest,
+    GenerationJobHistoryItem,
+    GenerationJobHistoryPage,
     GenerationModelOptionsResponse,
+    GenerationUsageEventResponse,
     LengthType,
     ReadingLanguage,
     ReadingLevel,
@@ -64,6 +68,48 @@ def serialize_generation_job(job: GenerationJob) -> GenerationJobResponse:
         created_at=job.created_at,
         started_at=job.started_at,
         completed_at=job.completed_at,
+    )
+
+
+def serialize_generation_usage_event(
+    event: GenerationUsageEvent,
+) -> GenerationUsageEventResponse:
+    return GenerationUsageEventResponse(
+        event_index=event.event_index,
+        stage=event.stage,
+        model_id=event.model_id,
+        input_tokens=event.input_tokens,
+        cache_creation_input_tokens=event.cache_creation_input_tokens,
+        cache_read_input_tokens=event.cache_read_input_tokens,
+        output_tokens=event.output_tokens,
+        actual_cost_usd=event.actual_cost_usd,
+        stop_reason=event.stop_reason,
+        created_at=event.created_at,
+    )
+
+
+def serialize_generation_job_history(
+    job: GenerationJob,
+) -> GenerationJobHistoryItem:
+    usage_events = [
+        serialize_generation_usage_event(event) for event in job.usage_events
+    ]
+    return GenerationJobHistoryItem(
+        **serialize_generation_job(job).model_dump(),
+        generator_model=job.generator_model,
+        answer_validator_model=job.answer_validator_model,
+        quality_validator_model=job.quality_validator_model,
+        prompt_version=job.prompt_version,
+        input_tokens=job.input_tokens,
+        output_tokens=job.output_tokens,
+        cache_creation_input_tokens=sum(
+            event.cache_creation_input_tokens for event in usage_events
+        ),
+        cache_read_input_tokens=sum(
+            event.cache_read_input_tokens for event in usage_events
+        ),
+        actual_cost_usd=job.actual_cost_usd,
+        usage_events=usage_events,
     )
 
 
@@ -257,6 +303,34 @@ async def get_generation_model_options(
         models=list(available_models),
         default_generator_model=preferred_model or settings.generator_model,
         default_validator_model=preferred_model or settings.answer_validator_model,
+    )
+
+
+@router.get("/generation-jobs", response_model=GenerationJobHistoryPage)
+async def list_generation_jobs(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    current_user: Annotated[CurrentUser, Depends(require_admin)],
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=50)] = 25,
+) -> GenerationJobHistoryPage:
+    total_items = int(
+        await session.scalar(select(func.count()).select_from(GenerationJob)) or 0
+    )
+    jobs = list(
+        await session.scalars(
+            select(GenerationJob)
+            .options(selectinload(GenerationJob.usage_events))
+            .order_by(GenerationJob.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    )
+    return GenerationJobHistoryPage(
+        items=[serialize_generation_job_history(job) for job in jobs],
+        page=page,
+        page_size=page_size,
+        total_items=total_items,
+        total_pages=max(1, math.ceil(total_items / page_size)),
     )
 
 

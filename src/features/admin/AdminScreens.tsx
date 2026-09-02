@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowLeft,
   Check,
+  ChevronDown,
+  ChevronUp,
   Clock3,
+  History,
   Pencil,
   Plus,
+  RefreshCw,
   Save,
   Search,
   SlidersHorizontal,
@@ -15,7 +20,10 @@ import { Icon } from "../../components/ui/Icon";
 import { ListPagination } from "../../components/ui/ListPagination";
 import { LoadingBar } from "../../components/ui/LoadingBar";
 import { OptionButtons } from "../../components/ui/OptionButtons";
-import type { GenerationModelOptions } from "../../lib/api";
+import type {
+  GenerationJobHistory,
+  GenerationModelOptions,
+} from "../../lib/api";
 import {
   difficultyRank,
   formatDate,
@@ -56,6 +64,7 @@ interface AdminScreenProps {
   onEdit: (item: ReadingItem) => void;
   onGenerate: () => void;
   onManualCreate: () => void;
+  onHistory: () => void;
 }
 
 interface AdminEditProps {
@@ -101,6 +110,66 @@ interface PreviewScreenProps {
   onBack: () => void;
 }
 
+interface GenerationHistoryScreenProps {
+  items: GenerationJobHistory[];
+  loading: boolean;
+  error: string;
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  onPageChange: (page: number) => void;
+  onRefresh: () => void;
+  onBack: () => void;
+}
+
+const generationStageLabels: Record<string, string> = {
+  generate: "문항 생성",
+  verify_answer: "정답 검증",
+  verify_quality: "품질 검증",
+};
+
+function generationStatusLabel(status: string): string {
+  return {
+    queued: "대기",
+    generating: "생성 중",
+    retrying: "재생성 중",
+    validating: "검증 중",
+    revising: "수정 중",
+    ready_for_review: "검토 대기",
+    held: "보류",
+    failed: "실패",
+  }[status] ?? status;
+}
+
+function generationStatusClass(status: string): string {
+  if (status === "failed") return "is-failed";
+  if (status === "held") return "is-held";
+  if (status === "ready_for_review") return "is-ready";
+  if (["queued", "generating", "retrying", "validating", "revising"].includes(status)) {
+    return "is-running";
+  }
+  return "";
+}
+
+function formatTokenCount(value: number | null): string {
+  return value === null ? "-" : new Intl.NumberFormat("ko-KR").format(value);
+}
+
+function formatCost(value: number | null): string {
+  if (value === null) return "계산 불가";
+  return `$${value.toFixed(value < 0.01 ? 4 : 2)}`;
+}
+
+function formatHistoryDate(value: string): string {
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 export function AdminScreen({
   items,
   loading,
@@ -110,6 +179,7 @@ export function AdminScreen({
   onEdit,
   onGenerate,
   onManualCreate,
+  onHistory,
 }: AdminScreenProps) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -293,6 +363,10 @@ export function AdminScreen({
           />
         )}
         <div className="home-actions">
+          <button className="text-button" type="button" onClick={onHistory}>
+            <Icon icon={History} />
+            생성 이력
+          </button>
           <button className="text-button" type="button" onClick={onManualCreate}>
             <Icon icon={Pencil} />
             직접 등록
@@ -301,6 +375,164 @@ export function AdminScreen({
             <Icon icon={Plus} />새 독해 지문 생성
           </button>
         </div>
+      </div>
+    </section>
+  );
+}
+
+export function GenerationHistoryScreen({
+  items,
+  loading,
+  error,
+  page,
+  totalPages,
+  totalItems,
+  onPageChange,
+  onRefresh,
+  onBack,
+}: GenerationHistoryScreenProps) {
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+
+  return (
+    <section className="screen screen-generation-history" aria-label="생성 이력">
+      <div className="paper flush">
+        <div className="paper-head admin-paper-head">
+          <div>
+            <p className="kicker">Administrator</p>
+            <h1 className="screen-title">생성 이력</h1>
+          </div>
+          <div className="admin-head-actions">
+            <button
+              className="icon-button"
+              type="button"
+              title="문항 관리"
+              aria-label="문항 관리"
+              onClick={onBack}
+            >
+              <Icon icon={ArrowLeft} />
+            </button>
+            <button
+              className="icon-button"
+              type="button"
+              title="새로고침"
+              aria-label="새로고침"
+              onClick={onRefresh}
+              disabled={loading}
+            >
+              <Icon icon={RefreshCw} />
+            </button>
+          </div>
+        </div>
+        <div className="generation-history-toolbar">
+          <span>최근 생성 작업 {totalItems}건</span>
+        </div>
+        {loading ? <LoadingBar label="생성 이력을 불러오는 중입니다." /> : null}
+        {error ? <p className="generation-history-error" role="alert">{error}</p> : null}
+        <div className="generation-history-list" aria-busy={loading}>
+          {items.map((job) => {
+            const expanded = expandedJobId === job.id;
+            const generationAttempts = job.usageEvents.filter(
+              (event) => event.stage === "generate",
+            ).length;
+            return (
+              <article className="generation-history-row" key={job.id}>
+                <button
+                  className="generation-history-trigger"
+                  type="button"
+                  aria-expanded={expanded}
+                  onClick={() =>
+                    setExpandedJobId((current) => (current === job.id ? null : job.id))
+                  }
+                >
+                  <span className="generation-history-main">
+                    <span className="generation-history-title">
+                      {job.conditions.officialLevel} {lengthLabels[job.conditions.lengthType]} · {job.conditions.topic}
+                    </span>
+                    <span className="row-meta">
+                      <span className="badge row-level">{languageLabels[job.conditions.language]}</span>
+                      <span className="badge">{job.promptVersion}</span>
+                      {generationAttempts > 1 ? (
+                        <span className="badge">생성 {generationAttempts}회</span>
+                      ) : null}
+                      {job.revisionCount > 0 ? (
+                        <span className="badge">개정 {job.revisionCount}회</span>
+                      ) : null}
+                    </span>
+                  </span>
+                  <span className="generation-history-state">
+                    <span className={`generation-job-status ${generationStatusClass(job.status)}`}>
+                      {generationStatusLabel(job.status)}
+                    </span>
+                    <strong>{formatCost(job.actualCostUsd)}</strong>
+                    <time dateTime={job.createdAt}>{formatHistoryDate(job.createdAt)}</time>
+                  </span>
+                  <Icon icon={expanded ? ChevronUp : ChevronDown} />
+                </button>
+                {expanded ? (
+                  <div className="generation-history-detail">
+                    <dl className="generation-history-summary">
+                      <div>
+                        <dt>문제 생성 AI</dt>
+                        <dd>{job.generatorModel}</dd>
+                      </div>
+                      <div>
+                        <dt>검증 AI</dt>
+                        <dd>{job.answerValidatorModel === job.qualityValidatorModel
+                          ? job.answerValidatorModel
+                          : `${job.answerValidatorModel} / ${job.qualityValidatorModel}`}</dd>
+                      </div>
+                      <div>
+                        <dt>입력 / 출력</dt>
+                        <dd>{formatTokenCount(job.inputTokens)} / {formatTokenCount(job.outputTokens)} 토큰</dd>
+                      </div>
+                      <div>
+                        <dt>캐시 쓰기 / 읽기</dt>
+                        <dd>{formatTokenCount(job.cacheCreationInputTokens)} / {formatTokenCount(job.cacheReadInputTokens)} 토큰</dd>
+                      </div>
+                    </dl>
+                    {job.errorDetail ? (
+                      <p className="generation-history-failure">{job.errorDetail}</p>
+                    ) : null}
+                    {job.usageEvents.length > 0 ? (
+                      <div className="generation-usage-events">
+                        <div className="generation-usage-event generation-usage-event-head" aria-hidden="true">
+                          <span>단계</span>
+                          <span>모델</span>
+                          <span>입력</span>
+                          <span>캐시</span>
+                          <span>출력</span>
+                          <span>비용</span>
+                        </div>
+                        {job.usageEvents.map((event) => (
+                          <div className="generation-usage-event" key={event.eventIndex}>
+                            <span>{generationStageLabels[event.stage] ?? event.stage}</span>
+                            <span className="generation-usage-model">{event.modelId}</span>
+                            <span>{formatTokenCount(event.inputTokens)}</span>
+                            <span>{formatTokenCount(event.cacheCreationInputTokens + event.cacheReadInputTokens)}</span>
+                            <span>{formatTokenCount(event.outputTokens)}</span>
+                            <span title={event.stopReason ?? undefined}>{formatCost(event.actualCostUsd)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+        {!loading && items.length === 0 ? (
+          <div className="reading-list-empty">
+            <p>생성 작업 이력이 없습니다.</p>
+          </div>
+        ) : (
+          <ListPagination
+            page={page}
+            totalPages={totalPages}
+            onChange={onPageChange}
+            ariaLabel="생성 이력 페이지"
+          />
+        )}
       </div>
     </section>
   );
