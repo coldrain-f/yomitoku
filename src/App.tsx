@@ -13,6 +13,7 @@ import {
   AdminEdit,
   AdminScreen,
   GenerateScreen,
+  ManualCreateScreen,
   PreviewScreen,
 } from "./features/admin/AdminScreens";
 import {
@@ -37,6 +38,8 @@ import {
   defaultGenerationLanguage,
   defaultGenerationLength,
   defaultGenerationLevelByLanguage,
+  readingTopics,
+  recommendedSecondsByLength,
   recommendedTopic,
 } from "./lib/readingPolicy";
 import type {
@@ -46,6 +49,7 @@ import type {
   FeedbackValues,
   GenerationValues,
   ListFilters,
+  ManualReadingDraft,
   ReadingAttempt,
   ReadingItem,
   ReadingLanguage,
@@ -115,10 +119,45 @@ function screenForPath(pathname: string): Screen {
   if (pathname.startsWith("/results/")) return "result";
   if (pathname.startsWith("/readings/")) return "reading";
   if (pathname === "/admin/readings") return "admin";
+  if (pathname === "/admin/readings/manual") return "manual-create";
   if (pathname === "/admin/readings/new") return "generate";
   if (pathname.endsWith("/preview")) return "preview";
   if (pathname.endsWith("/edit")) return "admin-edit";
   return "home";
+}
+
+function createManualReadingDraft(): ManualReadingDraft {
+  return {
+    title: "",
+    language: defaultGenerationLanguage,
+    officialLevel: defaultGenerationLevelByLanguage[defaultGenerationLanguage],
+    lengthType: defaultGenerationLength,
+    topic: readingTopics[0],
+    recommendedSeconds: recommendedSecondsByLength[defaultGenerationLength],
+    passage: "",
+    question: "",
+    choices: Array.from({ length: 4 }, (_, index) => ({
+      id: "manual-choice-" + (index + 1),
+      text: "",
+      isCorrect: index === 0,
+    })),
+    explanation: "",
+  };
+}
+
+function validateManualReadingDraft(values: ManualReadingDraft) {
+  if (
+    !values.title.trim() ||
+    !values.passage.trim() ||
+    !values.question.trim() ||
+    !values.explanation.trim()
+  ) {
+    return "제목, 지문, 문제, 해설을 모두 입력해 주세요.";
+  }
+  const choices = values.choices.map((choice) => choice.text.trim());
+  if (choices.some((choice) => !choice)) return "선택지 네 개를 모두 입력해 주세요.";
+  if (new Set(choices).size !== choices.length) return "선택지는 서로 다르게 입력해 주세요.";
+  return null;
 }
 
 function RequireAuth({
@@ -327,6 +366,11 @@ export default function App() {
   const [attempt, setAttempt] = useState<ReadingAttempt | null>(null);
   const [result, setResult] = useState<ReadingResult | null>(null);
   const [draft, setDraft] = useState<ReadingItem | null>(null);
+  const [manualDraft, setManualDraft] = useState<ManualReadingDraft>(
+    createManualReadingDraft,
+  );
+  const [isManualSaving, setIsManualSaving] = useState(false);
+  const [manualError, setManualError] = useState("");
   const [generation, setGeneration] = useState<GenerationValues>({
     language: defaultGenerationLanguage,
     level: defaultGenerationLevelByLanguage[defaultGenerationLanguage],
@@ -891,6 +935,61 @@ export default function App() {
       setToast(error instanceof Error ? error.message : "문항을 저장하지 못했습니다.");
     }
   };
+  const createManualReading = async () => {
+    const validationError = validateManualReadingDraft(manualDraft);
+    if (validationError) {
+      setManualError(validationError);
+      return;
+    }
+    setIsManualSaving(true);
+    setManualError("");
+    try {
+      const next = await api.createAdminReading(manualDraft);
+      replaceAdminItem(next);
+      setManualDraft(createManualReadingDraft());
+      setDraft(structuredClone(next));
+      navigate("/admin/readings/" + next.id + "/edit");
+      setToast("문항을 검토 상태로 저장했습니다.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "문항을 저장하지 못했습니다.";
+      setManualError(message);
+      setToast(message);
+    } finally {
+      setIsManualSaving(false);
+    }
+  };
+  const leaveManualCreate = (
+    target = "/admin/readings",
+    targetLabel = "관리 목록",
+    afterLeave?: () => void,
+  ) => {
+    const hasContent =
+      Boolean(manualDraft.title.trim()) ||
+      Boolean(manualDraft.passage.trim()) ||
+      Boolean(manualDraft.question.trim()) ||
+      Boolean(manualDraft.explanation.trim()) ||
+      manualDraft.choices.some((choice) => Boolean(choice.text.trim()));
+    if (!hasContent) {
+      setManualDraft(createManualReadingDraft());
+      setManualError("");
+      afterLeave?.();
+      navigate(target);
+      return;
+    }
+    openDialog({
+      kicker: "Discard draft",
+      title: "작성 중인 문항을 버릴까요?",
+      description: "저장하지 않은 입력 내용은 사라지고 " + targetLabel + "으로 이동합니다.",
+      confirmLabel: "작성 내용 버리기",
+      onConfirm: () => {
+        closeDialog();
+        setManualDraft(createManualReadingDraft());
+        setManualError("");
+        afterLeave?.();
+        navigate(target);
+      },
+    });
+  };
   const changeHold = (item: ReadingItem) => {
     const label = item.status === "published" ? "보류로 전환" : item.status === "held" ? "보류 취소" : "보류";
     openDialog({
@@ -945,20 +1044,29 @@ export default function App() {
       : result.item;
     if (current) start(current);
   };
+  const isEditing = screen === "admin-edit" || screen === "manual-create";
+  const leaveCurrentEditor = (
+    target: string,
+    targetLabel: string,
+    afterLeave?: () => void,
+  ) =>
+    screen === "manual-create"
+      ? leaveManualCreate(target, targetLabel, afterLeave)
+      : leaveEditor(target, targetLabel, afterLeave);
   const goHomeFromHeader = () =>
-    screen === "admin-edit" ? leaveEditor("/", "독해 목록") : goHome();
+    isEditing ? leaveCurrentEditor("/", "독해 목록") : goHome();
   const openAdminFromHeader = () => {
     if (!adminLoaded) void loadAdminItems().catch(() => setToast("관리 목록을 불러오지 못했습니다."));
-    screen === "admin-edit"
-      ? leaveEditor("/admin/readings", "문항 관리 화면")
+    isEditing
+      ? leaveCurrentEditor("/admin/readings", "문항 관리 화면")
       : abandonAndNavigate("/admin/readings", "관리자 화면");
   };
   const openStatsFromHeader = () =>
-    screen === "admin-edit"
-      ? leaveEditor("/statistics", "학습 통계 화면")
+    isEditing
+      ? leaveCurrentEditor("/statistics", "학습 통계 화면")
       : abandonAndNavigate("/statistics", "학습 통계 화면");
   const logoutFromHeader = () =>
-    screen === "admin-edit" ? leaveEditor("/", "로그아웃 후 독해 목록", logout) : logout();
+    isEditing ? leaveCurrentEditor("/", "로그아웃 후 독해 목록", logout) : logout();
 
   return (
     <main className="app" data-screen={screen} data-role={role} data-authenticated={authenticated}>
@@ -983,7 +1091,8 @@ export default function App() {
           <Route path="/readings/:itemId" element={<RequireAuth authenticated={authenticated}><ReadingRoute items={items} attempt={attempt} result={result} onChoose={(id) => setAttempt((current) => current ? { ...current, selectedChoiceId: id, message: "" } : current)} onSubmit={submit} onAbandon={goHome} onReport={openReport} onResult={() => result && navigate(`/results/${result.itemId}`)} /></RequireAuth>} />
           <Route path="/results/:itemId" element={<RequireAuth authenticated={authenticated}><ResultRoute result={result} onFeedback={openFeedback} onContinue={continueReading} onHome={goHome} /></RequireAuth>} />
           <Route path="/statistics" element={<RequireAuth authenticated={authenticated}><StatsScreen statistics={statistics} /></RequireAuth>} />
-          <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} filters={adminFilters} onLanguageChange={(language) => setAdminFilters((current) => ({ ...current, language, level: "all" }))} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => { void loadGenerationModels(); navigate("/admin/readings/new"); }} /></RequireAdmin>} />
+          <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} filters={adminFilters} onLanguageChange={(language) => setAdminFilters((current) => ({ ...current, language, level: "all" }))} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => { void loadGenerationModels(); navigate("/admin/readings/new"); }} onManualCreate={() => { setManualDraft(createManualReadingDraft()); setManualError(""); navigate("/admin/readings/manual"); }} /></RequireAdmin>} />
+          <Route path="/admin/readings/manual" element={<RequireAdmin authenticated={authenticated} role={role}><ManualCreateScreen values={manualDraft} setValues={setManualDraft} isSaving={isManualSaving} error={manualError} onSave={() => void createManualReading()} onBack={leaveManualCreate} /></RequireAdmin>} />
           <Route path="/admin/readings/new" element={<RequireAdmin authenticated={authenticated} role={role}><GenerateScreen values={generation} setValues={setGeneration} modelOptions={generationModels} modelError={generationModelsError} isCreating={isGenerating} progressLabel={generationProgress} error={generationError} onCreate={createDraft} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
           <Route path="/admin/readings/:itemId/edit" element={<RequireAdmin authenticated={authenticated} role={role}><AdminEditRoute items={adminItems} draft={draft} setDraft={setDraft} onSave={() => draft && void updateAdminItem(draft)} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={leaveEditor} /></RequireAdmin>} />
           <Route path="/admin/readings/:itemId/preview" element={<RequireAdmin authenticated={authenticated} role={role}><PreviewRoute items={adminItems} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />

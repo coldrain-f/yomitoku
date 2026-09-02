@@ -32,6 +32,7 @@ import {
   levelsForLanguage,
   readingLanguages,
   readingTopics,
+  recommendedSecondsByLength,
   recommendedTopic,
 } from "../../lib/readingPolicy";
 import type {
@@ -39,6 +40,7 @@ import type {
   DifficultyLevel,
   GenerationValues,
   LengthType,
+  ManualReadingDraft,
   ReadingItem,
   ReadingLanguage,
   StateSetter,
@@ -53,17 +55,21 @@ interface AdminScreenProps {
   onFilters: () => void;
   onEdit: (item: ReadingItem) => void;
   onGenerate: () => void;
+  onManualCreate: () => void;
 }
 
 interface AdminEditProps {
   item: ReadingItem;
   draft: ReadingItem;
-  setDraft: StateSetter<ReadingItem | null>;
+  setDraft: (next: ReadingItem) => void;
   onSave: () => void;
   onHold: () => void;
   onPublish: () => void;
   onDelete: () => void;
   onBack: () => void;
+  manual?: boolean;
+  isSaving?: boolean;
+  error?: string;
 }
 
 interface GenerateScreenProps {
@@ -75,6 +81,15 @@ interface GenerateScreenProps {
   progressLabel: string;
   error: string;
   onCreate: () => void;
+  onBack: () => void;
+}
+
+interface ManualCreateScreenProps {
+  values: ManualReadingDraft;
+  setValues: StateSetter<ManualReadingDraft>;
+  isSaving: boolean;
+  error: string;
+  onSave: () => void;
   onBack: () => void;
 }
 
@@ -94,6 +109,7 @@ export function AdminScreen({
   onFilters,
   onEdit,
   onGenerate,
+  onManualCreate,
 }: AdminScreenProps) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -277,6 +293,10 @@ export function AdminScreen({
           />
         )}
         <div className="home-actions">
+          <button className="text-button" type="button" onClick={onManualCreate}>
+            <Icon icon={Pencil} />
+            직접 등록
+          </button>
           <button className="primary-button" type="button" onClick={onGenerate}>
             <Icon icon={Plus} />새 독해 지문 생성
           </button>
@@ -295,6 +315,9 @@ export function AdminEdit({
   onPublish,
   onDelete,
   onBack,
+  manual = false,
+  isSaving = false,
+  error = "",
 }: AdminEditProps) {
 
   const updateChoice = (index: number, text: string) =>
@@ -306,18 +329,23 @@ export function AdminEdit({
     });
 
   return (
-    <section className="screen screen-admin-edit" aria-label="관리자 문항 편집">
+    <section
+      className={["screen", "screen-admin-edit", manual ? "screen-manual-create" : ""].filter(Boolean).join(" ")}
+      aria-label={manual ? "독해 문항 직접 등록" : "관리자 문항 편집"}
+      aria-busy={isSaving}
+      data-reading-language={draft.language}
+    >
       <div className="paper">
         <div className="admin-edit-heading">
           <div>
-            <p className="kicker">Content management</p>
-            <h1 className="screen-title">문항 편집</h1>
+            <p className="kicker">{manual ? "Manual entry" : "Content management"}</p>
+            <h1 className="screen-title">{manual ? "독해 문항 직접 등록" : "문항 편집"}</h1>
           </div>
-          <span className={statusClass(item.status)}>
-            {statusLabel(item.status)}
+          <span className={manual ? "badge" : statusClass(item.status)}>
+            {manual ? "검토 전" : statusLabel(item.status)}
           </span>
         </div>
-        <div className="admin-edit-form">
+        <fieldset className="admin-edit-form" disabled={isSaving}>
           <label className="admin-field admin-field-wide">
             <span className="form-label">제목</span>
             <input
@@ -370,7 +398,7 @@ export function AdminEdit({
                 ))}
               </select>
             </label>
-            <div className="admin-field admin-summary-field">
+            {!manual ? <div className="admin-field admin-summary-field">
               <span className="form-label">체감 난이도</span>
               <div className="admin-summary-value">
                 <strong>{perceivedLabel(item)}</strong>
@@ -379,18 +407,20 @@ export function AdminEdit({
                   {item.perceivedVotes >= minimumVotes ? "공개" : "비공개"}
                 </span>
               </div>
-            </div>
+            </div> : null}
             <label className="admin-field">
               <span className="form-label">유형</span>
               <select
                 className="select-field"
                 value={draft.lengthType}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const lengthType = event.target.value as LengthType;
                   setDraft({
                     ...draft,
-                    lengthType: event.target.value as LengthType,
-                  })
-                }
+                    lengthType,
+                    recommendedSeconds: recommendedSecondsByLength[lengthType],
+                  });
+                }}
               >
                 {Object.entries(lengthLabels).map(([value, label]) => (
                   <option value={value} key={value}>
@@ -489,7 +519,8 @@ export function AdminEdit({
               }
             />
           </label>
-          <section className="admin-insights">
+          {manual && error ? <p className="editor-error" role="alert">{error}</p> : null}
+          {!manual ? <section className="admin-insights">
             <div className="admin-section-heading">
               <h2 className="admin-section-title">문항 반응</h2>
               <span className="admin-section-note">
@@ -519,8 +550,8 @@ export function AdminEdit({
               <p>{item.latestReport}</p>
               <time className="row-date">{formatDate(item.updatedAt)}</time>
             </div>
-          </section>
-          <section className="admin-validation">
+          </section> : null}
+          {!manual ? <section className="admin-validation">
             <div className="admin-section-heading">
               <h2 className="admin-section-title">생성 검증</h2>
               <span
@@ -545,49 +576,117 @@ export function AdminEdit({
                 <dd>{item.validation.explanation}</dd>
               </div>
             </dl>
-          </section>
-        </div>
+          </section> : null}
+        </fieldset>
         <div className="footer-actions admin-edit-actions">
           <div className="admin-edit-secondary">
             <button
               className="link-button"
               type="button"
               onClick={() => onBack()}
+              disabled={isSaving}
             >
               관리 목록으로
             </button>
-            <button
+            {!manual ? <button
               className="link-button preview-delete"
               type="button"
               onClick={onDelete}
             >
               <Icon icon={Trash2} />
               삭제
-            </button>
+            </button> : null}
           </div>
           <div className="admin-edit-main">
-            <button className="text-button" type="button" onClick={onHold}>
+            {!manual ? <button className="text-button" type="button" onClick={onHold}>
               <Icon icon={Clock3} />
               {item.status === "held"
                 ? "보류 취소"
                 : item.status === "published"
                   ? "보류로 전환"
                   : "보류"}
-            </button>
-            {item.status !== "published" ? (
+            </button> : null}
+            {!manual && item.status !== "published" ? (
               <button className="text-button" type="button" onClick={onPublish}>
                 <Icon icon={Upload} />
                 게시하기
               </button>
             ) : null}
-            <button className="primary-button" type="button" onClick={onSave}>
+            <button className="primary-button" type="button" onClick={onSave} disabled={isSaving}>
               <Icon icon={Save} />
-              저장하기
+              {isSaving ? "저장 중" : manual ? "검토 문항으로 저장" : "저장하기"}
             </button>
           </div>
         </div>
       </div>
     </section>
+  );
+}
+
+export function ManualCreateScreen({
+  values,
+  setValues,
+  isSaving,
+  error,
+  onSave,
+  onBack,
+}: ManualCreateScreenProps) {
+  const draft: ReadingItem = {
+    id: "manual-draft",
+    status: "review",
+    title: values.title,
+    language: values.language,
+    officialLevel: values.officialLevel,
+    perceivedLevel: values.officialLevel,
+    perceivedVotes: 0,
+    lengthType: values.lengthType,
+    topic: values.topic,
+    recommendedSeconds: values.recommendedSeconds,
+    createdAt: "",
+    updatedAt: "",
+    publishedAt: null,
+    passage: values.passage,
+    question: values.question,
+    choices: values.choices,
+    explanation: values.explanation,
+    quality: 0,
+    reportCount: 0,
+    latestReport: "",
+    validation: {
+      status: "warning",
+      answer: "",
+      distractor: "",
+      explanation: "",
+    },
+  };
+
+  return (
+    <AdminEdit
+      item={draft}
+      draft={draft}
+      setDraft={(next) =>
+        setValues({
+          title: next.title,
+          language: next.language,
+          officialLevel: next.officialLevel,
+          lengthType: next.lengthType,
+          topic: next.topic,
+          recommendedSeconds: next.recommendedSeconds,
+          passage: next.passage,
+          question: next.question,
+          choices: next.choices,
+          explanation: next.explanation,
+        })
+      }
+      onSave={onSave}
+      onHold={() => {}}
+      onPublish={() => {}}
+      onDelete={() => {}}
+      onBack={onBack}
+      manual
+      isSaving={isSaving}
+      error={error}
+    />
   );
 }
 

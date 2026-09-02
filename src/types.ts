@@ -131,6 +131,19 @@ export interface GenerationValues {
   validatorModel: string;
 }
 
+export interface ManualReadingDraft {
+  title: string;
+  language: ReadingLanguage;
+  officialLevel: DifficultyLevel;
+  lengthType: LengthType;
+  topic: Topic;
+  recommendedSeconds: number;
+  passage: string;
+  question: string;
+  choices: Choice[];
+  explanation: string;
+}
+
 export interface FeedbackValues {
   quality: "" | "1" | "2" | "3" | "4" | "5";
   level: "" | DifficultyLevel;
@@ -153,6 +166,7 @@ export type Screen =
   | "result"
   | "admin"
   | "admin-edit"
+  | "manual-create"
   | "generate"
   | "preview";
 

@@ -12,6 +12,7 @@ export function Breadcrumb({ screen }: BreadcrumbProps) {
     result: ["학습", "독해 목록", "풀이 결과"],
     admin: ["관리자", "문항 관리"],
     "admin-edit": ["관리자", "문항 관리", "문항 편집"],
+    "manual-create": ["관리자", "문항 관리", "직접 등록"],
     generate: ["관리자", "문항 관리", "새 독해 지문 생성"],
     preview: ["관리자", "문항 관리", "문항 미리보기"],
   };

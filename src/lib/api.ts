@@ -4,6 +4,7 @@ import type {
   DifficultyLevel,
   GenerationValues,
   LengthType,
+  ManualReadingDraft,
   ReadingItem,
   ReadingLanguage,
   ReadingStatus,
@@ -364,6 +365,27 @@ export const api = {
           text: choice.text,
           isCorrect: Boolean(choice.isCorrect),
           wrongExplanation: choice.wrongExplanation ?? null,
+        })),
+      }),
+    });
+    return toItem(response, response);
+  },
+  createAdminReading: async (item: ManualReadingDraft) => {
+    const response = await request<ApiReadingDetail>("/admin/reading-items", {
+      method: "POST",
+      body: JSON.stringify({
+        title: item.title,
+        passage: item.passage,
+        question: item.question,
+        explanation: item.explanation,
+        language: item.language,
+        officialLevel: item.officialLevel,
+        lengthType: item.lengthType,
+        topic: item.topic,
+        recommendedSeconds: item.recommendedSeconds,
+        choices: item.choices.map((choice) => ({
+          text: choice.text,
+          isCorrect: Boolean(choice.isCorrect),
         })),
       }),
     });

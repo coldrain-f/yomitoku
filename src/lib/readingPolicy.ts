@@ -34,6 +34,12 @@ export const lengthLabels = {
   long: "장문",
 } as const satisfies Record<LengthTypeValue, string>;
 
+export const recommendedSecondsByLength = {
+  short: 180,
+  medium: 300,
+  long: 420,
+} as const satisfies Record<LengthTypeValue, number>;
+
 export const difficultyRank = {
   N5: 0,
   N4: 1,
