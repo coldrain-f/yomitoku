@@ -111,6 +111,7 @@ function generationProgressLabel(job: GenerationJob) {
   if (job.currentNode === "verify_answer") return "정답이 하나인지 검증하는 중입니다.";
   if (job.currentNode === "verify_quality") return "선택지와 해설 품질을 검토하는 중입니다.";
   if (job.currentNode === "revise") return "검증 결과를 반영해 다시 만드는 중입니다.";
+  if (job.currentNode === "retry_generate") return "응답 형식을 확인하며 한 번 더 생성하는 중입니다.";
   return "생성 결과를 정리하는 중입니다.";
 }
 

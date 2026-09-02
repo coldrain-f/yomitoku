@@ -13,6 +13,8 @@ from app.db.models import GenerationJob, ItemValidation, ReadingChoice, ReadingI
 from app.schemas import GeneratedReading, GenerationConditions, ValidatorOutcome
 from app.services.generation_provider import (
     GenerationProvider,
+    GenerationOutputTruncatedError,
+    GenerationStructuredOutputError,
     ModelUsage,
     estimate_usage_cost,
 )
@@ -25,16 +27,21 @@ class GenerationState(TypedDict):
     conditions: dict[str, Any]
     models: dict[str, str]
     revision_count: int
+    output_retry_count: int
     revision_feedback: list[str]
     item: NotRequired[dict[str, Any]]
     schema_issues: NotRequired[list[str]]
     answer_validation: NotRequired[dict[str, Any]]
     quality_validation: NotRequired[dict[str, Any]]
     terminal_status: NotRequired[str]
+    output_retry_error: NotRequired[str | None]
+    failure_code: NotRequired[str]
+    failure_detail: NotRequired[str]
     usage_events: Annotated[list[dict[str, Any]], add]
 
 
 VALIDATION_SCORE_FLOORS: Final = {"answer": 85, "quality": 85}
+OUTPUT_RETRY_EXHAUSTED_CODE: Final = "generation_output_retry_exhausted"
 
 
 async def update_job_progress(
@@ -80,6 +87,54 @@ def enforce_validation_gate(
     )
 
 
+def structured_output_retry_update(
+    state: GenerationState,
+    error: GenerationStructuredOutputError,
+    maximum_retries: int,
+) -> dict[str, Any]:
+    next_retry_count = state["output_retry_count"] + 1
+    usage_events = (
+        [error.usage.model_dump(mode="json")]
+        if error.usage is not None
+        else []
+    )
+    if next_retry_count > maximum_retries:
+        failure_detail = (
+            "AI 응답이 완전한 문항 형식으로 끝나지 않아 자동 재시도 후에도 "
+            "생성에 실패했습니다. 잠시 후 다시 시도해 주세요."
+            if maximum_retries
+            else "AI 응답이 완전한 문항 형식으로 끝나지 않아 생성에 실패했습니다. "
+            "잠시 후 다시 시도해 주세요."
+        )
+        return {
+            "terminal_status": "failed",
+            "failure_code": OUTPUT_RETRY_EXHAUSTED_CODE,
+            "failure_detail": failure_detail,
+            "usage_events": usage_events,
+        }
+    if isinstance(error, GenerationOutputTruncatedError):
+        retry_error = "AI 응답이 중간에 잘려 동일한 조건으로 한 번 더 생성합니다."
+    else:
+        retry_error = "AI 응답 형식이 올바르지 않아 동일한 조건으로 한 번 더 생성합니다."
+    return {
+        "output_retry_count": next_retry_count,
+        "output_retry_error": retry_error,
+        "usage_events": usage_events,
+    }
+
+
+def apply_usage_totals(job: GenerationJob, usage_events: list[dict[str, Any]]) -> None:
+    usage = [ModelUsage.model_validate(event) for event in usage_events]
+    costs = [estimate_usage_cost(event) for event in usage]
+    job.input_tokens = sum(event.total_input_tokens for event in usage)
+    job.output_tokens = sum(event.output_tokens for event in usage)
+    job.actual_cost_usd = (
+        sum(cost for cost in costs if cost is not None)
+        if all(cost is not None for cost in costs)
+        else None
+    )
+
+
 def build_generation_graph(
     session_factory: async_sessionmaker[AsyncSession], provider: GenerationProvider
 ) -> StateGraph:
@@ -93,14 +148,30 @@ def build_generation_graph(
             status="generating",
             current_node="generate",
         )
-        result = await provider.generate(
-            GenerationConditions.model_validate(state["conditions"]),
-            state["revision_feedback"],
-            state["models"]["generator_model"],
-        )
+        try:
+            result = await provider.generate(
+                GenerationConditions.model_validate(state["conditions"]),
+                state["revision_feedback"],
+                state["models"]["generator_model"],
+            )
+        except GenerationStructuredOutputError as error:
+            retry_update = structured_output_retry_update(
+                state,
+                error,
+                settings.max_generation_output_retries,
+            )
+            if retry_update.get("terminal_status") != "failed":
+                await update_job_progress(
+                    session_factory,
+                    state["job_id"],
+                    status="retrying",
+                    current_node="retry_generate",
+                )
+            return retry_update
         return {
             "item": result.value.model_dump(mode="json", by_alias=False),
             "schema_issues": [],
+            "output_retry_error": None,
             "usage_events": [result.usage.model_dump(mode="json")],
         }
 
@@ -212,18 +283,7 @@ def build_generation_graph(
             if job.generated_item_id:
                 return {}
 
-            usage = [
-                ModelUsage.model_validate(event)
-                for event in state.get("usage_events", [])
-            ]
-            costs = [estimate_usage_cost(event) for event in usage]
-            job.input_tokens = sum(event.total_input_tokens for event in usage)
-            job.output_tokens = sum(event.output_tokens for event in usage)
-            job.actual_cost_usd = (
-                sum(cost for cost in costs if cost is not None)
-                if all(cost is not None for cost in costs)
-                else None
-            )
+            apply_usage_totals(job, state.get("usage_events", []))
 
             reading_item = ReadingItem(
                 title=item.title,
@@ -293,6 +353,27 @@ def build_generation_graph(
             await session.commit()
         return {}
 
+    async def fail(state: GenerationState) -> dict[str, Any]:
+        async with session_factory() as session:
+            job = await session.get(GenerationJob, UUID(state["job_id"]))
+            if not job:
+                raise RuntimeError(f"Generation job {state['job_id']} was not found.")
+            apply_usage_totals(job, state.get("usage_events", []))
+            job.status = "failed"
+            job.current_node = "failed"
+            job.error_code = state["failure_code"]
+            job.error_detail = state["failure_detail"]
+            job.completed_at = datetime.now(UTC)
+            await session.commit()
+        return {}
+
+    def after_generate(state: GenerationState) -> str:
+        if state.get("terminal_status") == "failed":
+            return "fail"
+        if state.get("output_retry_error"):
+            return "generate"
+        return "validate_schema"
+
     def after_schema(state: GenerationState) -> str | list[str]:
         if state.get("terminal_status") == "held":
             return "persist"
@@ -310,11 +391,13 @@ def build_generation_graph(
     graph.add_node("decide", decide)
     graph.add_node("revise", revise)
     graph.add_node("persist", persist)
+    graph.add_node("fail", fail)
     graph.add_edge(START, "generate")
-    graph.add_edge("generate", "validate_schema")
+    graph.add_conditional_edges("generate", after_generate)
     graph.add_conditional_edges("validate_schema", after_schema)
     graph.add_edge(["verify_answer", "verify_quality"], "decide")
     graph.add_conditional_edges("decide", after_decision)
     graph.add_edge("revise", "generate")
     graph.add_edge("persist", END)
+    graph.add_edge("fail", END)
     return graph

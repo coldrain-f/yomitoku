@@ -34,6 +34,9 @@ server; they must never be exposed to the React application.
 The worker is deliberately separate from FastAPI. Generation can take time and
 cost money, so `POST /api/v1/admin/generation-jobs` returns `202 Accepted` and
 the frontend polls the job endpoint instead of holding an HTTP request open.
+MAX_GENERATION_REVISIONS limits quality-revision loops, while
+MAX_GENERATION_OUTPUT_RETRIES=1 allows one retry only when the model output is
+truncated or cannot be parsed as structured JSON.
 
 ## Google login and local development authentication
 

@@ -86,6 +86,7 @@ async def run_worker() -> None:
                             "quality_validator_model": job.quality_validator_model,
                         },
                         "revision_count": job.revision_count,
+                        "output_retry_count": 0,
                         "revision_feedback": [],
                         "usage_events": [],
                     }

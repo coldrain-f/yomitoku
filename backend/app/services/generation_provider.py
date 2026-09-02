@@ -76,10 +76,6 @@ an ambiguous item with more than one defensible answer. Evidence must identify t
 Return status, score (0-100), issueCodes, and evidence."""
 
 
-class GenerationOutputTruncatedError(RuntimeError):
-    """A structured response reached the output limit before the JSON object completed."""
-
-
 class ModelUsage(BaseModel):
     model: str
     input_tokens: int = 0
@@ -95,6 +91,22 @@ class ModelUsage(BaseModel):
             + self.cache_creation_input_tokens
             + self.cache_read_input_tokens
         )
+
+
+class GenerationStructuredOutputError(RuntimeError):
+    """The provider did not return a complete, parseable structured response."""
+
+    def __init__(self, message: str, usage: ModelUsage | None = None) -> None:
+        super().__init__(message)
+        self.usage = usage
+
+
+class GenerationOutputTruncatedError(GenerationStructuredOutputError):
+    """A structured response reached the output limit before the JSON object completed."""
+
+
+class GenerationOutputFormatError(GenerationStructuredOutputError):
+    """A structured response could not be parsed into the requested output model."""
 
 
 @dataclass(frozen=True)
@@ -375,34 +387,41 @@ Requested level: {conditions.official_level}
                 output_format=output_format,
             )
         except ValidationError as error:
-            if any(
-                issue.get("type") == "json_invalid"
-                and "EOF while parsing" in str(issue.get("msg", ""))
+            json_errors = [
+                issue
                 for issue in error.errors()
-            ):
+                if issue.get("type") == "json_invalid"
+            ]
+            if any("EOF while parsing" in str(issue.get("msg", "")) for issue in json_errors):
                 raise GenerationOutputTruncatedError(
                     "The model response ended before the structured JSON completed."
                 ) from error
-            raise
+            raise GenerationOutputFormatError(
+                "The model response did not match the requested structured output."
+            ) from error
+        usage = ModelUsage(
+            model=model,
+            input_tokens=getattr(response.usage, "input_tokens", 0),
+            output_tokens=getattr(response.usage, "output_tokens", 0),
+            cache_creation_input_tokens=getattr(
+                response.usage, "cache_creation_input_tokens", 0
+            ),
+            cache_read_input_tokens=getattr(
+                response.usage, "cache_read_input_tokens", 0
+            ),
+            stop_reason=response.stop_reason,
+        )
         if response.stop_reason == "max_tokens":
             raise GenerationOutputTruncatedError(
-                "The model response reached its output token limit."
+                "The model response reached its output token limit.", usage
             )
         if response.parsed_output is None:
-            raise RuntimeError("The Anthropic response did not contain parsed output.")
-        usage = response.usage
+            raise GenerationOutputFormatError(
+                "The Anthropic response did not contain parsed output.", usage
+            )
         return ProviderResult(
             value=response.parsed_output,
-            usage=ModelUsage(
-                model=model,
-                input_tokens=getattr(usage, "input_tokens", 0),
-                output_tokens=getattr(usage, "output_tokens", 0),
-                cache_creation_input_tokens=getattr(
-                    usage, "cache_creation_input_tokens", 0
-                ),
-                cache_read_input_tokens=getattr(usage, "cache_read_input_tokens", 0),
-                stop_reason=response.stop_reason,
-            ),
+            usage=usage,
         )
 
 

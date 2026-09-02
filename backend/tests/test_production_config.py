@@ -42,6 +42,13 @@ def test_generation_model_options_reject_missing_default_model() -> None:
         )
 
 
+def test_generation_output_retries_allow_only_one_retry() -> None:
+    assert Settings(max_generation_output_retries=1).max_generation_output_retries == 1
+
+    with pytest.raises(ValidationError):
+        Settings(max_generation_output_retries=2)
+
+
 @pytest.mark.parametrize(
     ("key", "value"),
     [

@@ -2,7 +2,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.graphs.generation import enforce_validation_gate, validation_feedback
+from app.graphs.generation import (
+    OUTPUT_RETRY_EXHAUSTED_CODE,
+    enforce_validation_gate,
+    structured_output_retry_update,
+    validation_feedback,
+)
 from app.schemas import (
     GeneratedChoice,
     GeneratedReading,
@@ -11,6 +16,7 @@ from app.schemas import (
 )
 from app.services.generation_provider import (
     AnthropicGenerationProvider,
+    GenerationOutputFormatError,
     GenerationOutputTruncatedError,
     GENERATOR_MAX_TOKENS,
     ModelUsage,
@@ -147,7 +153,27 @@ async def test_anthropic_generation_rejects_truncated_structured_output() -> Non
         official_level="N2", length_type="medium", topic="교육"
     )
 
-    with pytest.raises(GenerationOutputTruncatedError, match="token limit"):
+    with pytest.raises(GenerationOutputTruncatedError, match="token limit") as error:
+        await provider.generate(conditions, [], "generator-model")
+
+    assert error.value.usage is not None
+    assert error.value.usage.output_tokens == 200
+
+
+class InvalidJsonAnthropicMessages:
+    async def parse(self, **kwargs: object) -> FakeParsedResponse:
+        GeneratedReading.model_validate_json("not valid JSON")
+        raise AssertionError("Expected Pydantic validation to raise.")
+
+
+@pytest.mark.asyncio
+async def test_anthropic_generation_identifies_invalid_structured_json() -> None:
+    provider = _anthropic_provider_with_fake_client(InvalidJsonAnthropicMessages())
+    conditions = GenerationConditions(
+        official_level="N2", length_type="medium", topic="교육"
+    )
+
+    with pytest.raises(GenerationOutputFormatError, match="requested structured output"):
         await provider.generate(conditions, [], "generator-model")
 
 
@@ -226,6 +252,40 @@ def test_usage_cost_counts_cache_reads_separately() -> None:
     )
 
     assert estimate_usage_cost(usage) == 73.5
+
+
+def test_structured_output_retry_is_limited_and_keeps_failed_attempt_usage() -> None:
+    error = GenerationOutputTruncatedError(
+        "The model response reached its output token limit.",
+        ModelUsage(model="claude-fable-5", input_tokens=120, output_tokens=5_000),
+    )
+    first_retry = structured_output_retry_update(
+        {"output_retry_count": 0},
+        error,
+        maximum_retries=1,
+    )
+
+    assert first_retry["output_retry_count"] == 1
+    assert "중간에 잘려" in first_retry["output_retry_error"]
+    assert first_retry["usage_events"] == [
+        {
+            "model": "claude-fable-5",
+            "input_tokens": 120,
+            "output_tokens": 5_000,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "stop_reason": None,
+        }
+    ]
+
+    exhausted = structured_output_retry_update(
+        {"output_retry_count": 1},
+        error,
+        maximum_retries=1,
+    )
+
+    assert exhausted["terminal_status"] == "failed"
+    assert exhausted["failure_code"] == OUTPUT_RETRY_EXHAUSTED_CODE
 
 
 def test_deterministic_validation_requires_distinct_distractor_types() -> None:
