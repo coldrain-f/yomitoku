@@ -116,6 +116,7 @@ export interface Statistics {
   totalGeneratedCount: number;
   accuracy: number | null;
   averageElapsedSeconds: number | null;
+  byLanguage?: ApiStatisticGroup[];
   byLength: ApiStatisticGroup[];
   byLevel: ApiStatisticGroup[];
 }

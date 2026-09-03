@@ -424,11 +424,14 @@ async def create_report(
 def group_statistics(
     items: list[ReadingItem], latest_attempts: dict[UUID, Attempt], key: str
 ) -> list[StatisticGroup]:
-    order = (
-        LENGTH_TYPES
-        if key == "length_type"
-        else tuple(level for levels in LEVELS_BY_LANGUAGE.values() for level in levels)
-    )
+    if key == "length_type":
+        order = LENGTH_TYPES
+    elif key == "language":
+        order = tuple(LEVELS_BY_LANGUAGE)
+    else:
+        order = tuple(
+            level for levels in LEVELS_BY_LANGUAGE.values() for level in levels
+        )
     groups: list[StatisticGroup] = []
     for value in order:
         group_items = [item for item in items if getattr(item, key) == value]
@@ -501,6 +504,7 @@ async def get_statistics(
             if recent
             else None
         ),
+        by_language=group_statistics(items, latest_attempts, "language"),
         by_length=group_statistics(items, latest_attempts, "length_type"),
         by_level=group_statistics(items, latest_attempts, "official_level"),
     )

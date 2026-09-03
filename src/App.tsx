@@ -40,6 +40,7 @@ import {
   defaultGenerationLanguage,
   defaultGenerationLength,
   defaultGenerationLevelByLanguage,
+  languageLabels,
   readingTopics,
   recommendedSecondsByLength,
   recommendedTopic,
@@ -405,8 +406,13 @@ export default function App() {
   const feedbackRef = useRef(feedback);
 
   const activeItem = items.find((item) => item.id === attempt?.itemId);
-  const completeCount = statistics?.completedCount ?? 0;
-  const totalGenerated = statistics?.totalGeneratedCount ?? 0;
+  const languageStatistics = statistics?.byLanguage?.find(
+    (group) => group.key === filters.language,
+  );
+  const completeCount =
+    languageStatistics?.completedCount ?? statistics?.completedCount ?? 0;
+  const totalGenerated =
+    languageStatistics?.totalCount ?? statistics?.totalGeneratedCount ?? 0;
 
   const loadPublicItems = async () => {
     setIsListLoading(true);
@@ -1113,6 +1119,7 @@ export default function App() {
           role={role}
           totalGenerated={totalGenerated}
           completeCount={completeCount}
+          progressLanguage={languageLabels[filters.language]}
           onHome={goHomeFromHeader}
           onOpenAdmin={openAdminFromHeader}
           onOpenStats={openStatsFromHeader}

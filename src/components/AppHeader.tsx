@@ -7,6 +7,7 @@ interface AppHeaderProps {
   role: Role;
   totalGenerated: number;
   completeCount: number;
+  progressLanguage: string;
   onHome: () => void;
   onOpenAdmin: () => void;
   onOpenStats: () => void;
@@ -19,6 +20,7 @@ export function AppHeader({
   role,
   totalGenerated,
   completeCount,
+  progressLanguage,
   onHome,
   onOpenAdmin,
   onOpenStats,
@@ -50,8 +52,8 @@ export function AppHeader({
           <button
             className="header-progress"
             type="button"
-            aria-label={`학습 통계: 생성된 전체 문제 ${totalGenerated}개 중 ${completeCount}개 풀이 완료`}
-            title="학습 통계"
+            aria-label={`학습 통계: ${progressLanguage} 문제 ${totalGenerated}개 중 ${completeCount}개 풀이 완료`}
+            title={`${progressLanguage} 학습 통계`}
             onClick={onOpenStats}
           >
             <span className="header-progress-current">{completeCount}</span>

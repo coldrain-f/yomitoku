@@ -284,6 +284,7 @@ class StatisticsResponse(ApiModel):
     total_generated_count: int
     accuracy: float | None
     average_elapsed_seconds: int | None
+    by_language: list[StatisticGroup]
     by_length: list[StatisticGroup]
     by_level: list[StatisticGroup]
 
