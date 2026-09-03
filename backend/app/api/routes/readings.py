@@ -33,7 +33,11 @@ from app.schemas import (
     StatisticGroup,
     StatisticsResponse,
 )
-from app.services.item_metrics import ItemMetrics, collect_item_metrics
+from app.services.item_metrics import (
+    ItemMetrics,
+    collect_item_metrics,
+    first_submissions_by_user_item,
+)
 from app.services.reading_policy import (
     LEVELS_BY_LANGUAGE,
     LENGTH_TYPES,
@@ -279,17 +283,14 @@ async def item_outcomes(
             .where(
                 Attempt.reading_item_id == item_id, Attempt.submitted_at.is_not(None)
             )
-            .order_by(Attempt.submitted_at.desc())
+            .order_by(Attempt.submitted_at.asc(), Attempt.id.asc())
         )
     )
-    latest_by_user: dict[UUID, Attempt] = {}
-    for attempt in attempts:
-        latest_by_user.setdefault(attempt.user_id, attempt)
-    latest = list(latest_by_user.values())
-    if not latest:
+    first_attempts = list(first_submissions_by_user_item(attempts).values())
+    if not first_attempts:
         return None, 0
-    correct = sum(bool(attempt.is_correct) for attempt in latest)
-    return round(correct / len(latest) * 100, 1), len(latest)
+    correct = sum(bool(attempt.is_correct) for attempt in first_attempts)
+    return round(correct / len(first_attempts) * 100, 1), len(first_attempts)
 
 
 @router.post("/attempts/{attempt_id}/submit", response_model=AttemptResult)
@@ -422,7 +423,7 @@ async def create_report(
 
 
 def group_statistics(
-    items: list[ReadingItem], latest_attempts: dict[UUID, Attempt], key: str
+    items: list[ReadingItem], attempts_by_item: dict[UUID, Attempt], key: str
 ) -> list[StatisticGroup]:
     if key == "length_type":
         order = LENGTH_TYPES
@@ -436,9 +437,9 @@ def group_statistics(
     for value in order:
         group_items = [item for item in items if getattr(item, key) == value]
         group_attempts = [
-            latest_attempts[item.id]
+            attempts_by_item[item.id]
             for item in group_items
-            if item.id in latest_attempts
+            if item.id in attempts_by_item
         ]
         groups.append(
             StatisticGroup(
@@ -485,13 +486,18 @@ async def get_statistics(
                 Attempt.user_id == current_user.id,
                 Attempt.submitted_at.is_not(None),
             )
-            .order_by(Attempt.submitted_at.desc())
+            .order_by(Attempt.submitted_at.asc(), Attempt.id.asc())
         )
     )
-    latest_attempts: dict[UUID, Attempt] = {}
-    for attempt in submissions:
-        latest_attempts.setdefault(attempt.reading_item_id, attempt)
-    recent = list(latest_attempts.values())
+    published_item_ids = {item.id for item in items}
+    first_attempts = {
+        item_id: attempt
+        for (_, item_id), attempt in first_submissions_by_user_item(
+            submissions
+        ).items()
+        if item_id in published_item_ids
+    }
+    recent = list(first_attempts.values())
     return StatisticsResponse(
         completed_count=len(recent),
         total_generated_count=len(items),
@@ -508,7 +514,7 @@ async def get_statistics(
             if recent
             else None
         ),
-        by_language=group_statistics(items, latest_attempts, "language"),
-        by_length=group_statistics(items, latest_attempts, "length_type"),
-        by_level=group_statistics(items, latest_attempts, "official_level"),
+        by_language=group_statistics(items, first_attempts, "language"),
+        by_length=group_statistics(items, first_attempts, "length_type"),
+        by_level=group_statistics(items, first_attempts, "official_level"),
     )

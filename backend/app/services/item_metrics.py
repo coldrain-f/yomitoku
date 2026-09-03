@@ -1,4 +1,5 @@
 from collections import defaultdict
+from collections.abc import Iterable
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -12,6 +13,18 @@ from app.services.reading_policy import (
 )
 
 ItemMetrics = dict[str, float | int | str | None]
+
+
+def first_submissions_by_user_item(
+    attempts: Iterable[Attempt],
+) -> dict[tuple[UUID, UUID], Attempt]:
+    first_attempts: dict[tuple[UUID, UUID], Attempt] = {}
+    for attempt in attempts:
+        key = (attempt.user_id, attempt.reading_item_id)
+        existing = first_attempts.get(key)
+        if existing is None or attempt.submitted_at < existing.submitted_at:
+            first_attempts[key] = attempt
+    return first_attempts
 
 
 async def collect_item_metrics(
@@ -78,16 +91,12 @@ async def collect_item_metrics(
                 Attempt.reading_item_id.in_(item_ids),
                 Attempt.submitted_at.is_not(None),
             )
-            .order_by(Attempt.submitted_at.desc())
+            .order_by(Attempt.submitted_at.asc(), Attempt.id.asc())
         )
     )
-    latest_by_user_item: dict[tuple[UUID, UUID], Attempt] = {}
-    for attempt in attempts:
-        latest_by_user_item.setdefault(
-            (attempt.user_id, attempt.reading_item_id), attempt
-        )
+    first_by_user_item = first_submissions_by_user_item(attempts)
     outcomes_by_item: dict[UUID, list[Attempt]] = defaultdict(list)
-    for attempt in latest_by_user_item.values():
+    for attempt in first_by_user_item.values():
         outcomes_by_item[attempt.reading_item_id].append(attempt)
     for item_id, outcomes in outcomes_by_item.items():
         metrics[item_id]["challenger_count"] = len(outcomes)
