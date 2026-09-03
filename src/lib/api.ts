@@ -49,6 +49,7 @@ interface ApiReadingSummary {
   perceivedLevel: DifficultyLevel | null;
   perceivedLevelVisible: boolean;
   perceivedVoteCount: number;
+  itemAccuracy: number | null;
   myLatestStatus: "correct" | "wrong" | null;
 }
 
@@ -60,7 +61,6 @@ interface ApiReadingDetail extends ApiReadingSummary {
   qualityAverage?: number | null;
   reportCount?: number;
   challengerCount?: number;
-  itemAccuracy?: number | null;
 }
 
 interface ApiPublicReadingDetail {
@@ -232,6 +232,7 @@ function toItem(summary: ApiReadingSummary, detail?: ApiReadingDetail): ReadingI
     officialLevel: summary.officialLevel,
     perceivedLevel: summary.perceivedLevel ?? summary.officialLevel,
     perceivedVotes: summary.perceivedVoteCount,
+    itemAccuracy: summary.itemAccuracy,
     lengthType: summary.lengthType,
     topic: summary.topic,
     recommendedSeconds: summary.recommendedSeconds,

@@ -147,6 +147,11 @@ def serialize_summary(
         perceived_level=perceived_level if isinstance(perceived_level, str) else None,
         perceived_level_visible=vote_count >= MINIMUM_PERCEIVED_LEVEL_VOTES,
         perceived_vote_count=vote_count,
+        item_accuracy=(
+            float(metrics["item_accuracy"])
+            if metrics["item_accuracy"] is not None
+            else None
+        ),
     )
 
 
@@ -176,11 +181,6 @@ def serialize_detail(
         ),
         report_count=int(metrics["report_count"] or 0),
         challenger_count=int(metrics["challenger_count"] or 0),
-        item_accuracy=(
-            float(metrics["item_accuracy"])
-            if metrics["item_accuracy"] is not None
-            else None
-        ),
     )
 
 

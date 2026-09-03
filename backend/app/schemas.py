@@ -184,6 +184,7 @@ class ReadingItemSummary(ApiModel):
     perceived_level: ReadingLevel | None = None
     perceived_level_visible: bool = False
     perceived_vote_count: int = 0
+    item_accuracy: float | None = None
     my_latest_status: Literal["correct", "wrong"] | None = None
 
 
@@ -302,7 +303,6 @@ class AdminReadingItemDetail(ReadingItemSummary):
     quality_average: float | None
     report_count: int
     challenger_count: int
-    item_accuracy: float | None
 
 
 class AdminReadingItemCreate(ApiModel):

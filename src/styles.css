@@ -531,9 +531,9 @@ textarea:focus-visible {
 }
 
 .generation-usage-event {
-  min-width: 680px;
+  min-width: 790px;
   display: grid;
-  grid-template-columns: minmax(84px, 1.1fr) minmax(150px, 2fr) repeat(4, minmax(62px, 0.8fr));
+  grid-template-columns: minmax(84px, 1.1fr) minmax(150px, 2fr) repeat(5, minmax(62px, 0.8fr));
   gap: 12px;
   padding: 10px 0;
   border-bottom: 1px solid var(--line);
@@ -956,20 +956,18 @@ fieldset.admin-edit-form {
   overflow: visible;
 }
 
-.screen-reading .paper-head {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.reading-time-sticky {
+.reading-head-sticky {
   position: sticky;
   top: 8px;
   z-index: 10;
-  display: flex;
-  justify-content: flex-end;
-  padding: 10px 30px;
-  border-bottom: 1px solid var(--line);
   background: var(--paper-solid);
   box-shadow: 0 4px 10px rgba(46, 48, 40, 0.04);
+}
+
+.reading-meta {
+  display: grid;
+  gap: 10px;
+  justify-items: end;
 }
 
 .time-block {
@@ -1017,9 +1015,8 @@ fieldset.admin-edit-form {
 }
 
 @media (max-width: 720px) {
-  .reading-time-sticky {
+  .reading-head-sticky {
     top: 0;
-    padding: 9px 18px;
   }
 }
 
@@ -1902,6 +1899,16 @@ fieldset.admin-edit-form {
 .answer-explanation strong {
   color: var(--ink);
   font-weight: 500;
+}
+
+.answer-explanation [lang="ja"],
+.answer-choice-reason [lang="ja"] {
+  font-family: "Yu Mincho", YuMincho, "Hiragino Mincho ProN", "Hiragino Mincho Pro", "MS PMincho", "Noto Serif JP", serif;
+}
+
+.answer-explanation [lang="ko"],
+.answer-choice-reason [lang="ko"] {
+  font-family: "Yu Gothic", YuGothic, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, "Malgun Gothic", Arial, sans-serif;
 }
 
 .result-context {

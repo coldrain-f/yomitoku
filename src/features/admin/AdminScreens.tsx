@@ -499,7 +499,8 @@ export function GenerationHistoryScreen({
                           <span>단계</span>
                           <span>모델</span>
                           <span>입력</span>
-                          <span>캐시</span>
+                          <span>캐시 쓰기</span>
+                          <span>캐시 읽기</span>
                           <span>출력</span>
                           <span>비용</span>
                         </div>
@@ -508,7 +509,8 @@ export function GenerationHistoryScreen({
                             <span>{generationStageLabels[event.stage] ?? event.stage}</span>
                             <span className="generation-usage-model">{event.modelId}</span>
                             <span>{formatTokenCount(event.inputTokens)}</span>
-                            <span>{formatTokenCount(event.cacheCreationInputTokens + event.cacheReadInputTokens)}</span>
+                            <span>{formatTokenCount(event.cacheCreationInputTokens)}</span>
+                            <span>{formatTokenCount(event.cacheReadInputTokens)}</span>
                             <span>{formatTokenCount(event.outputTokens)}</span>
                             <span title={event.stopReason ?? undefined}>{formatCost(event.actualCostUsd)}</span>
                           </div>
@@ -871,6 +873,7 @@ export function ManualCreateScreen({
     officialLevel: values.officialLevel,
     perceivedLevel: values.officialLevel,
     perceivedVotes: 0,
+    itemAccuracy: null,
     lengthType: values.lengthType,
     topic: values.topic,
     recommendedSeconds: values.recommendedSeconds,

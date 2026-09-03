@@ -197,13 +197,13 @@ class StubGenerationProvider:
                     GeneratedChoice(
                         text="눈에 보이는 결과만으로 이미 결론을 내리는 것",
                         is_correct=False,
-                        wrong_explanation="글은 결과만 보고 결론을 내리지 말고, 그 배경의 이유를 살펴야 한다고 말합니다.",
+                        wrong_explanation="本文は、結果だけで結論を出さず、その背景にある理由を確かめる必要があると述べています。",
                         distractor_type="relation_or_agent_reversal",
                     ),
                     GeneratedChoice(
                         text="사람마다 기준이 다르다는 사실만 기억하는 것",
                         is_correct=False,
-                        wrong_explanation="사람마다 기준이 다르다는 내용은 맞지만, 글의 핵심은 그 사실을 바탕으로 배경의 이유를 살피는 태도입니다.",
+                        wrong_explanation="人によって基準が違うことは本文の一部と合いますが、中心は背景にある理由を確かめる姿勢です。",
                         distractor_type="partial_truth_off_focus",
                     ),
                     GeneratedChoice(
@@ -213,11 +213,11 @@ class StubGenerationProvider:
                     GeneratedChoice(
                         text="작아 보이는 차이는 언제나 생각을 바꾼다고 보는 것",
                         is_correct=False,
-                        wrong_explanation="글은 작은 차이가 생각을 바꾸는 단서가 될 수도 있다고 했을 뿐, 언제나 그렇다고 단정하지는 않습니다.",
+                        wrong_explanation="本文は小さな違いが考え方を変える手がかりになることもあると述べるだけで、いつもそうだとは断定していません。",
                         distractor_type="scope_or_degree_distortion",
                     ),
                 ],
-                explanation="글은 눈에 보이는 결과만으로 판단하지 않고 그 배경의 이유를 살피는 태도가 중요하다고 말합니다. 따라서 3번이 정답입니다.",
+                explanation="本文は、目に見える結果だけで判断せず、その背景にある理由を確かめる姿勢が大切だと述べています。したがって3番が正解です。",
             )
             return self._result(item, model)
         item = GeneratedReading(
@@ -228,13 +228,13 @@ class StubGenerationProvider:
                 GeneratedChoice(
                     text="目に見える結果だけで先に結論を決めること。",
                     is_correct=False,
-                    wrong_explanation="本文は、結果だけで結論を出さず、その背景にある理由を確かめるべきだと述べています。",
+                    wrong_explanation="글은 결과만 보고 결론을 내리지 말고, 그 배경에 있는 이유를 확인해야 한다고 말합니다.",
                     distractor_type="relation_or_agent_reversal",
                 ),
                 GeneratedChoice(
                     text="人によって基準が違う事実だけを覚えること。",
                     is_correct=False,
-                    wrong_explanation="人によって基準が違うことは本文の一部と合いますが、筆者の主張は背景の理由を確かめる姿勢です。",
+                    wrong_explanation="사람마다 기준이 다르다는 내용은 본문의 일부와 맞지만, 중심 내용은 배경의 이유를 확인하는 태도입니다.",
                     distractor_type="partial_truth_off_focus",
                 ),
                 GeneratedChoice(
@@ -244,11 +244,11 @@ class StubGenerationProvider:
                 GeneratedChoice(
                     text="小さく見える違いは必ず考え方を変えると考えること。",
                     is_correct=False,
-                    wrong_explanation="本文は、小さな違いが手がかりになることもあると述べているだけで、必ず考え方を変えるとは言っていません。",
+                    wrong_explanation="글은 작은 차이가 생각을 바꾸는 실마리가 될 수도 있다고 했을 뿐, 반드시 그렇다고 말하지 않았습니다.",
                     distractor_type="scope_or_degree_distortion",
                 ),
             ],
-            explanation="本文は、目に見える結果だけで判断せず、その背景にある理由を確かめる姿勢が大切だと述べています。したがって03が正解です。",
+            explanation="글은 눈에 보이는 결과만으로 판단하지 말고 그 배경에 있는 이유를 확인하는 태도가 중요하다고 말합니다. 따라서 3번이 정답입니다.",
         )
         return self._result(item, model)
 
@@ -295,6 +295,7 @@ class AnthropicGenerationProvider:
     ) -> ProviderResult[GeneratedReading]:
         feedback = "\n".join(f"- {issue}" for issue in revision_feedback) or "없음"
         language_name = "Japanese" if conditions.language == "ja" else "Korean"
+        explanation_language = "Korean" if conditions.language == "ja" else "Japanese"
         level_name = "JLPT" if conditions.language == "ja" else "TOPIK"
         topic = (
             TOPIC_LABELS.get(conditions.topic, conditions.topic)
@@ -310,7 +311,8 @@ class AnthropicGenerationProvider:
         furigana_rule = "Do not use furigana." if conditions.language == "ja" else ""
         prompt = f"""<generation_request>
 Create one rigorous, exam-style {language_name} reading-comprehension item.
-Write the title, passage, question, choices, and explanation naturally in {language_name}.
+Write the title, passage, question, and choices naturally in {language_name}.
+Write the explanation and every wrongExplanation naturally in {explanation_language}.
 Requested {level_name} level: {conditions.official_level}
 Requested length: {conditions.length_type}
 Topic: {topic}

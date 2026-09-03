@@ -37,6 +37,7 @@ export interface ReadingItem {
   officialLevel: DifficultyLevel;
   perceivedLevel: DifficultyLevel;
   perceivedVotes: number;
+  itemAccuracy: number | null;
   lengthType: LengthType;
   topic: Topic;
   recommendedSeconds: number;

@@ -68,6 +68,8 @@ async def test_stub_generation_passes_deterministic_checks() -> None:
     assert validate_generated_reading(item, "medium") == []
     assert len(item.choices) == 4
     assert sum(choice.is_correct for choice in item.choices) == 1
+    assert item.explanation.startswith("글은")
+    assert item.choices[0].wrong_explanation.startswith("글은")
 
 
 @pytest.mark.asyncio
@@ -144,6 +146,7 @@ async def test_anthropic_generation_uses_native_structured_output() -> None:
     assert messages.calls[0]["max_tokens"] == GENERATOR_MAX_TOKENS_BY_LENGTH["medium"]
     assert messages.calls[0]["system"][0]["cache_control"] == {"type": "ephemeral"}
     assert result.usage.total_input_tokens == 900
+    assert "Write the explanation and every wrongExplanation naturally in Korean." in messages.calls[0]["messages"][0]["content"]
 
 
 @pytest.mark.asyncio
@@ -217,6 +220,24 @@ async def test_stub_generation_supports_korean_topik_conditions() -> None:
 
     assert "글쓴이" in item.question
     assert validate_generated_reading(item, "short", "ko") == []
+    assert item.explanation.startswith("本文は")
+    assert item.choices[0].wrong_explanation.startswith("本文は")
+
+
+@pytest.mark.asyncio
+async def test_anthropic_korean_generation_requests_japanese_explanations() -> None:
+    messages = FakeAnthropicMessages()
+    provider = _anthropic_provider_with_fake_client(messages)
+    conditions = GenerationConditions(
+        language="ko",
+        official_level="TOPIK 4급",
+        length_type="medium",
+        topic="생활",
+    )
+
+    await provider.generate(conditions, [], "generator-model")
+
+    assert "Write the explanation and every wrongExplanation naturally in Japanese." in messages.calls[0]["messages"][0]["content"]
 
 
 def test_validator_outcome_accepts_structured_evidence_entries() -> None:

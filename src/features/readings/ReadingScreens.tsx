@@ -268,7 +268,8 @@ export function ReadingListScreen({
                         : "미풀이"}
                   </span>
                   <time className="row-date">
-                    등록 {formatDate(item.publishedAt ?? item.createdAt)}
+                    등록 {formatDate(item.publishedAt ?? item.createdAt)} · 정답률{" "}
+                    {item.itemAccuracy === null ? "-" : `${Math.round(item.itemAccuracy)}%`}
                   </time>
                 </span>
                 <Icon icon={ChevronRight} className="row-arrow" />
@@ -317,6 +318,11 @@ export function ReadingScreen({
         ) + 1,
       ).padStart(2, "0")
     : "";
+  const explanationLanguage = item.language === "ja" ? "ko" : "ja";
+  const wrongExplanationFallback =
+    item.language === "ja"
+      ? "지문 근거와 맞지 않습니다."
+      : "本文の根拠と合っていません。";
 
   return (
     <section
@@ -325,7 +331,7 @@ export function ReadingScreen({
       data-reading-language={item.language}
     >
       <article className="paper flush">
-        <div className="paper-head">
+        <div className="paper-head reading-head-sticky">
           <div>
             <p className="kicker">
               {languageLabels[item.language]} · {item.officialLevel} 실제
@@ -336,19 +342,19 @@ export function ReadingScreen({
             </p>
             <h1 className="title-jp">{item.title}</h1>
           </div>
-        </div>
-        <div className="reading-time-sticky">
-          <div
-            className={`time-block${attempt.elapsedSeconds > item.recommendedSeconds ? " is-over" : ""}`}
-          >
-            <span>권장 {formatTime(item.recommendedSeconds)}</span>
-            <strong>{formatTime(attempt.elapsedSeconds)}</strong>
-            <div className="progress-track">
-              <span
-                style={{
-                  width: `${Math.min(100, (attempt.elapsedSeconds / item.recommendedSeconds) * 100)}%`,
-                }}
-              />
+          <div className="reading-meta">
+            <div
+              className={`time-block${attempt.elapsedSeconds > item.recommendedSeconds ? " is-over" : ""}`}
+            >
+              <span>권장 {formatTime(item.recommendedSeconds)}</span>
+              <strong>{formatTime(attempt.elapsedSeconds)}</strong>
+              <div className="progress-track">
+                <span
+                  style={{
+                    width: `${Math.min(100, (attempt.elapsedSeconds / item.recommendedSeconds) * 100)}%`,
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -388,7 +394,7 @@ export function ReadingScreen({
             {submitted ? (
               <div className="answer-explanation">
                 <strong>{correctNumber}가 정답인 이유</strong>
-                <span>{result?.explanation}</span>
+                <span lang={explanationLanguage}>{result?.explanation}</span>
                 {result && !result.isCorrect && selected ? (
                   <p className="answer-choice-reason">
                     내가 고른{" "}
@@ -396,7 +402,10 @@ export function ReadingScreen({
                       2,
                       "0",
                     )}
-                    가 오답인 이유: {result.selectedChoiceWrongExplanation ?? "지문 근거와 맞지 않습니다."}
+                    가 오답인 이유:{" "}
+                    <span lang={explanationLanguage}>
+                      {result.selectedChoiceWrongExplanation ?? wrongExplanationFallback}
+                    </span>
                   </p>
                 ) : null}
               </div>

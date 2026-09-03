@@ -118,7 +118,7 @@ export const readingTopics = [
 export const listPageSize = 5;
 export const apiListPageSize = 50;
 export const minimumPerceivedLevelVotes = 10;
-export const newBadgeWindowMs = 72 * 60 * 60 * 1000;
+export const newBadgeWindowMs = 24 * 60 * 60 * 1000;
 export const displayTimeZone = "Asia/Seoul";
 
 export function levelsForLanguage(language: ReadingLanguageValue): readonly DifficultyLevelValue[] {

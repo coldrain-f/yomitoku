@@ -88,6 +88,11 @@ def serialize_public_summary(
             perceived_vote_count >= MINIMUM_PERCEIVED_LEVEL_VOTES
         ),
         perceived_vote_count=perceived_vote_count,
+        item_accuracy=(
+            float(metrics["item_accuracy"])
+            if metrics["item_accuracy"] is not None
+            else None
+        ),
         my_latest_status=my_latest_status,
     )
 
