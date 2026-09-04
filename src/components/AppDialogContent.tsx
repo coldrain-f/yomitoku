@@ -3,6 +3,7 @@ import { GoogleSignInButton } from "../features/auth/GoogleSignInButton";
 import { lengthLabels } from "../lib/reading";
 import {
   languageLabels,
+  generationLevelsForLanguage,
   levelsForLanguage,
   readingTopics,
 } from "../lib/readingPolicy";
@@ -306,7 +307,7 @@ export function AppDialogContent({
           <span className="form-label">체감 난이도</span>
           <OptionButtons
             value={feedback.level}
-            options={levelsForLanguage(feedbackLanguage)}
+            options={generationLevelsForLanguage(feedbackLanguage)}
             onChange={(level) =>
               setFeedback({
                 ...feedback,

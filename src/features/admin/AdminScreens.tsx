@@ -36,6 +36,7 @@ import {
 } from "../../lib/reading";
 import {
   defaultGenerationLevelByLanguage,
+  generationLevelsForLanguage,
   languageLabels,
   levelsForLanguage,
   readingLanguages,
@@ -1026,7 +1027,7 @@ export function GenerateScreen({
             <span className="form-label">난이도</span>
             <OptionButtons
               value={values.level}
-              options={levelsForLanguage(values.language)}
+              options={generationLevelsForLanguage(values.language)}
               onChange={(level) =>
                 setValues({
                   ...values,

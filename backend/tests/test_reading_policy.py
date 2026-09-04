@@ -7,7 +7,11 @@ from pydantic import ValidationError
 
 from app.schemas import GenerationConditions
 from app.services.item_metrics import first_submissions_by_user_item
-from app.services.reading_policy import RECOMMENDED_SECONDS, is_level_for_language
+from app.services.reading_policy import (
+    RECOMMENDED_SECONDS,
+    is_generation_level_for_language,
+    is_level_for_language,
+)
 from app.services.translation import deepl_translate_url
 
 
@@ -21,11 +25,27 @@ def test_korean_levels_include_topik_six_plus() -> None:
     assert not is_level_for_language("ja", "TOPIK 6급+")
 
 
+def test_measurement_unavailable_level_is_limited_to_manual_korean_items() -> None:
+    assert is_level_for_language("ko", "측정불가")
+    assert not is_level_for_language("ja", "측정불가")
+    assert not is_generation_level_for_language("ko", "측정불가")
+
+
 def test_generation_conditions_reject_a_level_from_another_language() -> None:
     with pytest.raises(ValidationError, match="does not belong"):
         GenerationConditions(
             language="ko",
             official_level="N2",
+            length_type="medium",
+            topic="교육",
+        )
+
+
+def test_generation_conditions_reject_the_manual_only_level() -> None:
+    with pytest.raises(ValidationError, match="not available"):
+        GenerationConditions(
+            language="ko",
+            official_level="측정불가",
             length_type="medium",
             topic="교육",
         )

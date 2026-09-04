@@ -20,10 +20,17 @@ KOREAN_LEVELS: Final[tuple[ReadingLevel, ...]] = (
     "TOPIK 5급",
     "TOPIK 6급",
     "TOPIK 6급+",
+    "측정불가",
 )
 LEVELS_BY_LANGUAGE: Final[dict[ReadingLanguage, tuple[ReadingLevel, ...]]] = {
     "ja": JAPANESE_LEVELS,
     "ko": KOREAN_LEVELS,
+}
+GENERATION_LEVELS_BY_LANGUAGE: Final[
+    dict[ReadingLanguage, tuple[ReadingLevel, ...]]
+] = {
+    "ja": JAPANESE_LEVELS,
+    "ko": KOREAN_LEVELS[:-1],
 }
 LANGUAGE_ORDER: Final[dict[ReadingLanguage, int]] = {"ja": 0, "ko": 1}
 LENGTH_TYPES: Final[tuple[LengthType, ...]] = ("short", "medium", "long")
@@ -31,6 +38,12 @@ LENGTH_TYPES: Final[tuple[LengthType, ...]] = ("short", "medium", "long")
 
 def is_level_for_language(language: ReadingLanguage, level: str) -> bool:
     return level in LEVELS_BY_LANGUAGE[language]
+
+
+def is_generation_level_for_language(
+    language: ReadingLanguage, level: str
+) -> bool:
+    return level in GENERATION_LEVELS_BY_LANGUAGE[language]
 
 
 def level_rank(language: ReadingLanguage, level: str) -> int:

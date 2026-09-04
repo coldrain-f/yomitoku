@@ -29,6 +29,7 @@ KoreanLevel = Literal[
     "TOPIK 5급",
     "TOPIK 6급",
     "TOPIK 6급+",
+    "측정불가",
 ]
 ReadingLevel = JapaneseLevel | KoreanLevel
 LengthType = Literal["short", "medium", "long"]
@@ -50,10 +51,19 @@ class GenerationConditions(ApiModel):
 
     @model_validator(mode="after")
     def validate_level_for_language(self) -> "GenerationConditions":
-        from app.services.reading_policy import is_level_for_language
+        from app.services.reading_policy import (
+            is_generation_level_for_language,
+            is_level_for_language,
+        )
 
         if not is_level_for_language(self.language, self.official_level):
-            raise ValueError("The selected level does not belong to the content language.")
+            raise ValueError(
+                "The selected level does not belong to the content language."
+            )
+        if not is_generation_level_for_language(self.language, self.official_level):
+            raise ValueError(
+                "The selected level is not available for AI-generated content."
+            )
         return self
 
 

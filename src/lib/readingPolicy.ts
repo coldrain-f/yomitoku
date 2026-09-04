@@ -13,10 +13,15 @@ export const koreanDifficultyLevels = [
   "TOPIK 5급",
   "TOPIK 6급",
   "TOPIK 6급+",
+  "측정불가",
 ] as const;
 export const difficultyLevelsByLanguage = {
   ja: japaneseDifficultyLevels,
   ko: koreanDifficultyLevels,
+} as const;
+export const generationDifficultyLevelsByLanguage = {
+  ja: japaneseDifficultyLevels,
+  ko: koreanDifficultyLevels.slice(0, -1),
 } as const;
 export const difficultyLevels = [
   ...japaneseDifficultyLevels,
@@ -54,6 +59,7 @@ export const difficultyRank = {
   "TOPIK 5급": 4,
   "TOPIK 6급": 5,
   "TOPIK 6급+": 6,
+  측정불가: 7,
 } as const satisfies Record<DifficultyLevelValue, number>;
 
 export const defaultGenerationLanguage = "ja" as const;
@@ -123,6 +129,12 @@ export const displayTimeZone = "Asia/Seoul";
 
 export function levelsForLanguage(language: ReadingLanguageValue): readonly DifficultyLevelValue[] {
   return difficultyLevelsByLanguage[language];
+}
+
+export function generationLevelsForLanguage(
+  language: ReadingLanguageValue,
+): readonly DifficultyLevelValue[] {
+  return generationDifficultyLevelsByLanguage[language];
 }
 
 export function isDifficultyLevelForLanguage(
