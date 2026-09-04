@@ -273,6 +273,28 @@ function queryString(values: Record<string, string | number | undefined>) {
   return text ? `?${text}` : "";
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function validationErrorMessage(detail: unknown): string | null {
+  if (typeof detail === "string") return detail;
+  if (!Array.isArray(detail)) {
+    if (!isRecord(detail)) return null;
+    return typeof detail.message === "string" ? detail.message : null;
+  }
+
+  const messages = detail.flatMap((issue) => {
+    if (typeof issue === "string") return [issue];
+    if (!isRecord(issue) || typeof issue.msg !== "string") return [];
+    const location = Array.isArray(issue.loc)
+      ? issue.loc.filter((part) => part !== "body").join(".")
+      : "";
+    return [location ? `${location}: ${issue.msg}` : issue.msg];
+  });
+  return messages.length ? messages.join(" ") : null;
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -292,7 +314,10 @@ async function request<T>(
   if (response.status === 204) return undefined as T;
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(body?.detail ?? "요청을 처리하지 못했습니다.");
+    throw new Error(
+      validationErrorMessage(isRecord(body) ? body.detail : null) ??
+        "요청을 처리하지 못했습니다.",
+    );
   }
   return response.json() as Promise<T>;
 }
