@@ -150,7 +150,10 @@ async def test_anthropic_generation_uses_native_structured_output() -> None:
     messages = FakeAnthropicMessages()
     provider = _anthropic_provider_with_fake_client(messages)
     conditions = GenerationConditions(
-        official_level="N2", length_type="medium", topic="교육"
+        official_level="N2",
+        length_type="medium",
+        topic="교육",
+        keywords=["지역 도서관", "청소년 자원봉사"],
     )
 
     result = await provider.generate(conditions, [], "generator-model")
@@ -164,6 +167,7 @@ async def test_anthropic_generation_uses_native_structured_output() -> None:
     assert messages.calls[0]["system"][0]["cache_control"] == {"type": "ephemeral"}
     assert result.usage.total_input_tokens == 900
     assert "Write the explanation and every wrongExplanation naturally in Korean." in messages.calls[0]["messages"][0]["content"]
+    assert '"지역 도서관", "청소년 자원봉사"' in messages.calls[0]["messages"][0]["content"]
 
 
 @pytest.mark.asyncio
@@ -308,6 +312,18 @@ def test_usage_cost_counts_cache_reads_separately() -> None:
     )
 
     assert estimate_usage_cost(usage) == 73.5
+
+
+def test_fable_5_1_uses_discounted_cache_read_price() -> None:
+    usage = ModelUsage(
+        model="claude-fable-5-1",
+        input_tokens=1_000_000,
+        cache_creation_input_tokens=1_000_000,
+        cache_read_input_tokens=1_000_000,
+        output_tokens=1_000_000,
+    )
+
+    assert estimate_usage_cost(usage) == 72.75
 
 
 def test_structured_output_retry_is_limited_and_keeps_failed_attempt_usage() -> None:

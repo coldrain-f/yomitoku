@@ -154,6 +154,7 @@ class GenerationJob(TimestampedModel, Base):
     official_level: Mapped[str] = mapped_column(String(16), nullable=False)
     length_type: Mapped[str] = mapped_column(String(16), nullable=False)
     topic: Mapped[str] = mapped_column(String(32), nullable=False)
+    keywords: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     revision_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     generator_model: Mapped[str] = mapped_column(String(128), nullable=False)
     answer_validator_model: Mapped[str] = mapped_column(String(128), nullable=False)

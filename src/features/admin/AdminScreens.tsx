@@ -15,6 +15,7 @@ import {
   Sparkles,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 import { Icon } from "../../components/ui/Icon";
 import { ListPagination } from "../../components/ui/ListPagination";
@@ -498,6 +499,12 @@ export function GenerationHistoryScreen({
                         <dd>{formatTokenCount(job.cacheCreationInputTokens)} / {formatTokenCount(job.cacheReadInputTokens)} 토큰</dd>
                       </div>
                     </dl>
+                    {job.conditions.keywords.length > 0 ? (
+                      <div className="generation-history-keywords">
+                        <span>추가 키워드</span>
+                        <p>{job.conditions.keywords.join(" · ")}</p>
+                      </div>
+                    ) : null}
                     {job.errorDetail ? (
                       <p className="generation-history-failure">{job.errorDetail}</p>
                     ) : null}
@@ -993,6 +1000,23 @@ export function GenerateScreen({
   onCreate,
   onBack,
 }: GenerateScreenProps) {
+  const keywordInputs = values.keywords.length > 0 ? values.keywords : [""];
+  const updateKeyword = (index: number, value: string) => {
+    const keywords = [...keywordInputs];
+    keywords[index] = value;
+    setValues({ ...values, keywords });
+  };
+  const removeKeyword = (index: number) => {
+    setValues({
+      ...values,
+      keywords: keywordInputs.filter((_, keywordIndex) => keywordIndex !== index),
+    });
+  };
+  const addKeyword = () => {
+    if (keywordInputs.length >= 5) return;
+    setValues({ ...values, keywords: [...keywordInputs, ""] });
+  };
+
   return (
     <section
       className="screen screen-generate"
@@ -1120,6 +1144,46 @@ export function GenerateScreen({
                 <option value="">{modelError || "모델 목록을 불러오는 중입니다."}</option>
               )}
             </select>
+          </div>
+          <div className="form-section generation-keywords-section">
+            <span className="form-label">추가 키워드</span>
+            <div className="generation-keyword-list">
+              {keywordInputs.map((keyword, index) => (
+                <div className="generation-keyword-input" key={`keyword-${index}`}>
+                  <input
+                    className="input-field"
+                    type="text"
+                    value={keyword}
+                    placeholder={`키워드 ${index + 1}`}
+                    aria-label={`추가 키워드 ${index + 1}`}
+                    maxLength={40}
+                    disabled={isCreating}
+                    onChange={(event) => updateKeyword(index, event.target.value)}
+                  />
+                  {keywordInputs.length > 1 ? (
+                    <button
+                      className="icon-button"
+                      type="button"
+                      aria-label={`키워드 ${index + 1} 삭제`}
+                      title="키워드 삭제"
+                      disabled={isCreating}
+                      onClick={() => removeKeyword(index)}
+                    >
+                      <Icon icon={X} />
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+            <button
+              className="link-button generation-keyword-add"
+              type="button"
+              disabled={isCreating || keywordInputs.length >= 5}
+              onClick={addKeyword}
+            >
+              <Icon icon={Plus} />
+              키워드 추가
+            </button>
           </div>
         </div>
         {values.language === "ja" ? (

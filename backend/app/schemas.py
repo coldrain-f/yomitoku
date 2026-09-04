@@ -47,6 +47,7 @@ class GenerationConditions(ApiModel):
     official_level: ReadingLevel
     length_type: LengthType
     topic: str = Field(min_length=1, max_length=32)
+    keywords: list[str] = Field(default_factory=list, max_length=5)
     language: ReadingLanguage = "ja"
 
     @model_validator(mode="after")
@@ -64,6 +65,20 @@ class GenerationConditions(ApiModel):
             raise ValueError(
                 "The selected level is not available for AI-generated content."
             )
+        normalized_keywords: list[str] = []
+        seen_keywords: set[str] = set()
+        for keyword in self.keywords:
+            normalized_keyword = keyword.strip()
+            if not normalized_keyword:
+                continue
+            if len(normalized_keyword) > 40:
+                raise ValueError("Each generation keyword must be 40 characters or fewer.")
+            keyword_key = normalized_keyword.casefold()
+            if keyword_key in seen_keywords:
+                continue
+            seen_keywords.add(keyword_key)
+            normalized_keywords.append(normalized_keyword)
+        self.keywords = normalized_keywords
         return self
 
 

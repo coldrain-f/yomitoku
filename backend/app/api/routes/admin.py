@@ -50,7 +50,7 @@ from app.services.users import ensure_user
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 ItemStatus = Literal["review", "held", "published"]
-PREFERRED_GENERATION_MODEL = "claude-fable-5"
+PREFERRED_GENERATION_MODEL = "claude-fable-5-1"
 
 
 def serialize_generation_job(job: GenerationJob) -> GenerationJobResponse:
@@ -63,6 +63,7 @@ def serialize_generation_job(job: GenerationJob) -> GenerationJobResponse:
             official_level=job.official_level,
             length_type=job.length_type,
             topic=job.topic,
+            keywords=job.keywords,
         ),
         revision_count=job.revision_count,
         generated_item_id=job.generated_item_id,
@@ -280,10 +281,11 @@ async def create_generation_job(
         official_level=request.official_level,
         length_type=request.length_type,
         topic=topic,
+        keywords=request.keywords,
         generator_model=generator_model,
         answer_validator_model=validator_model,
         quality_validator_model=validator_model,
-        prompt_version="v4",
+        prompt_version="v5",
     )
     session.add(job)
     await session.commit()

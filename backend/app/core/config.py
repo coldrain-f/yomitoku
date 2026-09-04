@@ -22,9 +22,9 @@ class Settings(BaseSettings):
     )
     cors_allowed_origins: str = "http://localhost:5173,http://localhost:5174"
     generation_provider: Literal["stub", "anthropic"] = "stub"
-    generator_model: str = "claude-fable-5"
-    answer_validator_model: str = "claude-fable-5"
-    quality_validator_model: str = "claude-fable-5"
+    generator_model: str = "claude-fable-5-1"
+    answer_validator_model: str = "claude-fable-5-1"
+    quality_validator_model: str = "claude-fable-5-1"
     generation_model_options: str = ""
     anthropic_api_key: SecretStr | None = None
     deepl_api_key: SecretStr | None = None

@@ -388,6 +388,7 @@ export default function App() {
     level: defaultGenerationLevelByLanguage[defaultGenerationLanguage],
     length: defaultGenerationLength,
     topic: recommendedTopic,
+    keywords: [],
     generatorModel: "",
     validatorModel: "",
   });

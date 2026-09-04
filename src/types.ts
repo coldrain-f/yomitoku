@@ -128,6 +128,7 @@ export interface GenerationValues {
   level: DifficultyLevel;
   length: LengthType;
   topic: Topic | typeof recommendedTopic;
+  keywords: string[];
   generatorModel: string;
   validatorModel: string;
 }

@@ -185,6 +185,7 @@ export interface GenerationJobHistory {
     officialLevel: DifficultyLevel;
     lengthType: LengthType;
     topic: Topic;
+    keywords: string[];
   };
   revisionCount: number;
   generatedItemId: string | null;
@@ -513,6 +514,7 @@ export const api = {
         language: values.language,
         lengthType: values.length,
         topic: values.topic,
+        keywords: values.keywords,
         generatorModel: values.generatorModel,
         validatorModel: values.validatorModel,
       }),

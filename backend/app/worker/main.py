@@ -79,6 +79,7 @@ async def run_worker() -> None:
                             "official_level": job.official_level,
                             "length_type": job.length_type,
                             "topic": job.topic,
+                            "keywords": job.keywords,
                         },
                         "models": {
                             "generator_model": job.generator_model,

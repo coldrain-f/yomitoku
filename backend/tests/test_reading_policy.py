@@ -51,6 +51,18 @@ def test_generation_conditions_reject_the_manual_only_level() -> None:
         )
 
 
+def test_generation_conditions_normalize_distinct_keywords() -> None:
+    conditions = GenerationConditions(
+        language="ja",
+        official_level="N2",
+        length_type="medium",
+        topic="수필",
+        keywords=[" 지역 도서관 ", "지역 도서관", "", "청소년", "청소년"],
+    )
+
+    assert conditions.keywords == ["지역 도서관", "청소년"]
+
+
 def test_recommended_seconds_match_the_reading_lengths() -> None:
     assert RECOMMENDED_SECONDS == {"short": 180, "medium": 300, "long": 420}
 
