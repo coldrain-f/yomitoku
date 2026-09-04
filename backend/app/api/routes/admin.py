@@ -18,6 +18,8 @@ from app.db.models import (
 )
 from app.db.session import get_session
 from app.schemas import (
+    AdminTitleSuggestionRequest,
+    AdminTitleSuggestionResponse,
     AdminReadingItemCreate,
     AdminReadingItemDetail,
     AdminReadingItemUpdate,
@@ -35,6 +37,7 @@ from app.schemas import (
     ReadingItemPage,
     ReadingItemSummary,
 )
+from app.services.generation_provider import build_generation_provider
 from app.services.generation_topics import resolve_generation_topic
 from app.services.item_metrics import ItemMetrics, collect_item_metrics
 from app.services.reading_policy import (
@@ -304,6 +307,30 @@ async def get_generation_model_options(
         default_generator_model=preferred_model or settings.generator_model,
         default_validator_model=preferred_model or settings.answer_validator_model,
     )
+
+
+@router.post(
+    "/reading-items/title-suggestion",
+    response_model=AdminTitleSuggestionResponse,
+)
+async def suggest_admin_reading_title(
+    request: AdminTitleSuggestionRequest,
+    current_user: Annotated[CurrentUser, Depends(require_admin)],
+) -> AdminTitleSuggestionResponse:
+    settings = get_settings()
+    provider = build_generation_provider(settings)
+    try:
+        result = await provider.suggest_title(
+            request.passage.strip(),
+            request.language,
+            settings.generator_model,
+        )
+    except RuntimeError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI 제목 제안에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+        ) from error
+    return AdminTitleSuggestionResponse(title=result.value.title.strip())
 
 
 @router.get("/generation-jobs", response_model=GenerationJobHistoryPage)

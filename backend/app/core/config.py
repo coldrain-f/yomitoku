@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     quality_validator_model: str = "claude-fable-5"
     generation_model_options: str = ""
     anthropic_api_key: SecretStr | None = None
+    deepl_api_key: SecretStr | None = None
     max_generation_revisions: int = Field(default=2, ge=0, le=3)
     max_generation_output_retries: int = Field(default=1, ge=0, le=1)
     worker_poll_interval_seconds: float = 1.5

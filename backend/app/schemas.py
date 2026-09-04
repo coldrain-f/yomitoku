@@ -94,6 +94,10 @@ class GeneratedReading(ApiModel):
         return self
 
 
+class GeneratedTitle(ApiModel):
+    title: str = Field(min_length=1, max_length=255)
+
+
 class ValidatorOutcome(ApiModel):
     status: ValidationStatus
     score: int = Field(ge=0, le=100)
@@ -235,6 +239,13 @@ class ReadingItemDetail(ApiModel):
     choices: list[ReadingChoicePublic]
 
 
+class PassageTranslationResponse(ApiModel):
+    source_language: ReadingLanguage
+    target_language: ReadingLanguage
+    source_text: str
+    translated_text: str
+
+
 class AttemptStarted(ApiModel):
     id: UUID
     item_id: UUID
@@ -326,6 +337,15 @@ class AdminReadingItemCreate(ApiModel):
         if not is_level_for_language(self.language, self.official_level):
             raise ValueError("The selected level does not belong to the content language.")
         return self
+
+
+class AdminTitleSuggestionRequest(ApiModel):
+    passage: str = Field(min_length=1, max_length=20_000)
+    language: ReadingLanguage
+
+
+class AdminTitleSuggestionResponse(ApiModel):
+    title: str
 
 
 class AdminReadingItemUpdate(ApiModel):

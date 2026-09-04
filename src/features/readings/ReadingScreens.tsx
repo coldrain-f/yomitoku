@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   Check,
   ChevronRight,
+  Languages,
   MessageSquare,
   RotateCcw,
   Search,
@@ -60,6 +61,7 @@ interface ReadingScreenProps {
   onSubmit: () => void;
   onAbandon: () => void;
   onReport: () => void;
+  onTranslate: () => void;
   onResult: () => void;
 }
 
@@ -305,10 +307,9 @@ export function ReadingScreen({
   onSubmit,
   onAbandon,
   onReport,
+  onTranslate,
   onResult,
 }: ReadingScreenProps) {
-  const headerRef = useRef<HTMLDivElement>(null);
-  const [headerCompact, setHeaderCompact] = useState(false);
   const submitted = Boolean(attempt.submitted && result?.itemId === item.id);
   const selected = attempt.choices.find(
     (choice) => choice.id === attempt.selectedChoiceId,
@@ -326,30 +327,6 @@ export function ReadingScreen({
       ? "지문 근거와 맞지 않습니다."
       : "本文の根拠と合っていません。";
 
-  useEffect(() => {
-    let frame = 0;
-    const updateHeaderState = () => {
-      frame = 0;
-      const headerTop = headerRef.current?.getBoundingClientRect().top;
-      const nextCompact = headerTop !== undefined && headerTop <= 9;
-      setHeaderCompact((current) =>
-        current === nextCompact ? current : nextCompact,
-      );
-    };
-    const onScroll = () => {
-      if (!frame) frame = window.requestAnimationFrame(updateHeaderState);
-    };
-
-    updateHeaderState();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-      if (frame) window.cancelAnimationFrame(frame);
-    };
-  }, []);
-
   return (
     <section
       className="screen screen-reading"
@@ -357,10 +334,7 @@ export function ReadingScreen({
       data-reading-language={item.language}
     >
       <article className="paper flush">
-        <div
-          className={`paper-head reading-head-sticky${headerCompact ? " is-compact" : ""}`}
-          ref={headerRef}
-        >
+        <div className="paper-head">
           <div>
             <p className="kicker">
               {languageLabels[item.language]} · {item.officialLevel} 실제
@@ -389,8 +363,8 @@ export function ReadingScreen({
         </div>
         <div className="reading-body">
           <div className="passage">
-            {item.passage.split("\n\n").map((paragraph) => (
-              <p key={paragraph}>{paragraph}</p>
+            {item.passage.split(/\r?\n\s*\r?\n/).map((paragraph, index) => (
+              <p key={`${index}-${paragraph.slice(0, 24)}`}>{paragraph}</p>
             ))}
           </div>
           <div className="question-block">
@@ -457,14 +431,20 @@ export function ReadingScreen({
                 </button>
               ) : null}
               {submitted ? (
-                <button
-                  className="primary-button"
-                  type="button"
-                  onClick={onResult}
-                >
-                  다음으로
-                  <Icon icon={ArrowRight} />
-                </button>
+                <>
+                  <button className="text-button" type="button" onClick={onTranslate}>
+                    <Icon icon={Languages} />
+                    번역 보기
+                  </button>
+                  <button
+                    className="primary-button"
+                    type="button"
+                    onClick={onResult}
+                  >
+                    다음으로
+                    <Icon icon={ArrowRight} />
+                  </button>
+                </>
               ) : (
                 <button
                   className="primary-button"

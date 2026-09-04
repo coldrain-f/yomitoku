@@ -46,7 +46,7 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
         }
     >
       <section
-        className="confirm-dialog"
+        className={`confirm-dialog${dialog.type === "translation" ? " confirm-dialog-wide" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="dialog-title"
@@ -64,11 +64,11 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
         <h2 className="dialog-title" id="dialog-title">
           {dialog.title}
         </h2>
-        <p className="body-copy">{dialog.description}</p>
+        {dialog.description ? <p className="body-copy">{dialog.description}</p> : null}
         {children}
         <div className="dialog-actions">
           <button className="text-button" type="button" onClick={onClose}>
-            취소
+            {dialog.type === "translation" ? "닫기" : "취소"}
           </button>
           {dialog.confirmLabel && dialog.onConfirm ? (
             <button

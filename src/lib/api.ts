@@ -142,6 +142,13 @@ export interface SubmittedAttempt {
   challengerCount: number;
 }
 
+export interface PassageTranslation {
+  sourceLanguage: ReadingLanguage;
+  targetLanguage: ReadingLanguage;
+  sourceText: string;
+  translatedText: string;
+}
+
 export interface GenerationJob {
   id: string;
   status: string;
@@ -380,6 +387,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ selectedChoiceId, clientElapsedSeconds }),
     }),
+  translateReading: (itemId: string) =>
+    request<PassageTranslation>(`/reading-items/${itemId}/translation`, {
+      method: "POST",
+    }),
   abandonAttempt: (attemptId: string) =>
     request<void>(`/reading-items/attempts/${attemptId}/abandon`, { method: "POST" }),
   statistics: () => request<Statistics>("/me/statistics"),
@@ -443,6 +454,11 @@ export const api = {
     });
     return toItem(response, response);
   },
+  suggestAdminTitle: (passage: string, language: ReadingLanguage) =>
+    request<{ title: string }>("/admin/reading-items/title-suggestion", {
+      method: "POST",
+      body: JSON.stringify({ passage, language }),
+    }),
   publish: async (itemId: string) => {
     const response = await request<ApiReadingDetail>(`/admin/reading-items/${itemId}/publish`, {
       method: "POST",

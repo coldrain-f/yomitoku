@@ -10,6 +10,7 @@ from app.core.config import Settings
 from app.schemas import (
     GeneratedChoice,
     GeneratedReading,
+    GeneratedTitle,
     GenerationConditions,
     ReadingLanguage,
     ValidatorOutcome,
@@ -49,6 +50,9 @@ The wrongExplanation for each distractor must identify the relevant passage idea
 Return title, passage, question, explanation, and exactly four choices. Each choice must include text,
 isCorrect, wrongExplanation, and distractorType. Set distractorType to null for the one correct choice and
 to one of the listed types for every incorrect choice. Exactly one choice must have isCorrect true."""
+
+TITLE_SYSTEM_PROMPT: Final = """You write concise, natural titles for reading passages.
+Capture the central topic without adding claims absent from the passage. Return only the requested title."""
 
 ANSWER_VALIDATOR_SYSTEM_PROMPT: Final = """Independently solve each supplied reading question.
 Use only passage evidence. Identify the best answer, then check whether another choice is also defensible,
@@ -141,6 +145,10 @@ def estimate_usage_cost(usage: ModelUsage) -> float | None:
 
 
 class GenerationProvider(Protocol):
+    async def suggest_title(
+        self, passage: str, language: ReadingLanguage, model: str
+    ) -> ProviderResult[GeneratedTitle]: ...
+
     async def generate(
         self,
         conditions: GenerationConditions,
@@ -163,6 +171,19 @@ class StubGenerationProvider:
     @staticmethod
     def _result(value: ModelT, model: str) -> ProviderResult[ModelT]:
         return ProviderResult(value=value, usage=ModelUsage(model=model))
+
+    async def suggest_title(
+        self, passage: str, language: ReadingLanguage, model: str
+    ) -> ProviderResult[GeneratedTitle]:
+        first_line = next(
+            (line.strip() for line in passage.splitlines() if line.strip()), ""
+        )
+        title = first_line.split("。", maxsplit=1)[0].split(".", maxsplit=1)[0].strip()
+        if len(title) > 36:
+            title = title[:36].rstrip()
+        if not title:
+            title = "새 독해 지문" if language == "ko" else "新しい読解"
+        return self._result(GeneratedTitle(title=title), model)
 
     async def generate(
         self,
@@ -285,6 +306,23 @@ class AnthropicGenerationProvider:
             raise RuntimeError("ANTHROPIC_API_KEY is required for the anthropic provider.")
         self.client = AsyncAnthropic(
             api_key=settings.anthropic_api_key.get_secret_value()
+        )
+
+    async def suggest_title(
+        self, passage: str, language: ReadingLanguage, model: str
+    ) -> ProviderResult[GeneratedTitle]:
+        language_name = "Japanese" if language == "ja" else "Korean"
+        prompt = f"""<title_request>
+Write one brief, natural {language_name} title for this reading passage.
+Do not repeat the first sentence verbatim, add unsupported facts, or include quotation marks.
+<passage>{passage}</passage>
+</title_request>"""
+        return await self._structured_response(
+            model,
+            TITLE_SYSTEM_PROMPT,
+            prompt,
+            GeneratedTitle,
+            max_tokens=120,
         )
 
     async def generate(

@@ -23,6 +23,7 @@ from app.schemas import (
     AttemptSubmitRequest,
     FeedbackRequest,
     LengthType,
+    PassageTranslationResponse,
     ReadingLanguage,
     ReadingLevel,
     ReadingChoicePublic,
@@ -45,6 +46,7 @@ from app.services.reading_policy import (
     is_level_for_language,
     level_sort_key,
 )
+from app.services.translation import TranslationError, translate_passage
 from app.services.users import ensure_user
 
 router = APIRouter(prefix="/reading-items", tags=["reading items"])
@@ -246,6 +248,32 @@ async def get_reading_item(
         passage=item.passage,
         question=item.question,
         choices=public_choices(item.choices),
+    )
+
+
+@router.post(
+    "/{item_id}/translation",
+    response_model=PassageTranslationResponse,
+)
+async def translate_reading_item(
+    item_id: UUID,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> PassageTranslationResponse:
+    item = await get_published_item(session, item_id)
+    try:
+        translated_text = await translate_passage(item.passage, item.language)
+    except TranslationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(error),
+        ) from error
+    target_language: ReadingLanguage = "ko" if item.language == "ja" else "ja"
+    return PassageTranslationResponse(
+        source_language=item.language,
+        target_language=target_language,
+        source_text=item.passage,
+        translated_text=translated_text,
     )
 
 

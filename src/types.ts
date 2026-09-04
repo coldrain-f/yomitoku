@@ -152,7 +152,13 @@ export interface FeedbackValues {
 }
 
 export interface DialogConfig {
-  type?: "list-filter" | "admin-filter" | "report" | "feedback" | "google-login";
+  type?:
+    | "list-filter"
+    | "admin-filter"
+    | "report"
+    | "feedback"
+    | "google-login"
+    | "translation";
   kicker: string;
   title: string;
   description: string;

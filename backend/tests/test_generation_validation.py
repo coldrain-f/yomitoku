@@ -12,6 +12,7 @@ from app.graphs.generation import (
 from app.schemas import (
     GeneratedChoice,
     GeneratedReading,
+    GeneratedTitle,
     GenerationConditions,
     ValidatorOutcome,
 )
@@ -85,6 +86,17 @@ async def test_stub_answer_validator_identifies_the_only_correct_choice() -> Non
     assert outcome.correct_choice_index == 3
 
 
+@pytest.mark.asyncio
+async def test_stub_title_suggestion_uses_the_passage_content() -> None:
+    result = await StubGenerationProvider().suggest_title(
+        "学ぶためには、結果だけでなく理由を確かめることが大切だ。",
+        "ja",
+        "stub",
+    )
+
+    assert result.value.title == "学ぶためには、結果だけでなく理由を確かめることが大切だ"
+
+
 class FakeParsedResponse:
     def __init__(self, parsed_output: object, stop_reason: str = "end_turn") -> None:
         self.parsed_output = parsed_output
@@ -107,6 +119,11 @@ class FakeAnthropicMessages:
         output_format = kwargs["output_format"]
         if output_format is GeneratedReading:
             return FakeParsedResponse(_sample_generated_reading(), self.stop_reason)
+        if output_format is GeneratedTitle:
+            return FakeParsedResponse(
+                GeneratedTitle(title="理由を確かめる大切さ"),
+                self.stop_reason,
+            )
         if output_format is ValidatorOutcome:
             return FakeParsedResponse(
                 ValidatorOutcome(
@@ -147,6 +164,23 @@ async def test_anthropic_generation_uses_native_structured_output() -> None:
     assert messages.calls[0]["system"][0]["cache_control"] == {"type": "ephemeral"}
     assert result.usage.total_input_tokens == 900
     assert "Write the explanation and every wrongExplanation naturally in Korean." in messages.calls[0]["messages"][0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_anthropic_title_suggestion_uses_native_structured_output() -> None:
+    messages = FakeAnthropicMessages()
+    provider = _anthropic_provider_with_fake_client(messages)
+
+    result = await provider.suggest_title(
+        "結果だけを見ると、理由を見落とすことがある。",
+        "ja",
+        "generator-model",
+    )
+
+    assert result.value.title == "理由を確かめる大切さ"
+    assert messages.calls[0]["output_format"] is GeneratedTitle
+    assert messages.calls[0]["model"] == "generator-model"
+    assert messages.calls[0]["max_tokens"] == 120
 
 
 @pytest.mark.asyncio

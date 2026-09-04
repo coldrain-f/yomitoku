@@ -1,7 +1,12 @@
 import { OptionButtons } from "./ui/OptionButtons";
 import { GoogleSignInButton } from "../features/auth/GoogleSignInButton";
 import { lengthLabels } from "../lib/reading";
-import { levelsForLanguage, readingTopics } from "../lib/readingPolicy";
+import {
+  languageLabels,
+  levelsForLanguage,
+  readingTopics,
+} from "../lib/readingPolicy";
+import type { PassageTranslation } from "../lib/api";
 import type {
   AdminFilters,
   DialogConfig,
@@ -27,6 +32,9 @@ interface AppDialogContentProps {
   googleClientId: string;
   onGoogleCredential: (credential: string) => void;
   onGoogleError: (message: string) => void;
+  translation: PassageTranslation | null;
+  translationLoading: boolean;
+  translationError: string;
 }
 
 export function AppDialogContent({
@@ -45,6 +53,9 @@ export function AppDialogContent({
   googleClientId,
   onGoogleCredential,
   onGoogleError,
+  translation,
+  translationLoading,
+  translationError,
 }: AppDialogContentProps) {
   if (type === "google-login") {
     return (
@@ -317,6 +328,37 @@ export function AppDialogContent({
         </label>
         {dialogError ? (
           <span className="dialog-field-error">{dialogError}</span>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (type === "translation") {
+    return (
+      <div className="translation-dialog">
+        {translationLoading ? (
+          <p className="translation-status" role="status">
+            지문을 번역하는 중입니다.
+          </p>
+        ) : null}
+        {translationError ? (
+          <p className="dialog-field-error" role="alert">
+            {translationError}
+          </p>
+        ) : null}
+        {translation ? (
+          <div className="translation-comparison">
+            <section className="translation-pane">
+              <h3>{languageLabels[translation.sourceLanguage]} 본문</h3>
+              <p lang={translation.sourceLanguage}>{translation.sourceText}</p>
+            </section>
+            <section className="translation-pane">
+              <h3>{languageLabels[translation.targetLanguage]} 해석</h3>
+              <p lang={translation.targetLanguage}>
+                {translation.translatedText}
+              </p>
+            </section>
+          </div>
         ) : null}
       </div>
     );

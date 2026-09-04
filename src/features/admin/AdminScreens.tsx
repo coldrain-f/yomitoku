@@ -79,6 +79,9 @@ interface AdminEditProps {
   manual?: boolean;
   isSaving?: boolean;
   error?: string;
+  onSuggestTitle?: () => void;
+  isSuggestingTitle?: boolean;
+  titleSuggestionError?: string;
 }
 
 interface GenerateScreenProps {
@@ -100,6 +103,10 @@ interface ManualCreateScreenProps {
   error: string;
   onSave: () => void;
   onBack: () => void;
+  onSuggestTitle: (
+    passage: string,
+    language: ReadingLanguage,
+  ) => Promise<string>;
 }
 
 interface PreviewScreenProps {
@@ -552,6 +559,9 @@ export function AdminEdit({
   manual = false,
   isSaving = false,
   error = "",
+  onSuggestTitle,
+  isSuggestingTitle = false,
+  titleSuggestionError = "",
 }: AdminEditProps) {
 
   const updateChoice = (index: number, text: string) =>
@@ -580,8 +590,21 @@ export function AdminEdit({
           </span>
         </div>
         <fieldset className="admin-edit-form" disabled={isSaving}>
-          <label className="admin-field admin-field-wide">
-            <span className="form-label">제목</span>
+          <div className="admin-field admin-field-wide admin-title-field">
+            <div className="admin-field-label-row">
+              <span className="form-label">제목</span>
+              {manual && onSuggestTitle ? (
+                <button
+                  className="text-button admin-title-suggest"
+                  type="button"
+                  onClick={onSuggestTitle}
+                  disabled={isSuggestingTitle || !draft.passage.trim()}
+                >
+                  <Icon icon={Sparkles} />
+                  {isSuggestingTitle ? "제목 만드는 중" : "AI 제목 제안"}
+                </button>
+              ) : null}
+            </div>
             <input
               className="input-field"
               type="text"
@@ -590,7 +613,12 @@ export function AdminEdit({
                 setDraft({ ...draft, title: event.target.value })
               }
             />
-          </label>
+            {titleSuggestionError ? (
+              <p className="editor-error" role="alert">
+                {titleSuggestionError}
+              </p>
+            ) : null}
+          </div>
           <div className="admin-metadata-grid">
             <label className="admin-field">
               <span className="form-label">콘텐츠 언어</span>
@@ -864,7 +892,32 @@ export function ManualCreateScreen({
   error,
   onSave,
   onBack,
+  onSuggestTitle,
 }: ManualCreateScreenProps) {
+  const [isSuggestingTitle, setIsSuggestingTitle] = useState(false);
+  const [titleSuggestionError, setTitleSuggestionError] = useState("");
+  const suggestTitle = async () => {
+    const passage = values.passage.trim();
+    if (!passage) {
+      setTitleSuggestionError("지문을 먼저 입력해 주세요.");
+      return;
+    }
+    setIsSuggestingTitle(true);
+    setTitleSuggestionError("");
+    try {
+      const title = await onSuggestTitle(passage, values.language);
+      if (!title.trim()) throw new Error("AI가 제목을 만들지 못했습니다.");
+      setValues((current) => ({ ...current, title: title.trim() }));
+    } catch (suggestionError) {
+      setTitleSuggestionError(
+        suggestionError instanceof Error
+          ? suggestionError.message
+          : "AI 제목 제안에 실패했습니다.",
+      );
+    } finally {
+      setIsSuggestingTitle(false);
+    }
+  };
   const draft: ReadingItem = {
     id: "manual-draft",
     status: "review",
@@ -921,6 +974,9 @@ export function ManualCreateScreen({
       manual
       isSaving={isSaving}
       error={error}
+      onSuggestTitle={() => void suggestTitle()}
+      isSuggestingTitle={isSuggestingTitle}
+      titleSuggestionError={titleSuggestionError}
     />
   );
 }
@@ -1131,8 +1187,8 @@ export function PreviewScreen({
         </div>
         <div className="reading-body">
           <div className="passage">
-            {item.passage.split("\n\n").map((paragraph) => (
-              <p key={paragraph}>{paragraph}</p>
+            {item.passage.split(/\r?\n\s*\r?\n/).map((paragraph, index) => (
+              <p key={`${index}-${paragraph.slice(0, 24)}`}>{paragraph}</p>
             ))}
           </div>
           <div className="question-block">
