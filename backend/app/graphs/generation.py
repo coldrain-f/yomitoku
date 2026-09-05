@@ -44,7 +44,7 @@ class GenerationState(TypedDict):
     usage_events: Annotated[list[dict[str, Any]], add]
 
 
-VALIDATION_SCORE_FLOORS: Final = {"answer": 85, "quality": 85}
+VALIDATION_SCORE_FLOORS: Final = {"answer": 85, "quality": 70}
 MAX_REVISION_FEEDBACK_ITEMS: Final = 6
 MAX_REVISION_FEEDBACK_CHARACTERS: Final = 180
 OUTPUT_RETRY_EXHAUSTED_CODE: Final = "generation_output_retry_exhausted"
@@ -98,6 +98,16 @@ def enforce_validation_gate(
     status = "warning" if outcome.status == "passed" and issue_codes else outcome.status
     return outcome.model_copy(
         update={"status": status, "issue_codes": list(dict.fromkeys(issue_codes))}
+    )
+
+
+def requires_generation_revision(
+    answer: ValidatorOutcome, quality: ValidatorOutcome
+) -> bool:
+    return (
+        answer.status != "passed"
+        or quality.status == "failed"
+        or quality.score < VALIDATION_SCORE_FLOORS["quality"]
     )
 
 
@@ -323,7 +333,7 @@ def build_generation_graph(
         output_failure = validator_output_failure_terminal_update(answer, quality)
         if output_failure is not None:
             return output_failure
-        if answer.status == "passed" and quality.status == "passed":
+        if not requires_generation_revision(answer, quality):
             return {"terminal_status": "ready_for_review", "revision_feedback": []}
         feedback = validation_feedback(state)
         if state["revision_count"] >= settings.max_generation_revisions:

@@ -91,8 +91,10 @@ unnaturally or does not follow this cross-language rule.
 Mark weak or ambiguous distractors with specific issueCodes such as WEAK_DISTRACTOR,
 DISTRACTOR_OVERLAP, DISTRACTOR_NOT_TEXT_ANCHORED, DISTRACTOR_TYPE_MISMATCH,
 BACKGROUND_KNOWLEDGE_DEPENDENCY, QUESTION_AMBIGUITY, OUT_OF_LEVEL, or EXPLANATION_MISMATCH.
-Give passed only to a clean item with score 85 or higher. Use warning for a repairable problem and failed for
-an ambiguous item with more than one defensible answer. Evidence must identify the choice and its exact issue.
+Give passed to an item that is valid to publish with a score of 70 or higher. Use warning for concrete editorial
+improvements that do not make the answer ambiguous or invalid. Use failed only for an ambiguous item with more
+than one defensible answer or another issue that makes publishing unsafe. Evidence must identify the choice and
+its exact issue.
 For passed items, return empty issueCodes and evidence. Otherwise return at most three concise evidence strings,
 each no longer than 220 characters. Write every evidence string in Korean for the administrator interface.
 Do not include chain-of-thought or a general review.

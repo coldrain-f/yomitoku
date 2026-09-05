@@ -6,6 +6,7 @@ from app.graphs.generation import (
     COMPACT_OUTPUT_RETRY_FEEDBACK,
     OUTPUT_RETRY_EXHAUSTED_CODE,
     enforce_validation_gate,
+    requires_generation_revision,
     structured_output_retry_update,
     validator_output_failure_terminal_update,
     validator_output_failure_update,
@@ -518,8 +519,40 @@ def test_validation_gate_rejects_low_scores_and_preserves_repair_feedback() -> N
 
     assert answer.status == "warning"
     assert "answer_score_below_85" in answer.issue_codes
+    assert requires_generation_revision(answer, quality)
     assert "quality: WEAK_DISTRACTOR" in feedback
     assert "quality: Choice 3 is unrelated to the passage." in feedback
+
+
+def test_quality_warning_above_editorial_floor_does_not_require_revision() -> None:
+    answer = ValidatorOutcome(status="passed", score=96, correct_choice_index=2)
+    quality = enforce_validation_gate(
+        ValidatorOutcome(
+            status="warning",
+            score=72,
+            issue_codes=["WEAK_DISTRACTOR"],
+            evidence=["3번 선택지가 다른 선택지보다 쉽게 제거됩니다."],
+        ),
+        "quality",
+    )
+
+    assert "quality_score_below_70" not in quality.issue_codes
+    assert not requires_generation_revision(answer, quality)
+
+
+def test_low_or_failed_quality_validation_still_requires_revision() -> None:
+    answer = ValidatorOutcome(status="passed", score=96, correct_choice_index=2)
+    low_score = enforce_validation_gate(
+        ValidatorOutcome(status="warning", score=69, issue_codes=["WEAK_DISTRACTOR"]),
+        "quality",
+    )
+    failed = ValidatorOutcome(
+        status="failed", score=88, issue_codes=["QUESTION_AMBIGUITY"]
+    )
+
+    assert "quality_score_below_70" in low_score.issue_codes
+    assert requires_generation_revision(answer, low_score)
+    assert requires_generation_revision(answer, failed)
 
 
 def test_validation_feedback_is_compact_for_revisions() -> None:
