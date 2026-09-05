@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from operator import add
-from typing import Annotated, Any, Final, NotRequired, TypedDict
+from typing import Annotated, Any, Final, Literal, NotRequired, TypedDict
 from uuid import UUID
 
 from langgraph.graph import END, START, StateGraph
@@ -48,6 +48,7 @@ VALIDATION_SCORE_FLOORS: Final = {"answer": 85, "quality": 85}
 MAX_REVISION_FEEDBACK_ITEMS: Final = 6
 MAX_REVISION_FEEDBACK_CHARACTERS: Final = 180
 OUTPUT_RETRY_EXHAUSTED_CODE: Final = "generation_output_retry_exhausted"
+VALIDATOR_OUTPUT_FAILURE_CODE: Final = "validator_output_incomplete"
 COMPACT_OUTPUT_RETRY_FEEDBACK: Final = (
     "The previous response was incomplete. Return one complete object only, keep every "
     "choice and explanation concise, and keep the passage near the lower end of the "
@@ -143,6 +144,54 @@ def usage_event(stage: str, usage: ModelUsage) -> dict[str, Any]:
     return {"stage": stage, **usage.model_dump(mode="json")}
 
 
+def validator_output_failure_update(
+    role: Literal["answer", "quality"],
+    error: GenerationStructuredOutputError,
+) -> dict[str, Any]:
+    if isinstance(error, GenerationOutputTruncatedError):
+        suffix = "truncated"
+        evidence = "Validator response reached the output limit before it completed."
+    else:
+        suffix = "invalid"
+        evidence = "Validator response did not match the requested structured format."
+    outcome = ValidatorOutcome(
+        status="failed",
+        score=0,
+        issue_codes=[f"{role}_validator_output_{suffix}"],
+        evidence=[evidence],
+    )
+    return {f"{role}_validation": outcome.model_dump(mode="json", by_alias=False)}
+
+
+def validator_output_failure_terminal_update(
+    answer: ValidatorOutcome, quality: ValidatorOutcome
+) -> dict[str, str] | None:
+    failures: list[tuple[str, str]] = []
+    for role, label, outcome in (
+        ("answer", "정답", answer),
+        ("quality", "품질", quality),
+    ):
+        for suffix, reason in (
+            ("truncated", "출력 한도에 도달해 완료되지 않았습니다."),
+            ("invalid", "요청한 형식으로 완료되지 않았습니다."),
+        ):
+            if f"{role}_validator_output_{suffix}" in outcome.issue_codes:
+                failures.append((label, reason))
+                break
+    if not failures:
+        return None
+
+    details = " ".join(f"{label} 검증 AI 응답이 {reason}" for label, reason in failures)
+    return {
+        "terminal_status": "failed",
+        "failure_code": VALIDATOR_OUTPUT_FAILURE_CODE,
+        "failure_detail": (
+            f"{details} 추가 호출 없이 작업을 종료했습니다. "
+            "생성 이력에서 사용량을 확인해 주세요."
+        ),
+    }
+
+
 def build_generation_graph(
     session_factory: async_sessionmaker[AsyncSession], provider: GenerationProvider
 ) -> StateGraph:
@@ -217,10 +266,13 @@ def build_generation_graph(
         item = GeneratedReading.model_validate(state["item"])
         conditions = GenerationConditions.model_validate(state["conditions"])
         model = state["models"]["answer_validator_model"]
-        result = await tracked_call(
-            session_factory, state["job_id"], "verify_answer", model,
-            lambda: provider.verify_answer(item, conditions.language, model),
-        )
+        try:
+            result = await tracked_call(
+                session_factory, state["job_id"], "verify_answer", model,
+                lambda: provider.verify_answer(item, conditions.language, model),
+            )
+        except GenerationStructuredOutputError as error:
+            return validator_output_failure_update("answer", error)
         outcome = result.value
         expected_choice = next(
             index
@@ -249,12 +301,15 @@ def build_generation_graph(
         )
         conditions = GenerationConditions.model_validate(state["conditions"])
         model = state["models"]["quality_validator_model"]
-        result = await tracked_call(
-            session_factory, state["job_id"], "verify_quality", model,
-            lambda: provider.verify_quality(
-                GeneratedReading.model_validate(state["item"]), conditions, model,
-            ),
-        )
+        try:
+            result = await tracked_call(
+                session_factory, state["job_id"], "verify_quality", model,
+                lambda: provider.verify_quality(
+                    GeneratedReading.model_validate(state["item"]), conditions, model,
+                ),
+            )
+        except GenerationStructuredOutputError as error:
+            return validator_output_failure_update("quality", error)
         outcome = result.value
         outcome = enforce_validation_gate(outcome, "quality")
         return {
@@ -265,6 +320,9 @@ def build_generation_graph(
     async def decide(state: GenerationState) -> dict[str, Any]:
         answer = ValidatorOutcome.model_validate(state["answer_validation"])
         quality = ValidatorOutcome.model_validate(state["quality_validation"])
+        output_failure = validator_output_failure_terminal_update(answer, quality)
+        if output_failure is not None:
+            return output_failure
         if answer.status == "passed" and quality.status == "passed":
             return {"terminal_status": "ready_for_review", "revision_feedback": []}
         feedback = validation_feedback(state)
@@ -393,6 +451,8 @@ def build_generation_graph(
         return ["verify_answer", "verify_quality"]
 
     def after_decision(state: GenerationState) -> str:
+        if state.get("terminal_status") == "failed":
+            return "fail"
         return "persist" if state.get("terminal_status") else "revise"
 
     graph.add_node("generate", generate)

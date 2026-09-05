@@ -7,6 +7,8 @@ from app.graphs.generation import (
     OUTPUT_RETRY_EXHAUSTED_CODE,
     enforce_validation_gate,
     structured_output_retry_update,
+    validator_output_failure_terminal_update,
+    validator_output_failure_update,
     validation_feedback,
 )
 from app.schemas import (
@@ -387,6 +389,29 @@ def test_structured_output_retry_is_limited_and_keeps_failed_attempt_usage() -> 
 
     assert exhausted["terminal_status"] == "failed"
     assert exhausted["failure_code"] == OUTPUT_RETRY_EXHAUSTED_CODE
+
+
+def test_validator_output_limit_becomes_an_explicit_terminal_failure() -> None:
+    error = GenerationOutputTruncatedError(
+        "The model response reached its output token limit.",
+        ModelUsage(model="claude-fable-5-1", output_tokens=900),
+    )
+    answer = ValidatorOutcome(status="passed", score=95, correct_choice_index=2)
+    quality = ValidatorOutcome.model_validate(
+        validator_output_failure_update("quality", error)["quality_validation"]
+    )
+
+    update = validator_output_failure_terminal_update(answer, quality)
+
+    assert update is not None
+    assert update["terminal_status"] == "failed"
+    assert update["failure_code"] == "validator_output_incomplete"
+    assert "품질 검증 AI 응답" in update["failure_detail"]
+    assert "추가 호출 없이" in update["failure_detail"]
+
+
+def test_quality_validator_budget_has_room_for_complete_structured_feedback() -> None:
+    assert QUALITY_VALIDATOR_MAX_TOKENS == 1_600
 
 
 @pytest.mark.parametrize(
