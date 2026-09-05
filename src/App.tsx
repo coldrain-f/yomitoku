@@ -204,10 +204,9 @@ function validateManualReadingDraft(values: ManualReadingDraft) {
   if (
     !values.title.trim() ||
     !values.passage.trim() ||
-    !values.question.trim() ||
-    !values.explanation.trim()
+    !values.question.trim()
   ) {
-    return "제목, 지문, 문제, 해설을 모두 입력해 주세요.";
+    return "제목, 지문, 문제를 모두 입력해 주세요.";
   }
   const choices = values.choices.map((choice) => choice.text.trim());
   if (choices.some((choice) => !choice)) return "선택지 네 개를 모두 입력해 주세요.";

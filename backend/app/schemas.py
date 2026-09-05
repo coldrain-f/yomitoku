@@ -409,7 +409,7 @@ class AdminReadingItemCreate(ApiModel):
     title: str = Field(min_length=1, max_length=255)
     passage: str = Field(min_length=1)
     question: str = Field(min_length=1)
-    explanation: str = Field(min_length=1)
+    explanation: str = Field(default="")
     language: ReadingLanguage = "ja"
     official_level: ReadingLevel
     length_type: LengthType
@@ -440,7 +440,7 @@ class AdminReadingItemUpdate(ApiModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
     passage: str | None = Field(default=None, min_length=1)
     question: str | None = Field(default=None, min_length=1)
-    explanation: str | None = Field(default=None, min_length=1)
+    explanation: str | None = None
     language: ReadingLanguage | None = None
     official_level: ReadingLevel | None = None
     length_type: LengthType | None = None

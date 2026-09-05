@@ -5,7 +5,11 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from app.schemas import GenerationConditions
+from app.schemas import (
+    AdminReadingItemCreate,
+    AdminReadingItemUpdate,
+    GenerationConditions,
+)
 from app.services.item_metrics import first_submissions_by_user_item
 from app.services.reading_policy import (
     RECOMMENDED_SECONDS,
@@ -49,6 +53,29 @@ def test_generation_conditions_reject_the_manual_only_level() -> None:
             length_type="medium",
             topic="교육",
         )
+
+
+def test_manual_reading_items_allow_an_empty_explanation() -> None:
+    item = AdminReadingItemCreate(
+        title="해설 없는 검토 문항",
+        passage="검토 단계에서는 해설을 나중에 입력할 수 있다.",
+        question="이 문항의 상태는 무엇인가?",
+        explanation="",
+        language="ko",
+        official_level="TOPIK 4급",
+        length_type="short",
+        topic="교육",
+        recommended_seconds=180,
+        choices=[
+            {"text": "검토 상태", "isCorrect": True},
+            {"text": "게시 상태", "isCorrect": False},
+            {"text": "삭제 상태", "isCorrect": False},
+            {"text": "완료 상태", "isCorrect": False},
+        ],
+    )
+
+    assert item.explanation == ""
+    assert AdminReadingItemUpdate(explanation="").explanation == ""
 
 
 def test_generation_conditions_normalize_distinct_keywords() -> None:
