@@ -73,7 +73,7 @@ interface ReadingScreenProps {
     endOffset: number,
     selectedText: string,
   ) => Promise<PassageHighlight>;
-  onDeleteHighlight: (highlightId: string) => Promise<void>;
+  onDeleteHighlight: (highlightId: string) => void;
 }
 
 interface ResultScreenProps {
@@ -349,7 +349,6 @@ function PassageHighlighter({
   const actionRef = useRef<HTMLDivElement>(null);
   const [pending, setPending] = useState<PendingHighlight | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [removingId, setRemovingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const sourceText = normalizedPassageText(passage);
 
@@ -451,23 +450,6 @@ function PassageHighlighter({
     }
   };
 
-  const removeHighlight = async (highlightId: string) => {
-    if (removingId) return;
-    setRemovingId(highlightId);
-    setError("");
-    try {
-      await onDeleteHighlight(highlightId);
-    } catch (highlightError) {
-      setError(
-        highlightError instanceof Error
-          ? highlightError.message
-          : "하이라이트를 삭제하지 못했습니다.",
-      );
-    } finally {
-      setRemovingId(null);
-    }
-  };
-
   const content = (() => {
     const nodes: ReactNode[] = [];
     let cursor = 0;
@@ -493,16 +475,15 @@ function PassageHighlighter({
           tabIndex={0}
           title="하이라이트 삭제"
           aria-label={`하이라이트 삭제: ${highlight.selectedText}`}
-          aria-busy={removingId === highlight.id}
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            void removeHighlight(highlight.id);
+            onDeleteHighlight(highlight.id);
           }}
           onKeyDown={(event) => {
             if (event.key !== "Enter" && event.key !== " ") return;
             event.preventDefault();
-            void removeHighlight(highlight.id);
+            onDeleteHighlight(highlight.id);
           }}
         >
           {sourceText.slice(highlight.startOffset, highlight.endOffset)}

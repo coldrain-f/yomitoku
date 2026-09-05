@@ -1836,11 +1836,6 @@ fieldset.admin-edit-form {
   outline-offset: 1px;
 }
 
-.passage-highlight[aria-busy="true"] {
-  opacity: 0.55;
-  pointer-events: none;
-}
-
 .passage-highlight-action {
   position: fixed;
   z-index: 30;
