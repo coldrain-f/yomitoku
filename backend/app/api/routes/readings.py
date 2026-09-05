@@ -321,6 +321,31 @@ async def item_outcomes(
     return round(correct / len(first_attempts) * 100, 1), len(first_attempts)
 
 
+async def get_owned_attempt_for_update(
+    session: AsyncSession, attempt_id: UUID, current_user: CurrentUser
+) -> Attempt:
+    """Lock one learner's attempt before changing its terminal state."""
+    attempt = await session.scalar(
+        select(Attempt)
+        .where(Attempt.id == attempt_id, Attempt.user_id == current_user.id)
+        .with_for_update()
+    )
+    if not attempt:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Attempt not found."
+        )
+    return attempt
+
+
+def elapsed_seconds_since(started_at: datetime, completed_at: datetime) -> int:
+    """Accept timestamps from drivers that do not restore timezone metadata."""
+    if started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=UTC)
+    if completed_at.tzinfo is None:
+        completed_at = completed_at.replace(tzinfo=UTC)
+    return max(0, int((completed_at - started_at).total_seconds()))
+
+
 @router.post("/attempts/{attempt_id}/submit", response_model=AttemptResult)
 async def submit_attempt(
     attempt_id: UUID,
@@ -328,11 +353,7 @@ async def submit_attempt(
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> AttemptResult:
-    attempt = await session.get(Attempt, attempt_id)
-    if not attempt or attempt.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Attempt not found."
-        )
+    attempt = await get_owned_attempt_for_update(session, attempt_id, current_user)
     if attempt.submitted_at or attempt.abandoned_at:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -355,9 +376,7 @@ async def submit_attempt(
     attempt.selected_choice_id = selected.id
     attempt.is_correct = selected.id == correct.id
     attempt.submitted_at = submitted_at
-    attempt.elapsed_seconds = max(
-        0, int((submitted_at - attempt.started_at).total_seconds())
-    )
+    attempt.elapsed_seconds = elapsed_seconds_since(attempt.started_at, submitted_at)
     await session.commit()
     accuracy, challenger_count = await item_outcomes(session, item.id)
     return AttemptResult(
@@ -381,11 +400,7 @@ async def abandon_attempt(
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> Response:
-    attempt = await session.get(Attempt, attempt_id)
-    if not attempt or attempt.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Attempt not found."
-        )
+    attempt = await get_owned_attempt_for_update(session, attempt_id, current_user)
     if not attempt.submitted_at and not attempt.abandoned_at:
         attempt.abandoned_at = datetime.now(UTC)
         await session.commit()

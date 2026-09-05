@@ -59,6 +59,7 @@ interface ReadingScreenProps {
   result: ReadingResult | null;
   onChoose: (choiceId: string) => void;
   onSubmit: () => void;
+  isSubmitting: boolean;
   onAbandon: () => void;
   onReport: () => void;
   onTranslate: () => void;
@@ -305,6 +306,7 @@ export function ReadingScreen({
   result,
   onChoose,
   onSubmit,
+  isSubmitting,
   onAbandon,
   onReport,
   onTranslate,
@@ -380,7 +382,7 @@ export function ReadingScreen({
                   type="button"
                   role="radio"
                   aria-checked={choice.id === attempt.selectedChoiceId}
-                  disabled={submitted}
+                  disabled={submitted || isSubmitting}
                   key={choice.id}
                   onClick={() => onChoose(choice.id)}
                 >
@@ -425,6 +427,7 @@ export function ReadingScreen({
                   className="text-button abandon-reading"
                   type="button"
                   onClick={onAbandon}
+                  disabled={isSubmitting}
                 >
                   <Icon icon={X} />
                   포기하기
@@ -450,9 +453,10 @@ export function ReadingScreen({
                   className="primary-button"
                   type="button"
                   onClick={onSubmit}
+                  disabled={isSubmitting}
                 >
                   <Icon icon={Check} />
-                  제출하기
+                  {isSubmitting ? "제출 중" : "제출하기"}
                 </button>
               )}
             </div>

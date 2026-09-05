@@ -865,13 +865,14 @@ export function AdminEdit({
               className="link-button preview-delete"
               type="button"
               onClick={onDelete}
+              disabled={isSaving}
             >
               <Icon icon={Trash2} />
               삭제
             </button> : null}
           </div>
           <div className="admin-edit-main">
-            {!manual ? <button className="text-button" type="button" onClick={onHold}>
+            {!manual ? <button className="text-button" type="button" onClick={onHold} disabled={isSaving}>
               <Icon icon={Clock3} />
               {item.status === "held"
                 ? "보류 취소"
@@ -880,7 +881,7 @@ export function AdminEdit({
                   : "보류"}
             </button> : null}
             {!manual && item.status !== "published" ? (
-              <button className="text-button" type="button" onClick={onPublish}>
+              <button className="text-button" type="button" onClick={onPublish} disabled={isSaving}>
                 <Icon icon={Upload} />
                 게시하기
               </button>
