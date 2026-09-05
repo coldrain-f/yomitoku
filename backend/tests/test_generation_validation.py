@@ -192,14 +192,34 @@ async def test_anthropic_title_suggestion_uses_native_structured_output() -> Non
 
 
 @pytest.mark.asyncio
-async def test_anthropic_generation_rejects_truncated_structured_output() -> None:
+async def test_anthropic_generation_accepts_complete_output_at_token_limit() -> None:
     messages = FakeAnthropicMessages(stop_reason="max_tokens")
     provider = _anthropic_provider_with_fake_client(messages)
     conditions = GenerationConditions(
         official_level="N2", length_type="medium", topic="교육"
     )
 
-    with pytest.raises(GenerationOutputTruncatedError, match="token limit") as error:
+    result = await provider.generate(conditions, [], "generator-model")
+
+    assert result.value.title == "背景を考える"
+    assert result.usage.stop_reason == "max_tokens"
+
+
+class IncompleteJsonAnthropicMessages:
+    async def create(self, **kwargs: object) -> FakeParsedResponse:
+        response = FakeParsedResponse(_sample_generated_reading(), "max_tokens")
+        response.content[0].text = '{"title":"Background"'
+        return response
+
+
+@pytest.mark.asyncio
+async def test_anthropic_generation_rejects_incomplete_structured_output() -> None:
+    provider = _anthropic_provider_with_fake_client(IncompleteJsonAnthropicMessages())
+    conditions = GenerationConditions(
+        official_level="N2", length_type="medium", topic="교육"
+    )
+
+    with pytest.raises(GenerationOutputTruncatedError, match="completed") as error:
         await provider.generate(conditions, [], "generator-model")
 
     assert error.value.usage is not None

@@ -461,10 +461,6 @@ Requested level: {conditions.official_level}
             ),
             stop_reason=response.stop_reason,
         )
-        if response.stop_reason == "max_tokens":
-            raise GenerationOutputTruncatedError(
-                "The model response reached its output token limit.", usage
-            )
         text = "".join(block.text for block in response.content if block.type == "text")
         try:
             value = output_format.model_validate_json(text)
