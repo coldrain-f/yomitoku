@@ -1847,8 +1847,9 @@ fieldset.admin-edit-form {
   z-index: 30;
   transform: translateX(-50%);
   display: inline-flex;
-  border: 1px solid var(--ink);
+  border: 1px solid var(--line-strong);
   border-radius: 2px;
+  background: var(--paper-solid);
   overflow: hidden;
 }
 
@@ -1870,9 +1871,8 @@ fieldset.admin-edit-form {
 .passage-highlight-menu button {
   min-height: 32px;
   border: 0;
-  border-left: 1px solid rgba(255, 255, 255, 0.3);
-  background: var(--ink);
-  color: #ffffff;
+  background: transparent;
+  color: var(--ink);
   padding: 0 9px;
   display: inline-flex;
   align-items: center;
@@ -1882,22 +1882,18 @@ fieldset.admin-edit-form {
   font-weight: 600;
 }
 
-.passage-highlight-menu button:first-child {
-  border-left: 0;
-}
-
 .passage-highlight-menu button:hover,
 .passage-highlight-menu button:focus-visible {
-  background: #333333;
+  background: #f0f1eb;
 }
 
 .passage-highlight-menu .passage-highlight-cancel {
-  background: var(--danger);
+  color: var(--danger);
 }
 
 .passage-highlight-menu .passage-highlight-cancel:hover,
 .passage-highlight-menu .passage-highlight-cancel:focus-visible {
-  background: #813829;
+  background: var(--danger-soft);
 }
 
 .passage-highlight-action button:hover,
