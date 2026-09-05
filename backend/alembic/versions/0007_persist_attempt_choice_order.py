@@ -4,7 +4,7 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision = "0007_persist_attempt_choice_order"
+revision = "0007_attempt_choice_order"
 down_revision = "0006_generation_reliability"
 branch_labels = None
 depends_on = None
