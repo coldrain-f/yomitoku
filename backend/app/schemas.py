@@ -280,11 +280,19 @@ class ReadingItemDetail(ApiModel):
     choices: list[ReadingChoicePublic]
 
 
-class PassageTranslationResponse(ApiModel):
+class TranslationSegment(ApiModel):
+    source_text: str
+    translated_text: str
+
+
+class ReadingTranslationResponse(ApiModel):
     source_language: ReadingLanguage
     target_language: ReadingLanguage
     source_text: str
     translated_text: str
+    title: TranslationSegment
+    passage: TranslationSegment
+    question: TranslationSegment
 
 
 class PassageHighlightResponse(ApiModel):

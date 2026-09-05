@@ -8,7 +8,7 @@ from app.schemas import ReadingLanguage
 
 
 class TranslationError(RuntimeError):
-    """The configured translation provider could not translate the passage."""
+    """The configured translation provider could not translate the requested text."""
 
 
 def deepl_translate_url(api_key: str) -> str:
@@ -21,12 +21,12 @@ def deepl_translate_url(api_key: str) -> str:
 
 
 def _translate_with_deepl(
-    *, api_key: str, source_text: str, source_language: ReadingLanguage
-) -> str:
+    *, api_key: str, source_texts: list[str], source_language: ReadingLanguage
+) -> list[str]:
     target_language = "KO" if source_language == "ja" else "JA"
     payload = json.dumps(
         {
-            "text": [source_text],
+            "text": source_texts,
             "source_lang": source_language.upper(),
             "target_lang": target_language,
             "preserve_formatting": True,
@@ -59,22 +59,25 @@ def _translate_with_deepl(
         raise TranslationError("번역 서비스에 연결하지 못했습니다.") from error
 
     translations = body.get("translations", [])
-    translated_text = translations[0].get("text") if translations else None
-    if not isinstance(translated_text, str) or not translated_text.strip():
+    if len(translations) != len(source_texts):
         raise TranslationError("번역 결과를 받지 못했습니다.")
-    return translated_text
+    translated_texts = [translation.get("text") for translation in translations]
+    if any(
+        not isinstance(translated_text, str) or not translated_text.strip()
+        for translated_text in translated_texts
+    ):
+        raise TranslationError("번역 결과를 받지 못했습니다.")
+    return [translated_text.strip() for translated_text in translated_texts]
 
 
 _translation_cache: dict[tuple[ReadingLanguage, str], str] = {}
 
 
-async def translate_passage(
-    source_text: str, source_language: ReadingLanguage
-) -> str:
-    cache_key = (source_language, source_text)
-    if cached := _translation_cache.get(cache_key):
-        return cached
-
+async def translate_texts(
+    source_texts: list[str], source_language: ReadingLanguage
+) -> list[str]:
+    if not source_texts:
+        return []
     settings = get_settings()
     api_key = (
         settings.deepl_api_key.get_secret_value().strip()
@@ -85,13 +88,26 @@ async def translate_passage(
         raise TranslationError(
             "번역 기능이 아직 설정되지 않았습니다. 관리자에게 DEEPL_API_KEY 설정을 요청해 주세요."
         )
-    translated_text = await asyncio.to_thread(
-        _translate_with_deepl,
-        api_key=api_key,
-        source_text=source_text,
-        source_language=source_language,
-    )
-    if len(_translation_cache) >= 256:
-        _translation_cache.pop(next(iter(_translation_cache)))
-    _translation_cache[cache_key] = translated_text
-    return translated_text
+    translated_by_text: dict[str, str] = {}
+    missing_texts: list[str] = []
+    for source_text in source_texts:
+        cache_key = (source_language, source_text)
+        if cached := _translation_cache.get(cache_key):
+            translated_by_text[source_text] = cached
+        elif source_text not in missing_texts:
+            missing_texts.append(source_text)
+
+    if missing_texts:
+        translated_texts = await asyncio.to_thread(
+            _translate_with_deepl,
+            api_key=api_key,
+            source_texts=missing_texts,
+            source_language=source_language,
+        )
+        for source_text, translated_text in zip(missing_texts, translated_texts, strict=True):
+            if len(_translation_cache) >= 256:
+                _translation_cache.pop(next(iter(_translation_cache)))
+            _translation_cache[(source_language, source_text)] = translated_text
+            translated_by_text[source_text] = translated_text
+
+    return [translated_by_text[source_text] for source_text in source_texts]

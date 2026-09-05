@@ -2551,7 +2551,23 @@ body.dialog-open {
   font-weight: 500;
 }
 
-.translation-pane p {
+.translation-sections {
+  margin: 0;
+}
+
+.translation-section + .translation-section {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.translation-section dt {
+  margin: 0 0 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.translation-section dd {
   margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -2559,11 +2575,11 @@ body.dialog-open {
   line-height: 1.85;
 }
 
-.translation-pane p[lang="ja"] {
+.translation-section dd[lang="ja"] {
   font-family: "Yu Mincho", YuMincho, "Hiragino Mincho ProN", "Hiragino Mincho Pro", "MS PMincho", "Noto Serif JP", serif;
 }
 
-.translation-pane p[lang="ko"] {
+.translation-section dd[lang="ko"] {
   font-family: "Yu Gothic", YuGothic, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, "Malgun Gothic", Arial, sans-serif;
 }
 

@@ -36,7 +36,7 @@ import {
   type GenerationJob,
   type GenerationJobHistory,
   type GenerationModelOptions,
-  type PassageTranslation,
+  type ReadingTranslation,
   type RestoredAttempt,
   type Statistics,
 } from "./lib/api";
@@ -446,7 +446,7 @@ export default function App() {
   const [toast, setToast] = useState("");
   const [attempt, setAttempt] = useState<ReadingAttempt | null>(null);
   const [result, setResult] = useState<ReadingResult | null>(null);
-  const [translation, setTranslation] = useState<PassageTranslation | null>(null);
+  const [translation, setTranslation] = useState<ReadingTranslation | null>(null);
   const [translationLoading, setTranslationLoading] = useState(false);
   const [translationError, setTranslationError] = useState("");
   const [draft, setDraft] = useState<ReadingItem | null>(null);
@@ -1093,16 +1093,16 @@ export default function App() {
     setTranslationLoading(true);
     openDialog({
       type: "translation",
-      kicker: "Passage translation",
-      title: "본문과 해석",
-      description: "원문과 번역문을 함께 확인할 수 있습니다.",
+      kicker: "Reading translation",
+      title: "문항 원문과 해석",
+      description: "제목, 지문, 문제의 원문과 번역문을 함께 확인할 수 있습니다.",
     });
     void api
       .translateReading(result.itemId)
       .then(setTranslation)
       .catch((error: unknown) =>
         setTranslationError(
-          error instanceof Error ? error.message : "본문을 번역하지 못했습니다.",
+          error instanceof Error ? error.message : "문항을 번역하지 못했습니다.",
         ),
       )
       .finally(() => setTranslationLoading(false));

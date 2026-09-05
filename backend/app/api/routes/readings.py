@@ -34,7 +34,7 @@ from app.schemas import (
     LengthType,
     PassageHighlightCreateRequest,
     PassageHighlightResponse,
-    PassageTranslationResponse,
+    ReadingTranslationResponse,
     ReadingChoicePublic,
     ReadingItemDetail,
     ReadingItemPage,
@@ -57,7 +57,7 @@ from app.services.reading_policy import (
     is_level_for_language,
     level_sort_key,
 )
-from app.services.translation import TranslationError, translate_passage
+from app.services.translation import TranslationError, translate_texts
 from app.services.users import ensure_user
 
 router = APIRouter(prefix="/reading-items", tags=["reading items"])
@@ -321,27 +321,42 @@ async def get_reading_item(
 
 @router.post(
     "/{item_id}/translation",
-    response_model=PassageTranslationResponse,
+    response_model=ReadingTranslationResponse,
 )
 async def translate_reading_item(
     item_id: UUID,
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
-) -> PassageTranslationResponse:
+) -> ReadingTranslationResponse:
     item = await get_published_item(session, item_id)
     try:
-        translated_text = await translate_passage(item.passage, item.language)
+        translated_title, translated_passage, translated_question = await translate_texts(
+            [item.title, item.passage, item.question],
+            item.language,
+        )
     except TranslationError as error:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=str(error),
         ) from error
     target_language: ReadingLanguage = "ko" if item.language == "ja" else "ja"
-    return PassageTranslationResponse(
+    return ReadingTranslationResponse(
         source_language=item.language,
         target_language=target_language,
         source_text=item.passage,
-        translated_text=translated_text,
+        translated_text=translated_passage,
+        title={
+            "source_text": item.title,
+            "translated_text": translated_title,
+        },
+        passage={
+            "source_text": item.passage,
+            "translated_text": translated_passage,
+        },
+        question={
+            "source_text": item.question,
+            "translated_text": translated_question,
+        },
     )
 
 

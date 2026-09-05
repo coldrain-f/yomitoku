@@ -7,7 +7,7 @@ import {
   levelsForLanguage,
   readingTopics,
 } from "../lib/readingPolicy";
-import type { PassageTranslation } from "../lib/api";
+import type { ReadingTranslation } from "../lib/api";
 import type {
   AdminFilters,
   DialogConfig,
@@ -33,7 +33,7 @@ interface AppDialogContentProps {
   googleClientId: string;
   onGoogleCredential: (credential: string) => void;
   onGoogleError: (message: string) => void;
-  translation: PassageTranslation | null;
+  translation: ReadingTranslation | null;
   translationLoading: boolean;
   translationError: string;
 }
@@ -335,11 +335,18 @@ export function AppDialogContent({
   }
 
   if (type === "translation") {
+    const translationSections = translation
+      ? [
+          { label: "제목", segment: translation.title },
+          { label: "지문", segment: translation.passage },
+          { label: "문제", segment: translation.question },
+        ]
+      : [];
     return (
       <div className="translation-dialog">
         {translationLoading ? (
           <p className="translation-status" role="status">
-            지문을 번역하는 중입니다.
+            문항을 번역하는 중입니다.
           </p>
         ) : null}
         {translationError ? (
@@ -350,14 +357,28 @@ export function AppDialogContent({
         {translation ? (
           <div className="translation-comparison">
             <section className="translation-pane">
-              <h3>{languageLabels[translation.sourceLanguage]} 본문</h3>
-              <p lang={translation.sourceLanguage}>{translation.sourceText}</p>
+              <h3>{languageLabels[translation.sourceLanguage]} 원문</h3>
+              <dl className="translation-sections">
+                {translationSections.map(({ label, segment }) => (
+                  <div className="translation-section" key={label}>
+                    <dt>{label}</dt>
+                    <dd lang={translation.sourceLanguage}>{segment.sourceText}</dd>
+                  </div>
+                ))}
+              </dl>
             </section>
             <section className="translation-pane">
-              <h3>{languageLabels[translation.targetLanguage]} 해석</h3>
-              <p lang={translation.targetLanguage}>
-                {translation.translatedText}
-              </p>
+              <h3>{languageLabels[translation.targetLanguage]} 번역</h3>
+              <dl className="translation-sections">
+                {translationSections.map(({ label, segment }) => (
+                  <div className="translation-section" key={label}>
+                    <dt>{label}</dt>
+                    <dd lang={translation.targetLanguage}>
+                      {segment.translatedText}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
             </section>
           </div>
         ) : null}

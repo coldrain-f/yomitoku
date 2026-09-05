@@ -10,6 +10,7 @@ from app.schemas import (
     AdminReadingItemUpdate,
     GenerationConditions,
 )
+from app.services import translation as translation_service
 from app.services.item_metrics import first_submissions_by_user_item
 from app.services.reading_policy import (
     RECOMMENDED_SECONDS,
@@ -97,6 +98,43 @@ def test_recommended_seconds_match_the_reading_lengths() -> None:
 def test_deepl_translation_url_uses_the_free_endpoint_for_free_keys() -> None:
     assert deepl_translate_url("abc123:fx") == "https://api-free.deepl.com/v2/translate"
     assert deepl_translate_url("abc123") == "https://api.deepl.com/v2/translate"
+
+
+@pytest.mark.asyncio
+async def test_translate_texts_batches_uncached_sections(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[list[str]] = []
+
+    def fake_translate(
+        *, api_key: str, source_texts: list[str], source_language: str
+    ) -> list[str]:
+        assert api_key == "deepl-key"
+        assert source_language == "ja"
+        calls.append(source_texts)
+        return [f"translated {source_text}" for source_text in source_texts]
+
+    translation_service._translation_cache.clear()
+    monkeypatch.setattr(
+        translation_service,
+        "get_settings",
+        lambda: SimpleNamespace(
+            deepl_api_key=SimpleNamespace(get_secret_value=lambda: "deepl-key")
+        ),
+    )
+    monkeypatch.setattr(translation_service, "_translate_with_deepl", fake_translate)
+    try:
+        translated = await translation_service.translate_texts(
+            ["title", "passage", "question"],
+            "ja",
+        )
+    finally:
+        translation_service._translation_cache.clear()
+
+    assert translated == [
+        "translated title",
+        "translated passage",
+        "translated question",
+    ]
+    assert calls == [["title", "passage", "question"]]
 
 
 def test_first_submissions_keep_the_original_outcome() -> None:

@@ -177,11 +177,17 @@ export interface RestoredAttempt {
   result: SubmittedAttempt | null;
 }
 
-export interface PassageTranslation {
-  sourceLanguage: ReadingLanguage;
-  targetLanguage: ReadingLanguage;
+export interface TranslationSegment {
   sourceText: string;
   translatedText: string;
+}
+
+export interface ReadingTranslation {
+  sourceLanguage: ReadingLanguage;
+  targetLanguage: ReadingLanguage;
+  title: TranslationSegment;
+  passage: TranslationSegment;
+  question: TranslationSegment;
 }
 
 export interface GenerationJob {
@@ -464,7 +470,7 @@ export const api = {
       body: JSON.stringify({ selectedChoiceId, clientElapsedSeconds }),
     }),
   translateReading: (itemId: string) =>
-    request<PassageTranslation>(`/reading-items/${itemId}/translation`, {
+    request<ReadingTranslation>(`/reading-items/${itemId}/translation`, {
       method: "POST",
     }),
   highlights: (itemId: string) =>
