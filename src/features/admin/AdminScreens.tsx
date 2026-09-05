@@ -49,6 +49,7 @@ import type {
   AdminFilters,
   DifficultyLevel,
   GenerationValues,
+  ItemValidation,
   LengthType,
   ManualReadingDraft,
   ReadingItem,
@@ -155,6 +156,78 @@ function validationStatusClass(status: string): string {
   if (status === "passed") return "badge ok";
   if (status === "failed") return "badge danger";
   return "badge";
+}
+
+function validationStateFor(validations: ItemValidation[]): "passed" | "warning" | "failed" | "unknown" {
+  if (validations.some((validation) => validation.status === "failed")) return "failed";
+  if (validations.some((validation) => validation.status === "warning")) return "warning";
+  return validations.length ? "passed" : "unknown";
+}
+
+function ValidationRecords({
+  validations,
+  held = false,
+}: {
+  validations: ItemValidation[];
+  held?: boolean;
+}) {
+  const state = validationStateFor(validations);
+  const records = held
+    ? validations.filter((validation) => validation.status !== "passed")
+    : validations;
+
+  return (
+    <section className="admin-validation" aria-label={held ? "보류 사유" : "생성 검증"}>
+      <div className="admin-section-heading">
+        <h2 className="admin-section-title">{held ? "보류 사유" : "생성 검증"}</h2>
+        <span className={validationStatusClass(state)}>
+          {state === "unknown" ? "기록 없음" : `검증 ${validationStatusLabel(state)}`}
+        </span>
+      </div>
+      {records.length ? (
+        <div className="admin-validation-records">
+          {records.map((validation) => (
+            <article className="admin-validation-record" key={`${validation.validatorRole}-${validation.createdAt}`}>
+              <div className="admin-validation-record-head">
+                <div>
+                  <h3 className="admin-subsection-title">
+                    {validationRoleLabels[validation.validatorRole] ?? validation.validatorRole}
+                  </h3>
+                  <p className="admin-record-model">{validation.modelId}</p>
+                </div>
+                <div className="admin-record-meta">
+                  {validation.score !== null ? (
+                    <span className="admin-validation-score">{validation.score}점</span>
+                  ) : null}
+                  <span className={validationStatusClass(validation.status)}>
+                    {validationStatusLabel(validation.status)}
+                  </span>
+                </div>
+              </div>
+              {validation.issueCodes.length ? (
+                <p className="admin-validation-issues">
+                  {validation.issueCodes.join(" · ")}
+                </p>
+              ) : null}
+              {validation.evidence.length ? (
+                <ul className="admin-validation-evidence">
+                  {validation.evidence.map((evidence, index) => (
+                    <li key={`${validation.validatorRole}-${index}`}>{evidence}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p className="admin-empty-detail">
+          {held
+            ? "AI 검증에는 문제가 없으며, 관리자가 보류로 전환한 문항입니다."
+            : "AI 생성 문항이 아니어서 검증 기록이 없습니다."}
+        </p>
+      )}
+    </section>
+  );
 }
 
 function generationStatusLabel(status: string): string {
@@ -594,16 +667,6 @@ export function AdminEdit({
   isSuggestingTitle = false,
   titleSuggestionError = "",
 }: AdminEditProps) {
-  const validationState = item.validations.some(
-    (validation) => validation.status === "failed",
-  )
-    ? "failed"
-    : item.validations.some((validation) => validation.status === "warning")
-      ? "warning"
-      : item.validations.length
-        ? "passed"
-        : "unknown";
-
   const updateChoice = (index: number, text: string) =>
     setDraft({
       ...draft,
@@ -871,54 +934,7 @@ export function AdminEdit({
               )}
             </section>
           </section> : null}
-          {!manual ? <section className="admin-validation">
-            <div className="admin-section-heading">
-              <h2 className="admin-section-title">생성 검증</h2>
-              <span className={validationStatusClass(validationState)}>
-                {validationState === "unknown"
-                  ? "기록 없음"
-                  : `검증 ${validationStatusLabel(validationState)}`}
-              </span>
-            </div>
-            {item.validations.length ? (
-              <div className="admin-validation-records">
-                {item.validations.map((validation) => (
-                  <article className="admin-validation-record" key={`${validation.validatorRole}-${validation.createdAt}`}>
-                    <div className="admin-validation-record-head">
-                      <div>
-                        <h3 className="admin-subsection-title">
-                          {validationRoleLabels[validation.validatorRole] ?? validation.validatorRole}
-                        </h3>
-                        <p className="admin-record-model">{validation.modelId}</p>
-                      </div>
-                      <div className="admin-record-meta">
-                        {validation.score !== null ? (
-                          <span className="admin-validation-score">{validation.score}점</span>
-                        ) : null}
-                        <span className={validationStatusClass(validation.status)}>
-                          {validationStatusLabel(validation.status)}
-                        </span>
-                      </div>
-                    </div>
-                    {validation.issueCodes.length ? (
-                      <p className="admin-validation-issues">
-                        {validation.issueCodes.join(" · ")}
-                      </p>
-                    ) : null}
-                    {validation.evidence.length ? (
-                      <ul className="admin-validation-evidence">
-                        {validation.evidence.map((evidence, index) => (
-                          <li key={`${validation.validatorRole}-${index}`}>{evidence}</li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <p className="admin-empty-detail">AI 생성 문항이 아니어서 검증 기록이 없습니다.</p>
-            )}
-          </section> : null}
+          {!manual ? <ValidationRecords validations={item.validations} /> : null}
         </fieldset>
         <div className="footer-actions admin-edit-actions">
           <div className="admin-edit-secondary">
@@ -1355,6 +1371,7 @@ export function PreviewScreen({
               <span>{item.explanation}</span>
             </div>
           </div>
+          {held ? <ValidationRecords validations={item.validations} held /> : null}
           <div className="footer-actions preview-actions">
             <div className="preview-actions-secondary">
               {held ? (
@@ -1384,7 +1401,6 @@ export function PreviewScreen({
               <button
                 className="primary-button"
                 type="button"
-                disabled={held}
                 onClick={onPublish}
               >
                 <Icon icon={Upload} />
