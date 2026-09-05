@@ -40,6 +40,7 @@ DistractorType = Literal[
     "partial_truth_off_focus",
     "scope_or_degree_distortion",
     "unsupported_inference",
+    "textual_contradiction",
 ]
 
 

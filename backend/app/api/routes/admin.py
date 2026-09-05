@@ -343,7 +343,7 @@ async def create_generation_job(
         generator_model=generator_model,
         answer_validator_model=validator_model,
         quality_validator_model=validator_model,
-        prompt_version="v5",
+        prompt_version="v6",
     )
     session.add(job)
     await session.commit()

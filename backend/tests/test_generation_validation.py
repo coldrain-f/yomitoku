@@ -171,6 +171,7 @@ async def test_anthropic_generation_uses_native_structured_output() -> None:
     assert messages.calls[0]["system"][0]["cache_control"] == {"type": "ephemeral"}
     assert result.usage.total_input_tokens == 900
     assert "Write the explanation and every wrongExplanation naturally in Korean." in messages.calls[0]["messages"][0]["content"]
+    assert "do not mix it with Japanese mid-sentence." in messages.calls[0]["messages"][0]["content"]
     assert '"지역 도서관", "청소년 자원봉사"' in messages.calls[0]["messages"][0]["content"]
 
 
@@ -265,6 +266,8 @@ async def test_anthropic_validators_use_native_structured_output() -> None:
         "validator-model",
     ]
     assert "DISTRACTOR_TYPE_MISMATCH" in messages.calls[1]["system"][0]["text"]
+    assert "Korean TOPIK items require Japanese" in messages.calls[1]["system"][0]["text"]
+    assert "Write every evidence string in Korean" in messages.calls[1]["system"][0]["text"]
     assert messages.calls[1]["system"][0]["cache_control"] == {"type": "ephemeral"}
     assert [call["max_tokens"] for call in messages.calls] == [
         ANSWER_VALIDATOR_MAX_TOKENS,
@@ -304,6 +307,20 @@ async def test_anthropic_korean_generation_requests_japanese_explanations() -> N
     await provider.generate(conditions, [], "generator-model")
 
     assert "Write the explanation and every wrongExplanation naturally in Japanese." in messages.calls[0]["messages"][0]["content"]
+    assert "do not mix it with Korean mid-sentence." in messages.calls[0]["messages"][0]["content"]
+
+
+def test_generated_choice_supports_textual_contradiction_distractors() -> None:
+    choice = GeneratedChoice.model_validate(
+        {
+            "text": "본문의 명시적 진술과 반대되는 선택지",
+            "isCorrect": False,
+            "wrongExplanation": "本文の明示的な記述と矛盾しています。",
+            "distractorType": "textual_contradiction",
+        }
+    )
+
+    assert choice.distractor_type == "textual_contradiction"
 
 
 def test_validator_outcome_accepts_structured_evidence_entries() -> None:

@@ -47,6 +47,7 @@ Use three different distractor types, one for each incorrect choice:
 - partial_truth_off_focus: a true minor detail that does not answer the question's main focus.
 - scope_or_degree_distortion: exaggerate or narrow a qualified claim such as some/may/tends to.
 - unsupported_inference: a tempting conclusion that the passage does not justify.
+- textual_contradiction: directly contradict an explicit passage statement while retaining a plausible detail.
 Choose only types that fit the passage; do not force an unnatural reversal. The three types must be distinct.
 The wrongExplanation for each distractor must identify the relevant passage idea and the exact mismatch.
 
@@ -67,7 +68,8 @@ Use precise issueCodes when needed: ANSWER_MISMATCH, MULTIPLE_SUPPORTED_ANSWERS,
 NO_SUPPORTED_ANSWER, UNSUPPORTED_CORRECT_ANSWER, QUESTION_AMBIGUITY, or
 BACKGROUND_KNOWLEDGE_DEPENDENCY. Evidence must name the choice and the passage fact that supports the judgment.
 For passed items, return empty issueCodes and evidence. Otherwise return at most three concise evidence strings,
-each no longer than 220 characters. Do not include chain-of-thought or a general review.
+each no longer than 220 characters. Write every evidence string in Korean for the administrator interface.
+Do not include chain-of-thought or a general review.
 Return status, score (0-100), issueCodes, evidence, and correctChoiceIndex (1-4)."""
 
 QUALITY_VALIDATOR_SYSTEM_PROMPT: Final = """You are an exacting reading-comprehension item editor.
@@ -81,13 +83,19 @@ Verify all of the following:
    without reading the passage.
 5. The question, vocabulary, grammar, and inference demand fit the requested level.
 
+This product intentionally uses cross-language learner explanations: Korean TOPIK items require Japanese
+explanation and wrongExplanation fields, while Japanese JLPT items require Korean fields. Judge those fields
+against this rule, not the reading language. Flag an explanation-language problem only when it mixes languages
+unnaturally or does not follow this cross-language rule.
+
 Mark weak or ambiguous distractors with specific issueCodes such as WEAK_DISTRACTOR,
 DISTRACTOR_OVERLAP, DISTRACTOR_NOT_TEXT_ANCHORED, DISTRACTOR_TYPE_MISMATCH,
 BACKGROUND_KNOWLEDGE_DEPENDENCY, QUESTION_AMBIGUITY, OUT_OF_LEVEL, or EXPLANATION_MISMATCH.
 Give passed only to a clean item with score 85 or higher. Use warning for a repairable problem and failed for
 an ambiguous item with more than one defensible answer. Evidence must identify the choice and its exact issue.
 For passed items, return empty issueCodes and evidence. Otherwise return at most three concise evidence strings,
-each no longer than 220 characters. Do not include chain-of-thought or a general review.
+each no longer than 220 characters. Write every evidence string in Korean for the administrator interface.
+Do not include chain-of-thought or a general review.
 Return status, score (0-100), issueCodes, and evidence."""
 
 
@@ -365,6 +373,8 @@ Do not repeat the first sentence verbatim, add unsupported facts, or include quo
 Create one rigorous, exam-style {language_name} reading-comprehension item.
 Write the title, passage, question, and choices naturally in {language_name}.
 Write the explanation and every wrongExplanation naturally in {explanation_language}.
+Keep each explanation entirely in {explanation_language}, except for short source quotations or proper nouns;
+do not mix it with {language_name} mid-sentence.
 Requested {level_name} level: {conditions.official_level}
 Requested length: {conditions.length_type}
 Topic: {topic}
