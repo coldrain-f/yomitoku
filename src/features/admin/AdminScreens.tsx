@@ -823,13 +823,17 @@ export function AdminEdit({
                 <span className="form-label">주제</span>
                 {manual && onSuggestTopic ? (
                   <button
-                    className="text-button admin-ai-suggest"
+                    className={
+                      "admin-topic-suggest" +
+                      (isSuggestingTopic ? " is-loading" : "")
+                    }
                     type="button"
                     onClick={onSuggestTopic}
                     disabled={isSuggestingTopic || !draft.passage.trim()}
+                    aria-label={isSuggestingTopic ? "AI 주제 제안 중" : "AI 주제 제안"}
+                    title={isSuggestingTopic ? "AI 주제 제안 중" : "AI 주제 제안"}
                   >
-                    <Icon icon={Sparkles} />
-                    {isSuggestingTopic ? "주제 찾는 중" : "AI 주제 제안"}
+                    <Icon icon={isSuggestingTopic ? RefreshCw : Sparkles} />
                   </button>
                 ) : null}
               </div>

@@ -627,6 +627,39 @@ fieldset.admin-edit-form {
   font-size: 12px;
 }
 
+.admin-topic-suggest {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted);
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.admin-topic-suggest:hover:not(:disabled),
+.admin-topic-suggest:focus-visible:not(:disabled) {
+  background: #f1f2ed;
+  color: var(--ink);
+}
+
+.admin-topic-suggest [data-lucide] {
+  width: 14px;
+  height: 14px;
+}
+
+.admin-topic-suggest.is-loading [data-lucide] {
+  animation: admin-topic-suggest-spin 0.9s linear infinite;
+}
+
+@keyframes admin-topic-suggest-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .input-field,
 .admin-textarea {
   width: 100%;
