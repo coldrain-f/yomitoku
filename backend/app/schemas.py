@@ -124,6 +124,14 @@ class GeneratedTitle(ApiModel):
     title: str = Field(min_length=1, max_length=255)
 
 
+class GeneratedTopic(ApiModel):
+    topic: str = Field(min_length=1, max_length=32)
+
+
+class GeneratedExplanation(ApiModel):
+    explanation: str = Field(min_length=1, max_length=800)
+
+
 class ValidatorOutcome(ApiModel):
     status: ValidationStatus
     score: int = Field(ge=0, le=100)
@@ -434,6 +442,31 @@ class AdminTitleSuggestionRequest(ApiModel):
 
 class AdminTitleSuggestionResponse(ApiModel):
     title: str
+
+
+class AdminTopicSuggestionRequest(ApiModel):
+    passage: str = Field(min_length=1, max_length=20_000)
+    language: ReadingLanguage
+
+
+class AdminTopicSuggestionResponse(ApiModel):
+    topic: str
+
+
+class AdminExplanationSuggestionRequest(ApiModel):
+    passage: str = Field(min_length=1, max_length=20_000)
+    question: str = Field(min_length=1, max_length=4_000)
+    choices: list[ReadingChoiceInput]
+    language: ReadingLanguage
+
+    @model_validator(mode="after")
+    def validate_choices(self) -> "AdminExplanationSuggestionRequest":
+        validate_choice_inputs(self.choices)
+        return self
+
+
+class AdminExplanationSuggestionResponse(ApiModel):
+    explanation: str
 
 
 class AdminReadingItemUpdate(ApiModel):

@@ -553,6 +553,29 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ passage, language }),
     }),
+  suggestAdminTopic: (passage: string, language: ReadingLanguage) =>
+    request<{ topic: Topic }>("/admin/reading-items/topic-suggestion", {
+      method: "POST",
+      body: JSON.stringify({ passage, language }),
+    }),
+  suggestAdminExplanation: (
+    passage: string,
+    question: string,
+    choices: Choice[],
+    language: ReadingLanguage,
+  ) =>
+    request<{ explanation: string }>("/admin/reading-items/explanation-suggestion", {
+      method: "POST",
+      body: JSON.stringify({
+        passage,
+        question,
+        language,
+        choices: choices.map((choice) => ({
+          text: choice.text,
+          isCorrect: Boolean(choice.isCorrect),
+        })),
+      }),
+    }),
   publish: async (itemId: string) => {
     const response = await request<ApiReadingDetail>(`/admin/reading-items/${itemId}/publish`, {
       method: "POST",

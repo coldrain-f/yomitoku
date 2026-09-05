@@ -21,11 +21,15 @@ from app.db.models import (
 )
 from app.db.session import get_session
 from app.schemas import (
+    AdminExplanationSuggestionRequest,
+    AdminExplanationSuggestionResponse,
     AdminReadingItemCreate,
     AdminReadingItemDetail,
     AdminReadingItemUpdate,
     AdminTitleSuggestionRequest,
     AdminTitleSuggestionResponse,
+    AdminTopicSuggestionRequest,
+    AdminTopicSuggestionResponse,
     GenerationConditions,
     GenerationJobCreateRequest,
     GenerationJobHistoryItem,
@@ -47,6 +51,7 @@ from app.services.generation_provider import build_generation_provider
 from app.services.generation_topics import resolve_generation_topic
 from app.services.item_metrics import ItemMetrics, collect_item_metrics
 from app.services.reading_policy import (
+    GENERATION_TOPICS,
     MINIMUM_PERCEIVED_LEVEL_VOTES,
     is_level_for_language,
     level_sort_key,
@@ -391,6 +396,64 @@ async def suggest_admin_reading_title(
             detail="AI 제목 제안에 실패했습니다. 잠시 후 다시 시도해 주세요.",
         ) from error
     return AdminTitleSuggestionResponse(title=result.value.title.strip())
+
+
+@router.post(
+    "/reading-items/topic-suggestion",
+    response_model=AdminTopicSuggestionResponse,
+)
+async def suggest_admin_reading_topic(
+    request: AdminTopicSuggestionRequest,
+    current_user: Annotated[CurrentUser, Depends(require_admin)],
+) -> AdminTopicSuggestionResponse:
+    settings = get_settings()
+    provider = build_generation_provider(settings)
+    try:
+        result = await provider.suggest_topic(
+            request.passage.strip(),
+            request.language,
+            settings.generator_model,
+        )
+    except RuntimeError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI 주제 제안에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+        ) from error
+
+    topic = result.value.topic.strip()
+    if topic not in GENERATION_TOPICS:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI가 선택할 수 없는 주제를 반환했습니다. 다시 시도해 주세요.",
+        )
+    return AdminTopicSuggestionResponse(topic=topic)
+
+
+@router.post(
+    "/reading-items/explanation-suggestion",
+    response_model=AdminExplanationSuggestionResponse,
+)
+async def suggest_admin_reading_explanation(
+    request: AdminExplanationSuggestionRequest,
+    current_user: Annotated[CurrentUser, Depends(require_admin)],
+) -> AdminExplanationSuggestionResponse:
+    settings = get_settings()
+    provider = build_generation_provider(settings)
+    try:
+        result = await provider.suggest_explanation(request, settings.generator_model)
+    except RuntimeError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI 해설 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+        ) from error
+
+    explanation = result.value.explanation.strip()
+    if not explanation:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI가 해설을 만들지 못했습니다. 다시 시도해 주세요.",
+        )
+    return AdminExplanationSuggestionResponse(explanation=explanation)
 
 
 @router.get("/generation-jobs", response_model=GenerationJobHistoryPage)

@@ -10,14 +10,21 @@ from pydantic import BaseModel, ValidationError
 
 from app.core.config import Settings
 from app.schemas import (
+    AdminExplanationSuggestionRequest,
     GeneratedChoice,
+    GeneratedExplanation,
     GeneratedReading,
     GeneratedTitle,
+    GeneratedTopic,
     GenerationConditions,
     ReadingLanguage,
     ValidatorOutcome,
 )
-from app.services.reading_policy import PASSAGE_CHARACTER_LIMITS, TOPIC_LABELS
+from app.services.reading_policy import (
+    GENERATION_TOPICS,
+    PASSAGE_CHARACTER_LIMITS,
+    TOPIC_LABELS,
+)
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -28,6 +35,8 @@ GENERATOR_MAX_TOKENS_BY_LENGTH: Final = {
 }
 ANSWER_VALIDATOR_MAX_TOKENS: Final = 600
 QUALITY_VALIDATOR_MAX_TOKENS: Final = 1_600
+TOPIC_SUGGESTION_MAX_TOKENS: Final = 100
+EXPLANATION_SUGGESTION_MAX_TOKENS: Final = 500
 CACHE_CONTROL: Final = {"type": "ephemeral"}
 PASSAGE_CHARACTER_TARGETS: Final = {
     "short": (140, 320),
@@ -57,6 +66,14 @@ to one of the listed types for every incorrect choice. Exactly one choice must h
 
 TITLE_SYSTEM_PROMPT: Final = """You write concise, natural titles for reading passages.
 Capture the central topic without adding claims absent from the passage. Return only the requested title."""
+
+TOPIC_SYSTEM_PROMPT: Final = """You categorize reading passages for an exam-preparation product.
+Choose exactly one topic from the supplied allowed topic labels. Base the choice on the passage's central
+subject, not a minor example or incidental word. Return only the requested topic."""
+
+EXPLANATION_SYSTEM_PROMPT: Final = """You write concise, accurate reading-comprehension explanations.
+Explain why the supplied correct choice is supported by the passage. Use only the supplied passage and do
+not invent context, evaluate the other choices, or reveal hidden reasoning. Return only the requested explanation."""
 
 ANSWER_VALIDATOR_SYSTEM_PROMPT: Final = """Independently solve each supplied reading question.
 Use only passage evidence. Identify the best answer, then check whether another choice is also defensible,
@@ -167,6 +184,16 @@ class GenerationProvider(Protocol):
         self, passage: str, language: ReadingLanguage, model: str
     ) -> ProviderResult[GeneratedTitle]: ...
 
+    async def suggest_topic(
+        self, passage: str, language: ReadingLanguage, model: str
+    ) -> ProviderResult[GeneratedTopic]: ...
+
+    async def suggest_explanation(
+        self,
+        request: AdminExplanationSuggestionRequest,
+        model: str,
+    ) -> ProviderResult[GeneratedExplanation]: ...
+
     async def generate(
         self,
         conditions: GenerationConditions,
@@ -202,6 +229,42 @@ class StubGenerationProvider:
         if not title:
             title = "새 독해 지문" if language == "ko" else "新しい読解"
         return self._result(GeneratedTitle(title=title), model)
+
+    async def suggest_topic(
+        self, passage: str, language: ReadingLanguage, model: str
+    ) -> ProviderResult[GeneratedTopic]:
+        topic = next(
+            (
+                candidate
+                for candidate in GENERATION_TOPICS
+                if candidate in passage
+                or TOPIC_LABELS.get(candidate, "") in passage
+            ),
+            "생활",
+        )
+        return self._result(GeneratedTopic(topic=topic), model)
+
+    async def suggest_explanation(
+        self,
+        request: AdminExplanationSuggestionRequest,
+        model: str,
+    ) -> ProviderResult[GeneratedExplanation]:
+        correct_choice = next(choice for choice in request.choices if choice.is_correct)
+        source = next(
+            (line.strip() for line in request.passage.splitlines() if line.strip()),
+            request.passage.strip(),
+        )
+        if request.language == "ja":
+            explanation = (
+                f"본문은 ‘{source[:120]}’라고 설명하므로, 정답은 "
+                f"‘{correct_choice.text}’입니다."
+            )
+        else:
+            explanation = (
+                f"本文は「{source[:120]}」と述べているため、正解は"
+                f"「{correct_choice.text}」です。"
+            )
+        return self._result(GeneratedExplanation(explanation=explanation), model)
 
     async def generate(
         self,
@@ -343,6 +406,59 @@ Do not repeat the first sentence verbatim, add unsupported facts, or include quo
             prompt,
             GeneratedTitle,
             max_tokens=120,
+        )
+
+    async def suggest_topic(
+        self, passage: str, language: ReadingLanguage, model: str
+    ) -> ProviderResult[GeneratedTopic]:
+        language_name = "Japanese" if language == "ja" else "Korean"
+        topics = escape(json.dumps(GENERATION_TOPICS, ensure_ascii=False), quote=False)
+        prompt = f"""<topic_suggestion language="{language_name}">
+Choose the single best topic for the passage from this exact allowed list:
+<allowed_topics>{topics}</allowed_topics>
+Return the topic text exactly as it appears in the list. The topic labels are Korean product
+categories even when the passage is Japanese.
+<passage>{escape(passage, quote=False)}</passage>
+</topic_suggestion>"""
+        return await self._structured_response(
+            model,
+            TOPIC_SYSTEM_PROMPT,
+            prompt,
+            GeneratedTopic,
+            max_tokens=TOPIC_SUGGESTION_MAX_TOKENS,
+        )
+
+    async def suggest_explanation(
+        self,
+        request: AdminExplanationSuggestionRequest,
+        model: str,
+    ) -> ProviderResult[GeneratedExplanation]:
+        language_name = "Japanese" if request.language == "ja" else "Korean"
+        explanation_language = "Korean" if request.language == "ja" else "Japanese"
+        correct_choice_index = next(
+            index
+            for index, choice in enumerate(request.choices, start=1)
+            if choice.is_correct
+        )
+        choices = "\n".join(
+            f"{index}. {escape(choice.text, quote=False)}"
+            for index, choice in enumerate(request.choices, start=1)
+        )
+        prompt = f"""<explanation_suggestion>
+The reading item is written in {language_name}. Write one concise, natural explanation in
+{explanation_language}. The correct choice is number {correct_choice_index}. Cite the relevant
+passage idea, and explain only why that choice is correct. Do not add facts, discuss distractors,
+or mix languages mid-sentence.
+<passage>{escape(request.passage, quote=False)}</passage>
+<question>{escape(request.question, quote=False)}</question>
+<choices>{choices}</choices>
+</explanation_suggestion>"""
+        return await self._structured_response(
+            model,
+            EXPLANATION_SYSTEM_PROMPT,
+            prompt,
+            GeneratedExplanation,
+            max_tokens=EXPLANATION_SUGGESTION_MAX_TOKENS,
         )
 
     async def generate(

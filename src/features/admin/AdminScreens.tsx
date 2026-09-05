@@ -85,6 +85,12 @@ interface AdminEditProps {
   onSuggestTitle?: () => void;
   isSuggestingTitle?: boolean;
   titleSuggestionError?: string;
+  onSuggestTopic?: () => void;
+  isSuggestingTopic?: boolean;
+  topicSuggestionError?: string;
+  onSuggestExplanation?: () => void;
+  isSuggestingExplanation?: boolean;
+  explanationSuggestionError?: string;
 }
 
 interface GenerateScreenProps {
@@ -108,6 +114,16 @@ interface ManualCreateScreenProps {
   onBack: () => void;
   onSuggestTitle: (
     passage: string,
+    language: ReadingLanguage,
+  ) => Promise<string>;
+  onSuggestTopic: (
+    passage: string,
+    language: ReadingLanguage,
+  ) => Promise<Topic>;
+  onSuggestExplanation: (
+    passage: string,
+    question: string,
+    choices: ManualReadingDraft["choices"],
     language: ReadingLanguage,
   ) => Promise<string>;
 }
@@ -666,7 +682,15 @@ export function AdminEdit({
   onSuggestTitle,
   isSuggestingTitle = false,
   titleSuggestionError = "",
+  onSuggestTopic,
+  isSuggestingTopic = false,
+  topicSuggestionError = "",
+  onSuggestExplanation,
+  isSuggestingExplanation = false,
+  explanationSuggestionError = "",
 }: AdminEditProps) {
+  const isWorking =
+    isSaving || isSuggestingTitle || isSuggestingTopic || isSuggestingExplanation;
   const updateChoice = (index: number, text: string) =>
     setDraft({
       ...draft,
@@ -679,7 +703,7 @@ export function AdminEdit({
     <section
       className={["screen", "screen-admin-edit", manual ? "screen-manual-create" : ""].filter(Boolean).join(" ")}
       aria-label={manual ? "독해 문항 직접 등록" : "관리자 문항 편집"}
-      aria-busy={isSaving}
+      aria-busy={isWorking}
       data-reading-language={draft.language}
     >
       <div className="paper">
@@ -692,13 +716,13 @@ export function AdminEdit({
             {manual ? "검토 전" : statusLabel(item.status)}
           </span>
         </div>
-        <fieldset className="admin-edit-form" disabled={isSaving}>
+        <fieldset className="admin-edit-form" disabled={isWorking}>
           <div className="admin-field admin-field-wide admin-title-field">
             <div className="admin-field-label-row">
               <span className="form-label">제목</span>
               {manual && onSuggestTitle ? (
                 <button
-                  className="text-button admin-title-suggest"
+                  className="text-button admin-ai-suggest"
                   type="button"
                   onClick={onSuggestTitle}
                   disabled={isSuggestingTitle || !draft.passage.trim()}
@@ -794,8 +818,21 @@ export function AdminEdit({
                 ))}
               </select>
             </label>
-            <label className="admin-field">
-              <span className="form-label">주제</span>
+            <div className="admin-field">
+              <div className="admin-field-label-row">
+                <span className="form-label">주제</span>
+                {manual && onSuggestTopic ? (
+                  <button
+                    className="text-button admin-ai-suggest"
+                    type="button"
+                    onClick={onSuggestTopic}
+                    disabled={isSuggestingTopic || !draft.passage.trim()}
+                  >
+                    <Icon icon={Sparkles} />
+                    {isSuggestingTopic ? "주제 찾는 중" : "AI 주제 제안"}
+                  </button>
+                ) : null}
+              </div>
               <select
                 className="select-field"
                 value={draft.topic}
@@ -810,7 +847,12 @@ export function AdminEdit({
                   <option key={topic}>{topic}</option>
                 ))}
               </select>
-            </label>
+              {topicSuggestionError ? (
+                <p className="editor-error" role="alert">
+                  {topicSuggestionError}
+                </p>
+              ) : null}
+            </div>
           </div>
           <label className="admin-field admin-field-wide">
             <span className="form-label">지문</span>
@@ -874,8 +916,26 @@ export function AdminEdit({
               ))}
             </div>
           </section>
-          <label className="admin-field admin-field-wide">
-            <span className="form-label">해설</span>
+          <div className="admin-field admin-field-wide">
+            <div className="admin-field-label-row">
+              <span className="form-label">해설</span>
+              {manual && onSuggestExplanation ? (
+                <button
+                  className="text-button admin-ai-suggest"
+                  type="button"
+                  onClick={onSuggestExplanation}
+                  disabled={
+                    isSuggestingExplanation ||
+                    !draft.passage.trim() ||
+                    !draft.question.trim() ||
+                    draft.choices.some((choice) => !choice.text.trim())
+                  }
+                >
+                  <Icon icon={Sparkles} />
+                  {isSuggestingExplanation ? "해설 만드는 중" : "AI 해설 생성"}
+                </button>
+              ) : null}
+            </div>
             <textarea
               className="admin-textarea admin-explanation-textarea"
               value={draft.explanation}
@@ -883,7 +943,12 @@ export function AdminEdit({
                 setDraft({ ...draft, explanation: event.target.value })
               }
             />
-          </label>
+            {explanationSuggestionError ? (
+              <p className="editor-error" role="alert">
+                {explanationSuggestionError}
+              </p>
+            ) : null}
+          </div>
           {manual && error ? <p className="editor-error" role="alert">{error}</p> : null}
           {!manual ? <section className="admin-insights">
             <div className="admin-section-heading">
@@ -942,7 +1007,7 @@ export function AdminEdit({
               className="link-button"
               type="button"
               onClick={() => onBack()}
-              disabled={isSaving}
+              disabled={isWorking}
             >
               관리 목록으로
             </button>
@@ -950,14 +1015,14 @@ export function AdminEdit({
               className="link-button preview-delete"
               type="button"
               onClick={onDelete}
-              disabled={isSaving}
+              disabled={isWorking}
             >
               <Icon icon={Trash2} />
               삭제
             </button> : null}
           </div>
           <div className="admin-edit-main">
-            {!manual ? <button className="text-button" type="button" onClick={onHold} disabled={isSaving}>
+            {!manual ? <button className="text-button" type="button" onClick={onHold} disabled={isWorking}>
               <Icon icon={Clock3} />
               {item.status === "held"
                 ? "보류 취소"
@@ -966,12 +1031,12 @@ export function AdminEdit({
                   : "보류"}
             </button> : null}
             {!manual && item.status !== "published" ? (
-              <button className="text-button" type="button" onClick={onPublish} disabled={isSaving}>
+              <button className="text-button" type="button" onClick={onPublish} disabled={isWorking}>
                 <Icon icon={Upload} />
                 게시하기
               </button>
             ) : null}
-            <button className="primary-button" type="button" onClick={onSave} disabled={isSaving}>
+            <button className="primary-button" type="button" onClick={onSave} disabled={isWorking}>
               <Icon icon={Save} />
               {isSaving ? "저장 중" : manual ? "검토 문항으로 저장" : "저장하기"}
             </button>
@@ -990,9 +1055,15 @@ export function ManualCreateScreen({
   onSave,
   onBack,
   onSuggestTitle,
+  onSuggestTopic,
+  onSuggestExplanation,
 }: ManualCreateScreenProps) {
   const [isSuggestingTitle, setIsSuggestingTitle] = useState(false);
   const [titleSuggestionError, setTitleSuggestionError] = useState("");
+  const [isSuggestingTopic, setIsSuggestingTopic] = useState(false);
+  const [topicSuggestionError, setTopicSuggestionError] = useState("");
+  const [isSuggestingExplanation, setIsSuggestingExplanation] = useState(false);
+  const [explanationSuggestionError, setExplanationSuggestionError] = useState("");
   const suggestTitle = async () => {
     const passage = values.passage.trim();
     if (!passage) {
@@ -1013,6 +1084,58 @@ export function ManualCreateScreen({
       );
     } finally {
       setIsSuggestingTitle(false);
+    }
+  };
+  const suggestTopic = async () => {
+    const passage = values.passage.trim();
+    if (!passage) {
+      setTopicSuggestionError("지문을 먼저 입력해 주세요.");
+      return;
+    }
+    setIsSuggestingTopic(true);
+    setTopicSuggestionError("");
+    try {
+      const topic = await onSuggestTopic(passage, values.language);
+      if (!readingTopics.includes(topic)) {
+        throw new Error("AI가 목록에 없는 주제를 반환했습니다.");
+      }
+      setValues((current) => ({ ...current, topic }));
+    } catch (suggestionError) {
+      setTopicSuggestionError(
+        suggestionError instanceof Error
+          ? suggestionError.message
+          : "AI 주제 제안에 실패했습니다.",
+      );
+    } finally {
+      setIsSuggestingTopic(false);
+    }
+  };
+  const suggestExplanation = async () => {
+    const passage = values.passage.trim();
+    const question = values.question.trim();
+    if (!passage || !question || values.choices.some((choice) => !choice.text.trim())) {
+      setExplanationSuggestionError("지문, 문제, 선택지 네 개를 모두 입력해 주세요.");
+      return;
+    }
+    setIsSuggestingExplanation(true);
+    setExplanationSuggestionError("");
+    try {
+      const explanation = await onSuggestExplanation(
+        passage,
+        question,
+        values.choices,
+        values.language,
+      );
+      if (!explanation.trim()) throw new Error("AI가 해설을 만들지 못했습니다.");
+      setValues((current) => ({ ...current, explanation: explanation.trim() }));
+    } catch (suggestionError) {
+      setExplanationSuggestionError(
+        suggestionError instanceof Error
+          ? suggestionError.message
+          : "AI 해설 생성에 실패했습니다.",
+      );
+    } finally {
+      setIsSuggestingExplanation(false);
     }
   };
   const draft: ReadingItem = {
@@ -1070,6 +1193,12 @@ export function ManualCreateScreen({
       onSuggestTitle={() => void suggestTitle()}
       isSuggestingTitle={isSuggestingTitle}
       titleSuggestionError={titleSuggestionError}
+      onSuggestTopic={() => void suggestTopic()}
+      isSuggestingTopic={isSuggestingTopic}
+      topicSuggestionError={topicSuggestionError}
+      onSuggestExplanation={() => void suggestExplanation()}
+      isSuggestingExplanation={isSuggestingExplanation}
+      explanationSuggestionError={explanationSuggestionError}
     />
   );
 }

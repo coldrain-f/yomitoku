@@ -13,16 +13,21 @@ from app.graphs.generation import (
     validation_feedback,
 )
 from app.schemas import (
+    AdminExplanationSuggestionRequest,
     GeneratedChoice,
+    GeneratedExplanation,
     GeneratedReading,
     GeneratedTitle,
+    GeneratedTopic,
     GenerationConditions,
     ValidatorOutcome,
 )
 from app.services.generation_provider import (
     ANSWER_VALIDATOR_MAX_TOKENS,
+    EXPLANATION_SUGGESTION_MAX_TOKENS,
     GENERATOR_MAX_TOKENS_BY_LENGTH,
     QUALITY_VALIDATOR_MAX_TOKENS,
+    TOPIC_SUGGESTION_MAX_TOKENS,
     AnthropicGenerationProvider,
     GenerationOutputFormatError,
     GenerationOutputTruncatedError,
@@ -129,6 +134,13 @@ class FakeAnthropicMessages:
                 GeneratedTitle(title="理由を確かめる大切さ"),
                 self.stop_reason,
             )
+        if "topic" in properties:
+            return FakeParsedResponse(GeneratedTopic(topic="교육"), self.stop_reason)
+        if "explanation" in properties:
+            return FakeParsedResponse(
+                GeneratedExplanation(explanation="본문의 근거가 정답을 뒷받침합니다."),
+                self.stop_reason,
+            )
         if "status" in properties:
             return FakeParsedResponse(
                 ValidatorOutcome(
@@ -191,6 +203,38 @@ async def test_anthropic_title_suggestion_uses_native_structured_output() -> Non
     assert "title" in messages.calls[0]["output_config"]["format"]["schema"]["properties"]
     assert messages.calls[0]["model"] == "generator-model"
     assert messages.calls[0]["max_tokens"] == 120
+
+
+@pytest.mark.asyncio
+async def test_anthropic_manual_topic_and_explanation_suggestions_are_structured() -> None:
+    messages = FakeAnthropicMessages()
+    provider = _anthropic_provider_with_fake_client(messages)
+
+    topic = await provider.suggest_topic(
+        "学校では、学ぶ理由を自分で考える時間を増やした。",
+        "ja",
+        "generator-model",
+    )
+    explanation = await provider.suggest_explanation(
+        AdminExplanationSuggestionRequest(
+            passage="結果だけを見ると、理由を見落とすことがある。",
+            question="筆者が大切だと考えていることは何か。",
+            language="ja",
+            choices=_sample_generated_reading().choices,
+        ),
+        "generator-model",
+    )
+
+    assert topic.value.topic == "교육"
+    assert explanation.value.explanation == "본문의 근거가 정답을 뒷받침합니다."
+    assert "topic" in messages.calls[0]["output_config"]["format"]["schema"]["properties"]
+    assert "explanation" in messages.calls[1]["output_config"]["format"]["schema"]["properties"]
+    assert [call["max_tokens"] for call in messages.calls] == [
+        TOPIC_SUGGESTION_MAX_TOKENS,
+        EXPLANATION_SUGGESTION_MAX_TOKENS,
+    ]
+    assert "allowed list" in messages.calls[0]["messages"][0]["content"]
+    assert "correct choice is number 2" in messages.calls[1]["messages"][0]["content"]
 
 
 @pytest.mark.asyncio
