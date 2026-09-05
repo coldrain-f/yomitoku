@@ -508,6 +508,9 @@ export function GenerationHistoryScreen({
                     {job.errorDetail ? (
                       <p className="generation-history-failure">{job.errorDetail}</p>
                     ) : null}
+                    {job.usageComplete === false ? (
+                      <p className="generation-history-failure">일부 호출의 사용량이 미확인 상태입니다. 합계 토큰은 확인된 사용량만 포함합니다.</p>
+                    ) : null}
                     {job.usageEvents.length > 0 ? (
                       <div className="generation-usage-events">
                         <div className="generation-usage-event generation-usage-event-head" aria-hidden="true">
@@ -523,10 +526,10 @@ export function GenerationHistoryScreen({
                           <div className="generation-usage-event" key={event.eventIndex}>
                             <span>{generationStageLabels[event.stage] ?? event.stage}</span>
                             <span className="generation-usage-model">{event.modelId}</span>
-                            <span>{formatTokenCount(event.inputTokens)}</span>
-                            <span>{formatTokenCount(event.cacheCreationInputTokens)}</span>
-                            <span>{formatTokenCount(event.cacheReadInputTokens)}</span>
-                            <span>{formatTokenCount(event.outputTokens)}</span>
+                            <span>{formatTokenCount(event.usageStatus === "unknown" || event.usageStatus === "pending" ? null : event.inputTokens)}</span>
+                            <span>{formatTokenCount(event.usageStatus === "unknown" || event.usageStatus === "pending" ? null : event.cacheCreationInputTokens)}</span>
+                            <span>{formatTokenCount(event.usageStatus === "unknown" || event.usageStatus === "pending" ? null : event.cacheReadInputTokens)}</span>
+                            <span>{formatTokenCount(event.usageStatus === "unknown" || event.usageStatus === "pending" ? null : event.outputTokens)}</span>
                             <span title={event.stopReason ?? undefined}>{formatCost(event.actualCostUsd)}</span>
                           </div>
                         ))}
@@ -1206,7 +1209,7 @@ export function GenerateScreen({
         ) : null}
         {error ? <p className="generation-error" role="alert">{error}</p> : null}
         <div className="footer-actions">
-          <button className="link-button" type="button" onClick={onBack} disabled={isCreating}>
+          <button className="link-button" type="button" onClick={onBack}>
             관리 목록으로
           </button>
           <button className="primary-button" type="button" onClick={onCreate} disabled={isCreating || !modelOptions || !values.generatorModel || !values.validatorModel}>

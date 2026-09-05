@@ -166,6 +166,7 @@ class GenerationJobResponse(ApiModel):
 
 class GenerationUsageEventResponse(ApiModel):
     event_index: int
+    usage_status: Literal["pending", "recorded", "unknown"]
     stage: str
     model_id: str
     input_tokens: int
@@ -188,6 +189,7 @@ class GenerationJobHistoryItem(GenerationJobResponse):
     cache_read_input_tokens: int
     actual_cost_usd: float | None
     usage_events: list[GenerationUsageEventResponse]
+    usage_complete: bool
 
 
 class GenerationJobHistoryPage(ApiModel):

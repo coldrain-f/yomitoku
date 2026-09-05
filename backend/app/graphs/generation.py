@@ -10,19 +10,17 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import get_settings
 from app.db.models import (
-    GenerationJob,
-    GenerationUsageEvent,
     ItemValidation,
     ReadingChoice,
     ReadingItem,
 )
 from app.schemas import GeneratedReading, GenerationConditions, ValidatorOutcome
+from app.services.generation_jobs import lock_job, require_active, tracked_call
 from app.services.generation_provider import (
-    GenerationProvider,
     GenerationOutputTruncatedError,
+    GenerationProvider,
     GenerationStructuredOutputError,
     ModelUsage,
-    estimate_usage_cost,
 )
 from app.services.reading_policy import RECOMMENDED_SECONDS
 from app.services.validation import validate_generated_reading
@@ -37,8 +35,8 @@ class GenerationState(TypedDict):
     revision_feedback: list[str]
     item: NotRequired[dict[str, Any]]
     schema_issues: NotRequired[list[str]]
-    answer_validation: NotRequired[dict[str, Any]]
-    quality_validation: NotRequired[dict[str, Any]]
+    answer_validation: NotRequired[dict[str, Any] | None]
+    quality_validation: NotRequired[dict[str, Any] | None]
     terminal_status: NotRequired[str]
     output_retry_error: NotRequired[str | None]
     failure_code: NotRequired[str]
@@ -63,9 +61,8 @@ async def update_job_progress(
     current_node: str,
 ) -> None:
     async with session_factory() as session:
-        job = await session.get(GenerationJob, UUID(job_id))
-        if not job:
-            raise RuntimeError(f"Generation job {job_id} was not found.")
+        job = await lock_job(session, UUID(job_id))
+        require_active(job)
         job.status = status
         job.current_node = current_node
         await session.commit()
@@ -141,38 +138,6 @@ def usage_event(stage: str, usage: ModelUsage) -> dict[str, Any]:
     return {"stage": stage, **usage.model_dump(mode="json")}
 
 
-def apply_usage_totals(job: GenerationJob, usage_events: list[dict[str, Any]]) -> None:
-    usage = [ModelUsage.model_validate(event) for event in usage_events]
-    costs = [estimate_usage_cost(event) for event in usage]
-    job.input_tokens = sum(event.total_input_tokens for event in usage)
-    job.output_tokens = sum(event.output_tokens for event in usage)
-    job.actual_cost_usd = (
-        sum(cost for cost in costs if cost is not None)
-        if all(cost is not None for cost in costs)
-        else None
-    )
-
-
-def persist_usage_events(
-    job: GenerationJob, usage_events: list[dict[str, Any]]
-) -> None:
-    for event_index, payload in enumerate(usage_events, start=1):
-        usage = ModelUsage.model_validate(payload)
-        job.usage_events.append(
-            GenerationUsageEvent(
-                event_index=event_index,
-                stage=str(payload.get("stage", "unknown")),
-                model_id=usage.model,
-                input_tokens=usage.input_tokens,
-                cache_creation_input_tokens=usage.cache_creation_input_tokens,
-                cache_read_input_tokens=usage.cache_read_input_tokens,
-                output_tokens=usage.output_tokens,
-                actual_cost_usd=estimate_usage_cost(usage),
-                stop_reason=usage.stop_reason,
-            )
-        )
-
-
 def build_generation_graph(
     session_factory: async_sessionmaker[AsyncSession], provider: GenerationProvider
 ) -> StateGraph:
@@ -187,10 +152,13 @@ def build_generation_graph(
             current_node="generate",
         )
         try:
-            result = await provider.generate(
-                GenerationConditions.model_validate(state["conditions"]),
-                state["revision_feedback"],
-                state["models"]["generator_model"],
+            model = state["models"]["generator_model"]
+            result = await tracked_call(
+                session_factory, state["job_id"], "generate", model,
+                lambda: provider.generate(
+                    GenerationConditions.model_validate(state["conditions"]),
+                    state["revision_feedback"], model,
+                ),
             )
         except GenerationStructuredOutputError as error:
             retry_update = structured_output_retry_update(
@@ -209,6 +177,8 @@ def build_generation_graph(
         return {
             "item": result.value.model_dump(mode="json", by_alias=False),
             "schema_issues": [],
+            "answer_validation": None,
+            "quality_validation": None,
             "output_retry_error": None,
             "usage_events": [usage_event("generate", result.usage)],
         }
@@ -241,10 +211,10 @@ def build_generation_graph(
         )
         item = GeneratedReading.model_validate(state["item"])
         conditions = GenerationConditions.model_validate(state["conditions"])
-        result = await provider.verify_answer(
-            item,
-            conditions.language,
-            state["models"]["answer_validator_model"],
+        model = state["models"]["answer_validator_model"]
+        result = await tracked_call(
+            session_factory, state["job_id"], "verify_answer", model,
+            lambda: provider.verify_answer(item, conditions.language, model),
         )
         outcome = result.value
         expected_choice = next(
@@ -273,10 +243,12 @@ def build_generation_graph(
             current_node="verify_quality",
         )
         conditions = GenerationConditions.model_validate(state["conditions"])
-        result = await provider.verify_quality(
-            GeneratedReading.model_validate(state["item"]),
-            conditions,
-            state["models"]["quality_validator_model"],
+        model = state["models"]["quality_validator_model"]
+        result = await tracked_call(
+            session_factory, state["job_id"], "verify_quality", model,
+            lambda: provider.verify_quality(
+                GeneratedReading.model_validate(state["item"]), conditions, model,
+            ),
         )
         outcome = result.value
         outcome = enforce_validation_gate(outcome, "quality")
@@ -315,14 +287,10 @@ def build_generation_graph(
         item_status = "review" if terminal_status == "ready_for_review" else "held"
 
         async with session_factory() as session:
-            job = await session.get(GenerationJob, job_id)
-            if not job:
-                raise RuntimeError(f"Generation job {job_id} was not found.")
+            job = await lock_job(session, job_id)
             if job.generated_item_id:
                 return {}
-
-            apply_usage_totals(job, state.get("usage_events", []))
-            persist_usage_events(job, state.get("usage_events", []))
+            require_active(job)
 
             reading_item = ReadingItem(
                 title=item.title,
@@ -394,13 +362,9 @@ def build_generation_graph(
 
     async def fail(state: GenerationState) -> dict[str, Any]:
         async with session_factory() as session:
-            job = await session.get(GenerationJob, UUID(state["job_id"]))
-            if not job:
-                raise RuntimeError(f"Generation job {state['job_id']} was not found.")
+            job = await lock_job(session, UUID(state["job_id"]))
             if job.completed_at:
                 return {}
-            apply_usage_totals(job, state.get("usage_events", []))
-            persist_usage_events(job, state.get("usage_events", []))
             job.status = "failed"
             job.current_node = "failed"
             job.error_code = state["failure_code"]

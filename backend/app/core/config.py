@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     max_generation_revisions: int = Field(default=2, ge=0, le=3)
     max_generation_output_retries: int = Field(default=1, ge=0, le=1)
     worker_poll_interval_seconds: float = 1.5
+    generation_request_timeout_seconds: float = Field(default=180, ge=10, le=600)
+    generation_job_timeout_seconds: float = Field(default=900, ge=60, le=3600)
+    worker_lease_seconds: float = Field(default=90, ge=30, le=600)
     dev_admin_id: UUID = UUID("00000000-0000-0000-0000-000000000001")
     google_oauth_client_id: str | None = None
     auth_jwt_secret: SecretStr | None = None
@@ -79,7 +82,7 @@ class Settings(BaseSettings):
             self.answer_validator_model,
             self.quality_validator_model,
         }
-        if missing_models := defaults - configured_models:
+        if defaults - configured_models:
             raise ValueError(
                 "GENERATION_MODEL_OPTIONS must include every configured default model."
             )

@@ -17,10 +17,10 @@ from app.schemas import (
     ValidatorOutcome,
 )
 from app.services.generation_provider import (
+    GENERATOR_MAX_TOKENS_BY_LENGTH,
     AnthropicGenerationProvider,
     GenerationOutputFormatError,
     GenerationOutputTruncatedError,
-    GENERATOR_MAX_TOKENS_BY_LENGTH,
     ModelUsage,
     StubGenerationProvider,
     estimate_usage_cost,
@@ -99,7 +99,7 @@ async def test_stub_title_suggestion_uses_the_passage_content() -> None:
 
 class FakeParsedResponse:
     def __init__(self, parsed_output: object, stop_reason: str = "end_turn") -> None:
-        self.parsed_output = parsed_output
+        self.content = [SimpleNamespace(type="text", text=parsed_output.model_dump_json())]
         self.stop_reason = stop_reason
         self.usage = SimpleNamespace(
             input_tokens=300,
@@ -114,17 +114,17 @@ class FakeAnthropicMessages:
         self.calls: list[dict[str, object]] = []
         self.stop_reason = stop_reason
 
-    async def parse(self, **kwargs: object) -> FakeParsedResponse:
+    async def create(self, **kwargs: object) -> FakeParsedResponse:
         self.calls.append(kwargs)
-        output_format = kwargs["output_format"]
-        if output_format is GeneratedReading:
+        properties = kwargs["output_config"]["format"]["schema"]["properties"]
+        if "passage" in properties:
             return FakeParsedResponse(_sample_generated_reading(), self.stop_reason)
-        if output_format is GeneratedTitle:
+        if "title" in properties:
             return FakeParsedResponse(
                 GeneratedTitle(title="理由を確かめる大切さ"),
                 self.stop_reason,
             )
-        if output_format is ValidatorOutcome:
+        if "status" in properties:
             return FakeParsedResponse(
                 ValidatorOutcome(
                     status="passed",
@@ -134,7 +134,7 @@ class FakeAnthropicMessages:
                 ),
                 self.stop_reason,
             )
-        raise AssertionError(f"Unexpected output format: {output_format}")
+        raise AssertionError(f"Unexpected schema: {properties}")
 
 
 def _anthropic_provider_with_fake_client(
@@ -161,7 +161,7 @@ async def test_anthropic_generation_uses_native_structured_output() -> None:
 
     assert item.title == "背景を考える"
     assert item.choices[1].is_correct is True
-    assert messages.calls[0]["output_format"] is GeneratedReading
+    assert "passage" in messages.calls[0]["output_config"]["format"]["schema"]["properties"]
     assert messages.calls[0]["model"] == "generator-model"
     assert messages.calls[0]["max_tokens"] == GENERATOR_MAX_TOKENS_BY_LENGTH["medium"]
     assert messages.calls[0]["system"][0]["cache_control"] == {"type": "ephemeral"}
@@ -182,7 +182,7 @@ async def test_anthropic_title_suggestion_uses_native_structured_output() -> Non
     )
 
     assert result.value.title == "理由を確かめる大切さ"
-    assert messages.calls[0]["output_format"] is GeneratedTitle
+    assert "title" in messages.calls[0]["output_config"]["format"]["schema"]["properties"]
     assert messages.calls[0]["model"] == "generator-model"
     assert messages.calls[0]["max_tokens"] == 120
 
@@ -203,9 +203,10 @@ async def test_anthropic_generation_rejects_truncated_structured_output() -> Non
 
 
 class InvalidJsonAnthropicMessages:
-    async def parse(self, **kwargs: object) -> FakeParsedResponse:
-        GeneratedReading.model_validate_json("not valid JSON")
-        raise AssertionError("Expected Pydantic validation to raise.")
+    async def create(self, **kwargs: object) -> FakeParsedResponse:
+        response = FakeParsedResponse(_sample_generated_reading())
+        response.content[0].text = "not valid JSON"
+        return response
 
 
 @pytest.mark.asyncio
@@ -215,8 +216,9 @@ async def test_anthropic_generation_identifies_invalid_structured_json() -> None
         official_level="N2", length_type="medium", topic="교육"
     )
 
-    with pytest.raises(GenerationOutputFormatError, match="requested structured output"):
+    with pytest.raises(GenerationOutputFormatError, match="requested structured output") as error:
         await provider.generate(conditions, [], "generator-model")
+    assert error.value.usage.output_tokens == 200
 
 
 @pytest.mark.asyncio
@@ -233,10 +235,7 @@ async def test_anthropic_validators_use_native_structured_output() -> None:
 
     assert answer.status == "passed"
     assert quality.correct_choice_index == 2
-    assert [call["output_format"] for call in messages.calls] == [
-        ValidatorOutcome,
-        ValidatorOutcome,
-    ]
+    assert all("status" in call["output_config"]["format"]["schema"]["properties"] for call in messages.calls)
     assert [call["model"] for call in messages.calls] == [
         "validator-model",
         "validator-model",

@@ -23,6 +23,7 @@ import {
   ResultScreen,
 } from "./features/readings/ReadingScreens";
 import { StatsScreen } from "./features/statistics/StatsScreen";
+import { useGenerationJob } from "./features/admin/useGenerationJob";
 import { AppDialogContent } from "./components/AppDialogContent";
 import { AppHeader } from "./components/AppHeader";
 import { Breadcrumb } from "./components/ui/Breadcrumb";
@@ -30,6 +31,7 @@ import { Dialog } from "./components/ui/Dialog";
 import { Icon } from "./components/ui/Icon";
 import {
   api,
+  ApiError,
   recordFromResult,
   type GenerationJob,
   type GenerationJobHistory,
@@ -325,6 +327,8 @@ export default function App() {
   const [searchParams, setSearchParams] = useSearchParams();
   const screen = screenForPath(location.pathname);
   const [authenticated, setAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
   const [role, setRole] = useState<Role>("learner");
   const [items, setItems] = useState<ReadingItem[]>([]);
   const [adminItems, setAdminItems] = useState<ReadingItem[]>([]);
@@ -401,9 +405,10 @@ export default function App() {
   const [isGenerationHistoryLoading, setIsGenerationHistoryLoading] = useState(false);
   const [generationHistoryError, setGenerationHistoryError] = useState("");
   const [dialogError, setDialogError] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generationProgress, setGenerationProgress] = useState("");
-  const [generationError, setGenerationError] = useState("");
+  const generationJob = useGenerationJob(authenticated && role === "admin" ? userId : null);
+  const isGenerating = generationJob.isPending || Boolean(generationJob.job?.generatedItemId);
+  const generationProgress = generationJob.job
+    ? generationProgressLabel(generationJob.job) : "기존 생성 작업을 확인하는 중입니다.";
   const [reportText, setReportText] = useState("");
   const reportTextRef = useRef(reportText);
   const [feedback, setFeedback] = useState<FeedbackValues>({
@@ -507,6 +512,7 @@ export default function App() {
         const user = await api.me();
         if (!active) return;
         setAuthenticated(true);
+        setUserId(user.id);
         setRole(user.role);
         const requests: Promise<unknown>[] = [loadPublicItems(), loadStatistics()];
         if (user.role === "admin") {
@@ -515,19 +521,56 @@ export default function App() {
         await Promise.all(requests);
       } catch (error) {
         if (!active) return;
-        setAuthenticated(false);
-        setRole("learner");
+        if (error instanceof ApiError && error.status === 401) {
+          setAuthenticated(false);
+          setUserId(null);
+          setRole("learner");
+        }
         try {
           await loadPublicItems();
         } catch {
           setToast(error instanceof Error ? error.message : "서버에 연결할 수 없습니다.");
         }
+      } finally {
+        if (active) setAuthLoading(false);
       }
     })();
     return () => {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    const conditions = generationJob.job?.conditions;
+    if (!conditions) return;
+    setGeneration((current) => ({
+      ...current, language: conditions.language, level: conditions.officialLevel,
+      length: conditions.lengthType, topic: conditions.topic, keywords: conditions.keywords,
+    }));
+  }, [generationJob.job?.id]);
+
+  useEffect(() => {
+    const itemId = generationJob.job?.generatedItemId;
+    if (!itemId || location.pathname !== "/admin/readings/new") return;
+    let active = true;
+    let timer: number;
+    const openResult = async () => {
+      try {
+        const item = await api.adminReading(itemId);
+        if (!active) return;
+        replaceAdminItem(item);
+        navigate(`/admin/readings/${item.id}/preview`);
+        generationJob.clearResult();
+      } catch {
+        if (active) {
+          setToast("문항은 생성되었습니다. 검토 화면을 다시 불러오는 중입니다.");
+          timer = window.setTimeout(() => void openResult(), 5_000);
+        }
+      }
+    };
+    void openResult();
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [generationJob.job?.generatedItemId, location.pathname]);
 
   useEffect(() => {
     if (
@@ -771,38 +814,11 @@ export default function App() {
       confirmLabel: "지문 만들기",
       onConfirm: () => {
         closeDialog();
-        void (async () => {
-          if (!generation.generatorModel || !generation.validatorModel) {
-            const message = "AI 모델 목록을 불러온 뒤 다시 시도해 주세요.";
-            setGenerationError(message);
-            setToast(message);
-            return;
-          }
-          setIsGenerating(true);
-          setGenerationError("");
-          setGenerationProgress("생성 작업을 준비하는 중입니다.");
-          try {
-            let job = await api.createGenerationJob(generation);
-            setGenerationProgress(generationProgressLabel(job));
-            for (let retry = 0; retry < 180 && !job.generatedItemId; retry += 1) {
-              await new Promise((resolve) => window.setTimeout(resolve, 1_000));
-              job = await api.generationJob(job.id);
-              if (job.status === "failed") throw new Error(job.errorDetail ?? "지문 생성에 실패했습니다.");
-              setGenerationProgress(generationProgressLabel(job));
-            }
-            if (!job.generatedItemId) throw new Error("지문 생성 시간이 초과되었습니다. 잠시 후 관리 목록에서 다시 확인해 주세요.");
-            const item = await api.adminReading(job.generatedItemId);
-            replaceAdminItem(item);
-            navigate(`/admin/readings/${item.id}/preview`);
-          } catch (error) {
-            const message = error instanceof Error ? error.message : "지문을 만들지 못했습니다.";
-            setGenerationError(message);
-            setToast(message);
-          } finally {
-            setIsGenerating(false);
-            setGenerationProgress("");
-          }
-        })();
+        if (!generation.generatorModel || !generation.validatorModel) {
+          setToast("AI 모델 목록을 불러온 뒤 다시 시도해 주세요.");
+          return;
+        }
+        generationJob.start(generation);
       },
     });
 
@@ -913,6 +929,7 @@ export default function App() {
     try {
       const user = await api.signInWithGoogle(credential);
       setAuthenticated(true);
+      setUserId(user.id);
       setRole(user.role);
       await Promise.all([
         loadPublicItems(),
@@ -941,6 +958,7 @@ export default function App() {
     void api.logout().catch(() => undefined);
     api.clearAccessToken();
     setAuthenticated(false);
+    setUserId(null);
     setRole("learner");
     setAttempt(null);
     setResult(null);
@@ -1156,7 +1174,7 @@ export default function App() {
           onLogout={logoutFromHeader}
         />
         <Breadcrumb screen={screen} />
-        <Routes>
+        {authLoading ? <p role="status">불러오는 중입니다.</p> : <Routes>
           <Route
             path="/"
             element={<ReadingListScreen items={items} loading={isListLoading} authenticated={authenticated} attempts={attempts} filters={filters} setFilters={setListFilters} query={query} setQuery={setListQuery} onOpenFilters={openListFilters} onStart={start} />}
@@ -1167,11 +1185,11 @@ export default function App() {
           <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} filters={adminFilters} onLanguageChange={(language) => setAdminFilters((current) => ({ ...current, language, level: "all" }))} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => { void loadGenerationModels(); navigate("/admin/readings/new"); }} onManualCreate={() => { setManualDraft(createManualReadingDraft()); setManualError(""); navigate("/admin/readings/manual"); }} onHistory={() => { void loadGenerationHistory(); navigate("/admin/generation-history"); }} /></RequireAdmin>} />
           <Route path="/admin/generation-history" element={<RequireAdmin authenticated={authenticated} role={role}><GenerationHistoryScreen items={generationHistory} loading={isGenerationHistoryLoading} error={generationHistoryError} page={generationHistoryPage} totalPages={generationHistoryTotalPages} totalItems={generationHistoryTotalItems} onPageChange={(page) => void loadGenerationHistory(page)} onRefresh={() => void loadGenerationHistory(generationHistoryPage)} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
           <Route path="/admin/readings/manual" element={<RequireAdmin authenticated={authenticated} role={role}><ManualCreateScreen values={manualDraft} setValues={setManualDraft} isSaving={isManualSaving} error={manualError} onSave={() => void createManualReading()} onBack={leaveManualCreate} onSuggestTitle={async (passage, language) => (await api.suggestAdminTitle(passage, language)).title} /></RequireAdmin>} />
-          <Route path="/admin/readings/new" element={<RequireAdmin authenticated={authenticated} role={role}><GenerateScreen values={generation} setValues={setGeneration} modelOptions={generationModels} modelError={generationModelsError} isCreating={isGenerating} progressLabel={generationProgress} error={generationError} onCreate={createDraft} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
+          <Route path="/admin/readings/new" element={<RequireAdmin authenticated={authenticated} role={role}><GenerateScreen values={generation} setValues={setGeneration} modelOptions={generationModels} modelError={generationModelsError} isCreating={isGenerating} progressLabel={generationProgress} error={generationJob.error} onCreate={createDraft} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
           <Route path="/admin/readings/:itemId/edit" element={<RequireAdmin authenticated={authenticated} role={role}><AdminEditRoute items={adminItems} draft={draft} setDraft={setDraft} onSave={() => draft && void updateAdminItem(draft)} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={leaveEditor} /></RequireAdmin>} />
           <Route path="/admin/readings/:itemId/preview" element={<RequireAdmin authenticated={authenticated} role={role}><PreviewRoute items={adminItems} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        </Routes>}
       </div>
       {screen === "stats" ? (
         <nav className="scroll-controls" aria-label="통계 페이지 이동">

@@ -1,3 +1,5 @@
+import re
+
 from app.schemas import GeneratedReading, LengthType, ReadingLanguage
 from app.services.reading_policy import PASSAGE_CHARACTER_LIMITS
 
@@ -9,7 +11,7 @@ def validate_generated_reading(
 ) -> list[str]:
     """Run deterministic checks before asking a validator model for judgment."""
     issues: list[str] = []
-    passage_length = len(item.passage.replace("\n", "").strip())
+    passage_length = len("".join(item.passage.split()))
 
     minimum_characters, maximum_characters = PASSAGE_CHARACTER_LIMITS[length_type]
 
@@ -18,7 +20,8 @@ def validate_generated_reading(
     if passage_length > maximum_characters:
         issues.append("passage_too_long")
     if language == "ja" and any(
-        "(" in choice.text or "（" in choice.text for choice in item.choices
+        re.search(r"[\u3400-\u9fff々](?:\([ぁ-ゖァ-ヺー]+\)|（[ぁ-ゖァ-ヺー]+）)", text)
+        for text in [item.passage, item.question, *(choice.text for choice in item.choices)]
     ):
         issues.append("furigana_not_supported")
     if any(

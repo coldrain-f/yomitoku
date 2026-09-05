@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from html import escape
-from typing import Final, Generic, Protocol, TypeVar
+from typing import Final, Protocol, TypeVar
 
-from anthropic import AsyncAnthropic
+from anthropic import AsyncAnthropic, transform_schema
 from pydantic import BaseModel, ValidationError
 
 from app.core.config import Settings
@@ -120,7 +120,7 @@ class GenerationOutputFormatError(GenerationStructuredOutputError):
 
 
 @dataclass(frozen=True)
-class ProviderResult(Generic[ModelT]):
+class ProviderResult[ModelT: BaseModel]:
     value: ModelT
     usage: ModelUsage
 
@@ -308,7 +308,9 @@ class AnthropicGenerationProvider:
         if not settings.anthropic_api_key:
             raise RuntimeError("ANTHROPIC_API_KEY is required for the anthropic provider.")
         self.client = AsyncAnthropic(
-            api_key=settings.anthropic_api_key.get_secret_value()
+            api_key=settings.anthropic_api_key.get_secret_value(),
+            timeout=settings.generation_request_timeout_seconds,
+            max_retries=0,
         )
 
     async def suggest_title(
@@ -430,33 +432,18 @@ Requested level: {conditions.official_level}
         *,
         max_tokens: int,
     ) -> ProviderResult[ModelT]:
-        try:
-            response = await self.client.messages.parse(
-                model=model,
-                max_tokens=max_tokens,
-                system=[
-                    {
-                        "type": "text",
-                        "text": system_prompt,
-                        "cache_control": CACHE_CONTROL,
-                    }
-                ],
-                messages=[{"role": "user", "content": prompt}],
-                output_format=output_format,
-            )
-        except ValidationError as error:
-            json_errors = [
-                issue
-                for issue in error.errors()
-                if issue.get("type") == "json_invalid"
-            ]
-            if any("EOF while parsing" in str(issue.get("msg", "")) for issue in json_errors):
-                raise GenerationOutputTruncatedError(
-                    "The model response ended before the structured JSON completed."
-                ) from error
-            raise GenerationOutputFormatError(
-                "The model response did not match the requested structured output."
-            ) from error
+        # Keep native schema constraints, but capture usage before local validation.
+        response = await self.client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            system=[{
+                "type": "text", "text": system_prompt, "cache_control": CACHE_CONTROL,
+            }],
+            messages=[{"role": "user", "content": prompt}],
+            output_config={"format": {
+                "type": "json_schema", "schema": transform_schema(output_format),
+            }},
+        )
         usage = ModelUsage(
             model=model,
             input_tokens=getattr(response.usage, "input_tokens", 0),
@@ -473,12 +460,23 @@ Requested level: {conditions.official_level}
             raise GenerationOutputTruncatedError(
                 "The model response reached its output token limit.", usage
             )
-        if response.parsed_output is None:
+        text = "".join(block.text for block in response.content if block.type == "text")
+        try:
+            value = output_format.model_validate_json(text)
+        except ValidationError as error:
+            if any(
+                issue.get("type") == "json_invalid"
+                and "EOF while parsing" in str(issue.get("msg", ""))
+                for issue in error.errors()
+            ):
+                raise GenerationOutputTruncatedError(
+                    "The model response ended before the structured JSON completed.", usage
+                ) from error
             raise GenerationOutputFormatError(
-                "The Anthropic response did not contain parsed output.", usage
-            )
+                "The model response did not match the requested structured output.", usage
+            ) from error
         return ProviderResult(
-            value=response.parsed_output,
+            value=value,
             usage=usage,
         )
 

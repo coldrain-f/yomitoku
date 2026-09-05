@@ -155,6 +155,7 @@ export interface GenerationJob {
   currentNode: string;
   generatedItemId: string | null;
   errorDetail: string | null;
+  conditions: GenerationJobHistory["conditions"];
 }
 
 export interface GenerationModelOptions {
@@ -165,6 +166,7 @@ export interface GenerationModelOptions {
 
 export interface GenerationUsageEvent {
   eventIndex: number;
+  usageStatus: "pending" | "recorded" | "unknown";
   stage: string;
   modelId: string;
   inputTokens: number;
@@ -204,6 +206,7 @@ export interface GenerationJobHistory {
   cacheReadInputTokens: number;
   actualCostUsd: number | null;
   usageEvents: GenerationUsageEvent[];
+  usageComplete: boolean;
 }
 
 export interface GenerationJobHistoryPage {
@@ -296,6 +299,13 @@ function validationErrorMessage(detail: unknown): string | null {
   return messages.length ? messages.join(" ") : null;
 }
 
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -315,9 +325,10 @@ async function request<T>(
   if (response.status === 204) return undefined as T;
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(
+    throw new ApiError(
       validationErrorMessage(isRecord(body) ? body.detail : null) ??
         "요청을 처리하지 못했습니다.",
+      response.status,
     );
   }
   return response.json() as Promise<T>;
@@ -505,10 +516,11 @@ export const api = {
   },
   deleteAdminReading: (itemId: string) =>
     request<void>(`/admin/reading-items/${itemId}`, { method: "DELETE" }),
-  createGenerationJob: (values: GenerationValues) =>
+  createGenerationJob: (values: GenerationValues, idempotencyKey: string, signal?: AbortSignal) =>
     request<GenerationJob>("/admin/generation-jobs", {
       method: "POST",
-      headers: { "Idempotency-Key": crypto.randomUUID() },
+      headers: { "Idempotency-Key": idempotencyKey },
+      signal,
       body: JSON.stringify({
         officialLevel: values.level,
         language: values.language,
@@ -521,7 +533,8 @@ export const api = {
     }),
   generationModelOptions: () =>
     request<GenerationModelOptions>("/admin/generation-model-options"),
-  generationJob: (jobId: string) => request<GenerationJob>(`/admin/generation-jobs/${jobId}`),
+  generationJob: (jobId: string, signal?: AbortSignal) => request<GenerationJob>(`/admin/generation-jobs/${jobId}`, { signal }),
+  activeGenerationJob: (signal?: AbortSignal) => request<GenerationJob | null>("/admin/generation-jobs/active", { signal }),
   generationJobs: (page = 1, pageSize = 25) =>
     request<GenerationJobHistoryPage>(
       `/admin/generation-jobs?page=${page}&page_size=${pageSize}`,

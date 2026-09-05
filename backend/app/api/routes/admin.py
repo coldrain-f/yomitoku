@@ -15,28 +15,30 @@ from app.db.models import (
     GenerationUsageEvent,
     ReadingChoice,
     ReadingItem,
+    User,
 )
 from app.db.session import get_session
 from app.schemas import (
-    AdminTitleSuggestionRequest,
-    AdminTitleSuggestionResponse,
     AdminReadingItemCreate,
     AdminReadingItemDetail,
     AdminReadingItemUpdate,
+    AdminTitleSuggestionRequest,
+    AdminTitleSuggestionResponse,
     GenerationConditions,
-    GenerationJobResponse,
     GenerationJobCreateRequest,
     GenerationJobHistoryItem,
     GenerationJobHistoryPage,
+    GenerationJobResponse,
     GenerationModelOptionsResponse,
     GenerationUsageEventResponse,
     LengthType,
-    ReadingLanguage,
-    ReadingLevel,
     ReadingChoiceInput,
     ReadingItemPage,
     ReadingItemSummary,
+    ReadingLanguage,
+    ReadingLevel,
 )
+from app.services.generation_jobs import ACTIVE_STATUSES
 from app.services.generation_provider import build_generation_provider
 from app.services.generation_topics import resolve_generation_topic
 from app.services.item_metrics import ItemMetrics, collect_item_metrics
@@ -80,6 +82,7 @@ def serialize_generation_usage_event(
 ) -> GenerationUsageEventResponse:
     return GenerationUsageEventResponse(
         event_index=event.event_index,
+        usage_status=event.usage_status,
         stage=event.stage,
         model_id=event.model_id,
         input_tokens=event.input_tokens,
@@ -114,6 +117,9 @@ def serialize_generation_job_history(
         ),
         actual_cost_usd=job.actual_cost_usd,
         usage_events=usage_events,
+        usage_complete=bool(usage_events) and all(
+            event.usage_status == "recorded" for event in usage_events
+        ),
     )
 
 
@@ -247,6 +253,8 @@ async def create_generation_job(
         )
 
     await ensure_user(session, current_user)
+    # Serialize requests from the same administrator, including different tabs.
+    await session.scalar(select(User).where(User.id == current_user.id).with_for_update())
     if idempotency_key:
         existing = await session.scalar(
             select(GenerationJob).where(
@@ -257,6 +265,16 @@ async def create_generation_job(
         if existing:
             response.status_code = status.HTTP_200_OK
             return serialize_generation_job(existing)
+
+    active = await session.scalar(
+        select(GenerationJob).where(
+            GenerationJob.requested_by == current_user.id,
+            GenerationJob.status.in_(ACTIVE_STATUSES),
+        ).order_by(GenerationJob.created_at.desc()).limit(1)
+    )
+    if active:
+        response.status_code = status.HTTP_200_OK
+        return serialize_generation_job(active)
 
     settings = get_settings()
     generator_model = request.generator_model or settings.generator_model
@@ -361,6 +379,20 @@ async def list_generation_jobs(
         total_items=total_items,
         total_pages=max(1, math.ceil(total_items / page_size)),
     )
+
+
+@router.get("/generation-jobs/active", response_model=GenerationJobResponse | None)
+async def get_active_generation_job(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    current_user: Annotated[CurrentUser, Depends(require_admin)],
+) -> GenerationJobResponse | None:
+    job = await session.scalar(
+        select(GenerationJob).where(
+            GenerationJob.requested_by == current_user.id,
+            GenerationJob.status.in_(ACTIVE_STATUSES),
+        ).order_by(GenerationJob.created_at.desc()).limit(1)
+    )
+    return serialize_generation_job(job) if job else None
 
 
 @router.get("/generation-jobs/{job_id}", response_model=GenerationJobResponse)

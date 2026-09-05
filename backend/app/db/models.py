@@ -170,6 +170,7 @@ class GenerationJob(TimestampedModel, Base):
         Uuid, ForeignKey("reading_items.id", ondelete="CASCADE")
     )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     usage_events: Mapped[list[GenerationUsageEvent]] = relationship(
         back_populates="generation_job",
@@ -197,6 +198,9 @@ class GenerationUsageEvent(TimestampedModel, Base):
         index=True,
     )
     event_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    usage_status: Mapped[str] = mapped_column(
+        String(16), default="recorded", server_default="recorded", nullable=False
+    )
     stage: Mapped[str] = mapped_column(String(32), nullable=False)
     model_id: Mapped[str] = mapped_column(String(128), nullable=False)
     input_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
