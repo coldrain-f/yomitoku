@@ -116,6 +116,20 @@ docker compose --env-file .env.production \
 
 `migrate` 컨테이너가 Alembic 마이그레이션을 먼저 실행하고 성공해야 API와 워커가 시작한다. 실패 시 API 컨테이너를 억지로 올리지 말고 로그와 백업을 확인한다.
 
+워커 코드나 Alembic 마이그레이션이 포함된 갱신은 기존 이미지를 재사용하지 않도록 다음 순서로 실행한다. 이 경우 실행 중이던 생성 작업은 자동 재생성되지 않고 `실패`로 정리되므로, 생성 이력에서 상태와 사용량을 먼저 확인한다.
+
+```sh
+docker compose --env-file .env.production \
+  -f deploy/docker-compose.production.yml \
+  -f deploy/docker-compose.host-caddy.yml build --no-cache migrate api worker
+docker compose --env-file .env.production \
+  -f deploy/docker-compose.production.yml \
+  -f deploy/docker-compose.host-caddy.yml run --rm migrate
+docker compose --env-file .env.production \
+  -f deploy/docker-compose.production.yml \
+  -f deploy/docker-compose.host-caddy.yml up -d --force-recreate api worker
+```
+
 ```sh
 docker compose --env-file .env.production \
   -f deploy/docker-compose.production.yml logs --tail=200 migrate api worker caddy

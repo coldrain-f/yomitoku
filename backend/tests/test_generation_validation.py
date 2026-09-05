@@ -392,6 +392,28 @@ def test_deterministic_validation_requires_distinct_distractor_types() -> None:
     assert "duplicate_distractor_type" in issues
 
 
+def test_deterministic_validation_allows_paragraph_breaks_and_regular_parentheses() -> None:
+    item = _sample_generated_reading().model_copy(
+        update={
+            "passage": ("가 " * 39) + "가\n\n나",
+            "question": "2026년 (개정) 기준으로 중요한 것은 무엇인가?",
+        }
+    )
+
+    issues = validate_generated_reading(item, "short", "ko")
+
+    assert "passage_too_short" not in issues
+    assert "furigana_not_supported" not in issues
+
+
+def test_deterministic_validation_rejects_actual_furigana_not_any_parentheses() -> None:
+    item = _sample_generated_reading().model_copy(
+        update={"passage": "日本（にほん）の記録を読む。"}
+    )
+
+    assert "furigana_not_supported" in validate_generated_reading(item, "short", "ja")
+
+
 def test_validation_gate_rejects_low_scores_and_preserves_repair_feedback() -> None:
     answer = enforce_validation_gate(
         ValidatorOutcome(status="passed", score=61), "answer"

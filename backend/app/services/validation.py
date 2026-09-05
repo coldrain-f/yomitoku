@@ -11,7 +11,8 @@ def validate_generated_reading(
 ) -> list[str]:
     """Run deterministic checks before asking a validator model for judgment."""
     issues: list[str] = []
-    passage_length = len("".join(item.passage.split()))
+    # Paragraph breaks are formatting, while ordinary spaces remain part of reading length.
+    passage_length = len(item.passage.replace("\r", "").replace("\n", "").strip())
 
     minimum_characters, maximum_characters = PASSAGE_CHARACTER_LIMITS[length_type]
 

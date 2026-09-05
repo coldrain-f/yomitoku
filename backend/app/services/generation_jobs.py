@@ -42,7 +42,7 @@ def refresh_usage_totals(job: GenerationJob) -> None:
         for event in recorded
     ) if recorded else None
     job.output_tokens = sum(event.output_tokens for event in recorded) if recorded else None
-    complete = bool(recorded) and len(recorded) == len(job.usage_events)
+    complete = len(recorded) == len(job.usage_events)
     job.actual_cost_usd = (
         sum(event.actual_cost_usd for event in recorded)
         if complete and all(event.actual_cost_usd is not None for event in recorded)

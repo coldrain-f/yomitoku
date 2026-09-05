@@ -117,7 +117,7 @@ def serialize_generation_job_history(
         ),
         actual_cost_usd=job.actual_cost_usd,
         usage_events=usage_events,
-        usage_complete=bool(usage_events) and all(
+        usage_complete=all(
             event.usage_status == "recorded" for event in usage_events
         ),
     )
