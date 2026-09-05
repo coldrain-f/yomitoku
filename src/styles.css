@@ -1840,6 +1840,10 @@ fieldset.admin-edit-form {
   position: fixed;
   z-index: 30;
   transform: translateX(-50%);
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  background: var(--paper-solid);
+  overflow: hidden;
 }
 
 .passage-highlight-menu {
@@ -1855,10 +1859,9 @@ fieldset.admin-edit-form {
 
 .passage-highlight-action button {
   min-height: 32px;
-  border: 1px solid var(--ink);
-  border-radius: 2px;
-  background: var(--ink);
-  color: #ffffff;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
   padding: 0 10px;
   display: inline-flex;
   align-items: center;
@@ -1898,8 +1901,7 @@ fieldset.admin-edit-form {
 
 .passage-highlight-action button:hover,
 .passage-highlight-action button:focus-visible {
-  background: #333333;
-  border-color: #333333;
+  background: #f0f1eb;
 }
 
 .passage-highlight-action [data-lucide],
