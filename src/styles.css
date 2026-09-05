@@ -1842,6 +1842,16 @@ fieldset.admin-edit-form {
   transform: translateX(-50%);
 }
 
+.passage-highlight-menu {
+  position: fixed;
+  z-index: 30;
+  transform: translateX(-50%);
+  display: inline-flex;
+  border: 1px solid var(--ink);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
 .passage-highlight-action button {
   min-height: 32px;
   border: 1px solid var(--ink);
@@ -1857,13 +1867,47 @@ fieldset.admin-edit-form {
   font-weight: 600;
 }
 
+.passage-highlight-menu button {
+  min-height: 32px;
+  border: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.3);
+  background: var(--ink);
+  color: #ffffff;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: "Yu Gothic", YuGothic, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.passage-highlight-menu button:first-child {
+  border-left: 0;
+}
+
+.passage-highlight-menu button:hover,
+.passage-highlight-menu button:focus-visible {
+  background: #333333;
+}
+
+.passage-highlight-menu .passage-highlight-cancel {
+  background: var(--danger);
+}
+
+.passage-highlight-menu .passage-highlight-cancel:hover,
+.passage-highlight-menu .passage-highlight-cancel:focus-visible {
+  background: #813829;
+}
+
 .passage-highlight-action button:hover,
 .passage-highlight-action button:focus-visible {
   background: #333333;
   border-color: #333333;
 }
 
-.passage-highlight-action [data-lucide] {
+.passage-highlight-action [data-lucide],
+.passage-highlight-menu [data-lucide] {
   width: 14px;
   height: 14px;
 }

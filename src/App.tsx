@@ -268,7 +268,7 @@ function ReadingRoute({
     endOffset: number,
     selectedText: string,
   ) => Promise<PassageHighlight>;
-  onDeleteHighlight: (highlightId: string) => void;
+  onDeleteHighlight: (highlightId: string) => Promise<void>;
 }) {
   const { itemId } = useParams();
   const item = items.find((entry) => entry.id === itemId);
@@ -824,23 +824,6 @@ export default function App() {
     setDialogError("");
     setDialog(value);
   };
-  const confirmPassageHighlightDeletion = (itemId: string, highlightId: string) =>
-    openDialog({
-      kicker: "Highlight",
-      title: "하이라이트를 삭제할까요?",
-      description: "삭제한 하이라이트는 복구할 수 없습니다.",
-      confirmLabel: "삭제하기",
-      onConfirm: () => {
-        closeDialog();
-        void deletePassageHighlight(itemId, highlightId).catch((error) => {
-          setToast(
-            error instanceof Error
-              ? error.message
-              : "하이라이트를 삭제하지 못했습니다.",
-          );
-        });
-      },
-    });
   const writeListParams = (
     next: ListFilters & { query: string },
     { replace = false }: { replace?: boolean } = {},
@@ -1425,7 +1408,7 @@ export default function App() {
             path="/"
             element={<ReadingListScreen items={items} loading={isListLoading} authenticated={authenticated} attempts={attempts} filters={filters} setFilters={setListFilters} query={query} setQuery={setListQuery} onOpenFilters={openListFilters} onStart={start} />}
           />
-          <Route path="/readings/:itemId" element={<RequireAuth authenticated={authenticated}><ReadingRoute items={items} attempt={attempt} result={result} onChoose={(id) => setAttempt((current) => current ? { ...current, selectedChoiceId: id, message: "" } : current)} onSubmit={submit} isSubmitting={isSubmitting} onAbandon={goHome} onReport={openReport} onTranslate={openTranslation} onResult={() => result && navigate(`/results/${result.itemId}`)} highlights={attempt ? passageHighlights[attempt.itemId] ?? [] : []} onCreateHighlight={(startOffset, endOffset, selectedText) => attempt ? createPassageHighlight(attempt.itemId, startOffset, endOffset, selectedText) : Promise.reject(new Error("진행 중인 풀이가 없습니다."))} onDeleteHighlight={(highlightId) => { if (attempt) confirmPassageHighlightDeletion(attempt.itemId, highlightId); }} /></RequireAuth>} />
+          <Route path="/readings/:itemId" element={<RequireAuth authenticated={authenticated}><ReadingRoute items={items} attempt={attempt} result={result} onChoose={(id) => setAttempt((current) => current ? { ...current, selectedChoiceId: id, message: "" } : current)} onSubmit={submit} isSubmitting={isSubmitting} onAbandon={goHome} onReport={openReport} onTranslate={openTranslation} onResult={() => result && navigate(`/results/${result.itemId}`)} highlights={attempt ? passageHighlights[attempt.itemId] ?? [] : []} onCreateHighlight={(startOffset, endOffset, selectedText) => attempt ? createPassageHighlight(attempt.itemId, startOffset, endOffset, selectedText) : Promise.reject(new Error("진행 중인 풀이가 없습니다."))} onDeleteHighlight={(highlightId) => attempt ? deletePassageHighlight(attempt.itemId, highlightId) : Promise.reject(new Error("진행 중인 풀이가 없습니다."))} /></RequireAuth>} />
           <Route path="/results/:itemId" element={<RequireAuth authenticated={authenticated}><ResultRoute result={result} onFeedback={openFeedback} onContinue={continueReading} onHome={goHome} /></RequireAuth>} />
           <Route path="/statistics" element={<RequireAuth authenticated={authenticated}><StatsScreen statistics={statistics} /></RequireAuth>} />
           <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} filters={adminFilters} onLanguageChange={(language) => setAdminFilters((current) => ({ ...current, language, level: "all" }))} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => { void loadGenerationModels(); navigate("/admin/readings/new"); }} onManualCreate={() => { setManualDraft(createManualReadingDraft()); setManualError(""); navigate("/admin/readings/manual"); }} onHistory={() => { void loadGenerationHistory(); navigate("/admin/generation-history"); }} /></RequireAdmin>} />

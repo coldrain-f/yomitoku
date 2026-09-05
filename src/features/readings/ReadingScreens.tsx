@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Check,
   ChevronRight,
+  Copy,
   Highlighter,
   Languages,
   MessageSquare,
@@ -73,7 +74,7 @@ interface ReadingScreenProps {
     endOffset: number,
     selectedText: string,
   ) => Promise<PassageHighlight>;
-  onDeleteHighlight: (highlightId: string) => void;
+  onDeleteHighlight: (highlightId: string) => Promise<void>;
 }
 
 interface ResultScreenProps {
@@ -330,8 +331,31 @@ interface PendingHighlight {
   top: number;
 }
 
+interface HighlightAction {
+  highlight: PassageHighlight;
+  left: number;
+  top: number;
+}
+
 function normalizedPassageText(value: string) {
   return value.replace(/\r\n?/g, "\n");
+}
+
+async function copyHighlightText(value: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const input = document.createElement("textarea");
+  input.value = value;
+  input.setAttribute("readonly", "");
+  input.style.position = "fixed";
+  input.style.opacity = "0";
+  document.body.append(input);
+  input.select();
+  const copied = document.execCommand("copy");
+  input.remove();
+  if (!copied) throw new Error("복사하지 못했습니다.");
 }
 
 function PassageHighlighter({
@@ -348,7 +372,10 @@ function PassageHighlighter({
   const passageRef = useRef<HTMLDivElement>(null);
   const actionRef = useRef<HTMLDivElement>(null);
   const [pending, setPending] = useState<PendingHighlight | null>(null);
+  const [activeHighlight, setActiveHighlight] = useState<HighlightAction | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [isCopying, setIsCopying] = useState(false);
   const [error, setError] = useState("");
   const sourceText = normalizedPassageText(passage);
 
@@ -363,7 +390,10 @@ function PassageHighlighter({
       }
       setPending(null);
     };
-    const hideOnViewportChange = () => setPending(null);
+    const hideOnViewportChange = () => {
+      setPending(null);
+      setActiveHighlight(null);
+    };
     document.addEventListener("pointerdown", dismiss);
     window.addEventListener("scroll", hideOnViewportChange, true);
     window.addEventListener("resize", hideOnViewportChange);
@@ -417,6 +447,7 @@ function PassageHighlighter({
         window.innerWidth - 72,
       );
       setError("");
+      setActiveHighlight(null);
       setPending({
         startOffset,
         endOffset,
@@ -450,6 +481,57 @@ function PassageHighlighter({
     }
   };
 
+  const openHighlightActions = (highlight: PassageHighlight, target: HTMLElement) => {
+    const rectangle = target.getBoundingClientRect();
+    window.getSelection()?.removeAllRanges();
+    setError("");
+    setPending(null);
+    setActiveHighlight({
+      highlight,
+      left: Math.min(
+        Math.max(rectangle.left + rectangle.width / 2, 90),
+        window.innerWidth - 90,
+      ),
+      top: Math.max(8, rectangle.top - 42),
+    });
+  };
+
+  const deleteActiveHighlight = async () => {
+    if (!activeHighlight || removingId) return;
+    setRemovingId(activeHighlight.highlight.id);
+    setError("");
+    try {
+      await onDeleteHighlight(activeHighlight.highlight.id);
+      setActiveHighlight(null);
+    } catch (highlightError) {
+      setError(
+        highlightError instanceof Error
+          ? highlightError.message
+          : "하이라이트를 삭제하지 못했습니다.",
+      );
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
+  const copyActiveHighlight = async () => {
+    if (!activeHighlight || isCopying) return;
+    setIsCopying(true);
+    setError("");
+    try {
+      await copyHighlightText(activeHighlight.highlight.selectedText);
+      setActiveHighlight(null);
+    } catch (highlightError) {
+      setError(
+        highlightError instanceof Error
+          ? highlightError.message
+          : "복사하지 못했습니다.",
+      );
+    } finally {
+      setIsCopying(false);
+    }
+  };
+
   const content = (() => {
     const nodes: ReactNode[] = [];
     let cursor = 0;
@@ -473,17 +555,17 @@ function PassageHighlighter({
           key={highlight.id}
           role="button"
           tabIndex={0}
-          title="하이라이트 삭제"
-          aria-label={`하이라이트 삭제: ${highlight.selectedText}`}
+          title="하이라이트 도구"
+          aria-label={`하이라이트 도구: ${highlight.selectedText}`}
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            onDeleteHighlight(highlight.id);
+            openHighlightActions(highlight, event.currentTarget);
           }}
           onKeyDown={(event) => {
             if (event.key !== "Enter" && event.key !== " ") return;
             event.preventDefault();
-            onDeleteHighlight(highlight.id);
+            openHighlightActions(highlight, event.currentTarget);
           }}
         >
           {sourceText.slice(highlight.startOffset, highlight.endOffset)}
@@ -515,6 +597,29 @@ function PassageHighlighter({
           <button type="button" onClick={() => void createHighlight()} disabled={isSaving}>
             <Icon icon={Highlighter} />
             {isSaving ? "Saving" : "Highlight"}
+          </button>
+        </div>
+      ) : null}
+      {activeHighlight ? (
+        <div
+          className="passage-highlight-menu"
+          ref={actionRef}
+          style={{ left: activeHighlight.left, top: activeHighlight.top }}
+          role="group"
+          aria-label="하이라이트 도구"
+        >
+          <button
+            className="passage-highlight-cancel"
+            type="button"
+            onClick={() => void deleteActiveHighlight()}
+            disabled={removingId === activeHighlight.highlight.id}
+          >
+            <Icon icon={X} />
+            {removingId === activeHighlight.highlight.id ? "Deleting" : "Cancel"}
+          </button>
+          <button type="button" onClick={() => void copyActiveHighlight()} disabled={isCopying}>
+            <Icon icon={Copy} />
+            {isCopying ? "Copying" : "Copy"}
           </button>
         </div>
       ) : null}
