@@ -15,7 +15,14 @@ from app.core.security import (
     get_current_user,
     get_optional_current_user,
 )
-from app.db.models import Attempt, ItemFeedback, ItemReport, ReadingChoice, ReadingItem
+from app.db.models import (
+    Attempt,
+    ItemFeedback,
+    ItemReport,
+    PassageHighlight,
+    ReadingChoice,
+    ReadingItem,
+)
 from app.db.session import get_session
 from app.schemas import (
     AttemptItemDetail,
@@ -25,6 +32,8 @@ from app.schemas import (
     AttemptSubmitRequest,
     FeedbackRequest,
     LengthType,
+    PassageHighlightCreateRequest,
+    PassageHighlightResponse,
     PassageTranslationResponse,
     ReadingChoicePublic,
     ReadingItemDetail,
@@ -81,6 +90,39 @@ def choices_for_attempt(item: ReadingItem, attempt: Attempt) -> list[ReadingChoi
         if choice:
             choices.append(choice)
     return [*choices, *by_id.values()]
+
+
+def normalized_passage_text(value: str) -> str:
+    return value.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def python_index_for_utf16_offset(text: str, offset: int) -> int | None:
+    """Map browser DOM offsets to Python indices without splitting a surrogate pair."""
+    consumed = 0
+    for index, character in enumerate(text):
+        if consumed == offset:
+            return index
+        consumed += 2 if ord(character) > 0xFFFF else 1
+    return len(text) if consumed == offset else None
+
+
+def selected_text_for_offsets(
+    passage: str, start_offset: int, end_offset: int
+) -> str | None:
+    start_index = python_index_for_utf16_offset(passage, start_offset)
+    end_index = python_index_for_utf16_offset(passage, end_offset)
+    if start_index is None or end_index is None or end_index <= start_index:
+        return None
+    return passage[start_index:end_index]
+
+
+def serialize_passage_highlight(highlight: PassageHighlight) -> PassageHighlightResponse:
+    return PassageHighlightResponse(
+        id=highlight.id,
+        start_offset=highlight.start_offset,
+        end_offset=highlight.end_offset,
+        selected_text=highlight.selected_text,
+    )
 
 
 def serialize_public_summary(
@@ -301,6 +343,116 @@ async def translate_reading_item(
         source_text=item.passage,
         translated_text=translated_text,
     )
+
+
+async def get_user_highlights(
+    session: AsyncSession, item_id: UUID, current_user: CurrentUser
+) -> list[PassageHighlight]:
+    return list(
+        await session.scalars(
+            select(PassageHighlight)
+            .where(
+                PassageHighlight.user_id == current_user.id,
+                PassageHighlight.reading_item_id == item_id,
+            )
+            .order_by(PassageHighlight.start_offset.asc(), PassageHighlight.end_offset.asc())
+        )
+    )
+
+
+@router.get("/{item_id}/highlights", response_model=list[PassageHighlightResponse])
+async def list_passage_highlights(
+    item_id: UUID,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> list[PassageHighlightResponse]:
+    item = await get_published_item(session, item_id)
+    passage = normalized_passage_text(item.passage)
+    highlights = await get_user_highlights(session, item_id, current_user)
+    return [
+        serialize_passage_highlight(highlight)
+        for highlight in highlights
+        if selected_text_for_offsets(
+            passage, highlight.start_offset, highlight.end_offset
+        )
+        == highlight.selected_text
+    ]
+
+
+@router.post(
+    "/{item_id}/highlights",
+    response_model=PassageHighlightResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_passage_highlight(
+    item_id: UUID,
+    request: PassageHighlightCreateRequest,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> PassageHighlightResponse:
+    item = await get_published_item(session, item_id)
+    passage = normalized_passage_text(item.passage)
+    selected_text = selected_text_for_offsets(
+        passage, request.start_offset, request.end_offset
+    )
+    if selected_text != request.selected_text:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="The selected passage range no longer matches the source text.",
+        )
+
+    await ensure_user(session, current_user)
+    highlights = await get_user_highlights(session, item_id, current_user)
+    for highlight in highlights:
+        if (
+            highlight.start_offset == request.start_offset
+            and highlight.end_offset == request.end_offset
+        ):
+            return serialize_passage_highlight(highlight)
+        if (
+            request.start_offset < highlight.end_offset
+            and highlight.start_offset < request.end_offset
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="The selected range overlaps an existing highlight.",
+            )
+
+    highlight = PassageHighlight(
+        user_id=current_user.id,
+        reading_item_id=item_id,
+        start_offset=request.start_offset,
+        end_offset=request.end_offset,
+        selected_text=request.selected_text,
+    )
+    session.add(highlight)
+    await session.commit()
+    await session.refresh(highlight)
+    return serialize_passage_highlight(highlight)
+
+
+@router.delete("/{item_id}/highlights/{highlight_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_passage_highlight(
+    item_id: UUID,
+    highlight_id: UUID,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> Response:
+    await get_published_item(session, item_id)
+    highlight = await session.scalar(
+        select(PassageHighlight).where(
+            PassageHighlight.id == highlight_id,
+            PassageHighlight.user_id == current_user.id,
+            PassageHighlight.reading_item_id == item_id,
+        )
+    )
+    if not highlight:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Highlight not found."
+        )
+    await session.delete(highlight)
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/{item_id}/attempts", response_model=AttemptStarted, status_code=201)

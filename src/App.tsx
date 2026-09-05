@@ -57,6 +57,7 @@ import type {
   GenerationValues,
   ListFilters,
   ManualReadingDraft,
+  PassageHighlight,
   ReadingAttempt,
   ReadingItem,
   ReadingLanguage,
@@ -247,6 +248,9 @@ function ReadingRoute({
   onReport,
   onTranslate,
   onResult,
+  highlights,
+  onCreateHighlight,
+  onDeleteHighlight,
 }: {
   items: ReadingItem[];
   attempt: ReadingAttempt | null;
@@ -258,6 +262,13 @@ function ReadingRoute({
   onReport: () => void;
   onTranslate: () => void;
   onResult: () => void;
+  highlights: PassageHighlight[];
+  onCreateHighlight: (
+    startOffset: number,
+    endOffset: number,
+    selectedText: string,
+  ) => Promise<PassageHighlight>;
+  onDeleteHighlight: (highlightId: string) => Promise<void>;
 }) {
   const { itemId } = useParams();
   const item = items.find((entry) => entry.id === itemId);
@@ -274,6 +285,9 @@ function ReadingRoute({
       onReport={onReport}
       onTranslate={onTranslate}
       onResult={onResult}
+      highlights={highlights}
+      onCreateHighlight={onCreateHighlight}
+      onDeleteHighlight={onDeleteHighlight}
     />
   );
 }
@@ -386,6 +400,9 @@ export default function App() {
   const [adminItems, setAdminItems] = useState<ReadingItem[]>([]);
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [attempts, setAttempts] = useState<AttemptRecord[]>([]);
+  const [passageHighlights, setPassageHighlights] = useState<
+    Record<string, PassageHighlight[]>
+  >({});
   const [adminLoaded, setAdminLoaded] = useState(false);
   const [isListLoading, setIsListLoading] = useState(true);
   const [isAdminListLoading, setIsAdminListLoading] = useState(false);
@@ -507,6 +524,39 @@ export default function App() {
     }
   };
   const loadStatistics = async () => setStatistics(await api.statistics());
+  const loadPassageHighlights = async (itemId: string) => {
+    const highlights = await api.highlights(itemId);
+    setPassageHighlights((current) => ({ ...current, [itemId]: highlights }));
+  };
+  const createPassageHighlight = async (
+    itemId: string,
+    startOffset: number,
+    endOffset: number,
+    selectedText: string,
+  ) => {
+    const highlight = await api.createHighlight(
+      itemId,
+      startOffset,
+      endOffset,
+      selectedText,
+    );
+    setPassageHighlights((current) => {
+      const existing = current[itemId] ?? [];
+      return {
+        ...current,
+        [itemId]: [...existing.filter((entry) => entry.id !== highlight.id), highlight]
+          .sort((left, right) => left.startOffset - right.startOffset),
+      };
+    });
+    return highlight;
+  };
+  const deletePassageHighlight = async (itemId: string, highlightId: string) => {
+    await api.deleteHighlight(itemId, highlightId);
+    setPassageHighlights((current) => ({
+      ...current,
+      [itemId]: (current[itemId] ?? []).filter((entry) => entry.id !== highlightId),
+    }));
+  };
   const loadGenerationModels = async () => {
     setGenerationModelsError("");
     try {
@@ -565,6 +615,7 @@ export default function App() {
     restored: RestoredAttempt,
     storedSelectedChoiceId: string | null,
   ) => {
+    void loadPassageHighlights(restored.itemId).catch(() => undefined);
     const choiceIds = new Set(restored.item.choices.map((choice) => choice.id));
     const selectedChoiceId = [restored.selectedChoiceId, storedSelectedChoiceId].find(
       (choiceId): choiceId is string => Boolean(choiceId && choiceIds.has(choiceId)),
@@ -815,8 +866,11 @@ export default function App() {
         closeDialog();
         void (async () => {
           try {
-            const detail = await api.reading(item.id);
-            const started = await api.startAttempt(item.id);
+            const [detail, started] = await Promise.all([
+              api.reading(item.id),
+              api.startAttempt(item.id),
+            ]);
+            void loadPassageHighlights(item.id).catch(() => undefined);
             const readingItem: ReadingItem = {
               ...item,
               title: detail.title,
@@ -1122,6 +1176,7 @@ export default function App() {
     setAttempt(null);
     setResult(null);
     setStatistics(null);
+    setPassageHighlights({});
     navigate("/");
     setToast("로그아웃되었습니다.");
   };
@@ -1353,7 +1408,7 @@ export default function App() {
             path="/"
             element={<ReadingListScreen items={items} loading={isListLoading} authenticated={authenticated} attempts={attempts} filters={filters} setFilters={setListFilters} query={query} setQuery={setListQuery} onOpenFilters={openListFilters} onStart={start} />}
           />
-          <Route path="/readings/:itemId" element={<RequireAuth authenticated={authenticated}><ReadingRoute items={items} attempt={attempt} result={result} onChoose={(id) => setAttempt((current) => current ? { ...current, selectedChoiceId: id, message: "" } : current)} onSubmit={submit} isSubmitting={isSubmitting} onAbandon={goHome} onReport={openReport} onTranslate={openTranslation} onResult={() => result && navigate(`/results/${result.itemId}`)} /></RequireAuth>} />
+          <Route path="/readings/:itemId" element={<RequireAuth authenticated={authenticated}><ReadingRoute items={items} attempt={attempt} result={result} onChoose={(id) => setAttempt((current) => current ? { ...current, selectedChoiceId: id, message: "" } : current)} onSubmit={submit} isSubmitting={isSubmitting} onAbandon={goHome} onReport={openReport} onTranslate={openTranslation} onResult={() => result && navigate(`/results/${result.itemId}`)} highlights={attempt ? passageHighlights[attempt.itemId] ?? [] : []} onCreateHighlight={(startOffset, endOffset, selectedText) => attempt ? createPassageHighlight(attempt.itemId, startOffset, endOffset, selectedText) : Promise.reject(new Error("진행 중인 풀이가 없습니다."))} onDeleteHighlight={(highlightId) => attempt ? deletePassageHighlight(attempt.itemId, highlightId) : Promise.reject(new Error("진행 중인 풀이가 없습니다."))} /></RequireAuth>} />
           <Route path="/results/:itemId" element={<RequireAuth authenticated={authenticated}><ResultRoute result={result} onFeedback={openFeedback} onContinue={continueReading} onHome={goHome} /></RequireAuth>} />
           <Route path="/statistics" element={<RequireAuth authenticated={authenticated}><StatsScreen statistics={statistics} /></RequireAuth>} />
           <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} filters={adminFilters} onLanguageChange={(language) => setAdminFilters((current) => ({ ...current, language, level: "all" }))} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => { void loadGenerationModels(); navigate("/admin/readings/new"); }} onManualCreate={() => { setManualDraft(createManualReadingDraft()); setManualError(""); navigate("/admin/readings/manual"); }} onHistory={() => { void loadGenerationHistory(); navigate("/admin/generation-history"); }} /></RequireAdmin>} />

@@ -22,6 +22,13 @@ export interface Choice {
   wrongExplanation?: string;
 }
 
+export interface PassageHighlight {
+  id: string;
+  startOffset: number;
+  endOffset: number;
+  selectedText: string;
+}
+
 export interface ItemReport {
   id: string;
   content: string;

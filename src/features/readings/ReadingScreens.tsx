@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowRight,
   Check,
   ChevronRight,
+  Highlighter,
   Languages,
   MessageSquare,
   RotateCcw,
@@ -39,6 +40,7 @@ import type {
   ReadingItem,
   ReadingLanguage,
   ReadingResult,
+  PassageHighlight,
 } from "../../types";
 
 interface ReadingListScreenProps {
@@ -65,6 +67,13 @@ interface ReadingScreenProps {
   onReport: () => void;
   onTranslate: () => void;
   onResult: () => void;
+  highlights: PassageHighlight[];
+  onCreateHighlight: (
+    startOffset: number,
+    endOffset: number,
+    selectedText: string,
+  ) => Promise<PassageHighlight>;
+  onDeleteHighlight: (highlightId: string) => Promise<void>;
 }
 
 interface ResultScreenProps {
@@ -313,6 +322,226 @@ export function ReadingListScreen({
   );
 }
 
+interface PendingHighlight {
+  startOffset: number;
+  endOffset: number;
+  selectedText: string;
+  left: number;
+  top: number;
+}
+
+function normalizedPassageText(value: string) {
+  return value.replace(/\r\n?/g, "\n");
+}
+
+function PassageHighlighter({
+  passage,
+  highlights,
+  onCreateHighlight,
+  onDeleteHighlight,
+}: {
+  passage: string;
+  highlights: PassageHighlight[];
+  onCreateHighlight: ReadingScreenProps["onCreateHighlight"];
+  onDeleteHighlight: ReadingScreenProps["onDeleteHighlight"];
+}) {
+  const passageRef = useRef<HTMLDivElement>(null);
+  const actionRef = useRef<HTMLDivElement>(null);
+  const [pending, setPending] = useState<PendingHighlight | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const sourceText = normalizedPassageText(passage);
+
+  useEffect(() => {
+    const dismiss = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        (passageRef.current?.contains(target) || actionRef.current?.contains(target))
+      ) {
+        return;
+      }
+      setPending(null);
+    };
+    const hideOnViewportChange = () => setPending(null);
+    document.addEventListener("pointerdown", dismiss);
+    window.addEventListener("scroll", hideOnViewportChange, true);
+    window.addEventListener("resize", hideOnViewportChange);
+    return () => {
+      document.removeEventListener("pointerdown", dismiss);
+      window.removeEventListener("scroll", hideOnViewportChange, true);
+      window.removeEventListener("resize", hideOnViewportChange);
+    };
+  }, []);
+
+  const captureSelection = () => {
+    window.setTimeout(() => {
+      const root = passageRef.current;
+      const selection = window.getSelection();
+      if (!root || !selection || selection.rangeCount === 0 || selection.isCollapsed) {
+        setPending(null);
+        return;
+      }
+      const range = selection.getRangeAt(0);
+      if (!root.contains(range.commonAncestorContainer)) {
+        setPending(null);
+        return;
+      }
+
+      const selectedText = normalizedPassageText(range.toString());
+      if (!selectedText.trim()) {
+        setPending(null);
+        return;
+      }
+      const beforeSelection = document.createRange();
+      beforeSelection.selectNodeContents(root);
+      beforeSelection.setEnd(range.startContainer, range.startOffset);
+      const startOffset = normalizedPassageText(beforeSelection.toString()).length;
+      const endOffset = startOffset + selectedText.length;
+      if (sourceText.slice(startOffset, endOffset) !== selectedText) {
+        setPending(null);
+        return;
+      }
+      const overlapsExistingHighlight = highlights.some(
+        (highlight) =>
+          startOffset < highlight.endOffset && highlight.startOffset < endOffset,
+      );
+      if (overlapsExistingHighlight) {
+        setPending(null);
+        return;
+      }
+
+      const rectangle = range.getBoundingClientRect();
+      const left = Math.min(
+        Math.max(rectangle.left + rectangle.width / 2, 72),
+        window.innerWidth - 72,
+      );
+      setError("");
+      setPending({
+        startOffset,
+        endOffset,
+        selectedText,
+        left,
+        top: Math.max(8, rectangle.top - 42),
+      });
+    }, 0);
+  };
+
+  const createHighlight = async () => {
+    if (!pending || isSaving) return;
+    setIsSaving(true);
+    setError("");
+    try {
+      await onCreateHighlight(
+        pending.startOffset,
+        pending.endOffset,
+        pending.selectedText,
+      );
+      window.getSelection()?.removeAllRanges();
+      setPending(null);
+    } catch (highlightError) {
+      setError(
+        highlightError instanceof Error
+          ? highlightError.message
+          : "하이라이트를 저장하지 못했습니다.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const removeHighlight = async (highlightId: string) => {
+    if (removingId) return;
+    setRemovingId(highlightId);
+    setError("");
+    try {
+      await onDeleteHighlight(highlightId);
+    } catch (highlightError) {
+      setError(
+        highlightError instanceof Error
+          ? highlightError.message
+          : "하이라이트를 삭제하지 못했습니다.",
+      );
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
+  const content = (() => {
+    const nodes: ReactNode[] = [];
+    let cursor = 0;
+    const validHighlights = [...highlights]
+      .filter(
+        (highlight) =>
+          highlight.startOffset >= 0 &&
+          highlight.endOffset > highlight.startOffset &&
+          sourceText.slice(highlight.startOffset, highlight.endOffset) ===
+            highlight.selectedText,
+      )
+      .sort((left, right) => left.startOffset - right.startOffset);
+    for (const highlight of validHighlights) {
+      if (highlight.startOffset < cursor) continue;
+      if (cursor < highlight.startOffset) {
+        nodes.push(sourceText.slice(cursor, highlight.startOffset));
+      }
+      nodes.push(
+        <mark
+          className="passage-highlight"
+          key={highlight.id}
+          role="button"
+          tabIndex={0}
+          title="하이라이트 삭제"
+          aria-label={`하이라이트 삭제: ${highlight.selectedText}`}
+          aria-busy={removingId === highlight.id}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            void removeHighlight(highlight.id);
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            void removeHighlight(highlight.id);
+          }}
+        >
+          {sourceText.slice(highlight.startOffset, highlight.endOffset)}
+        </mark>,
+      );
+      cursor = highlight.endOffset;
+    }
+    if (cursor < sourceText.length) nodes.push(sourceText.slice(cursor));
+    return nodes;
+  })();
+
+  return (
+    <>
+      <div
+        className="passage passage-highlightable"
+        ref={passageRef}
+        onMouseUp={captureSelection}
+        onTouchEnd={captureSelection}
+        onKeyUp={captureSelection}
+      >
+        <p>{content}</p>
+      </div>
+      {pending ? (
+        <div
+          className="passage-highlight-action"
+          ref={actionRef}
+          style={{ left: pending.left, top: pending.top }}
+        >
+          <button type="button" onClick={() => void createHighlight()} disabled={isSaving}>
+            <Icon icon={Highlighter} />
+            {isSaving ? "Saving" : "Highlight"}
+          </button>
+        </div>
+      ) : null}
+      {error ? <p className="passage-highlight-error" role="alert">{error}</p> : null}
+    </>
+  );
+}
+
 export function ReadingScreen({
   item,
   attempt,
@@ -324,6 +553,9 @@ export function ReadingScreen({
   onReport,
   onTranslate,
   onResult,
+  highlights,
+  onCreateHighlight,
+  onDeleteHighlight,
 }: ReadingScreenProps) {
   const submitted = Boolean(attempt.submitted && result?.itemId === item.id);
   const selected = attempt.choices.find(
@@ -377,11 +609,12 @@ export function ReadingScreen({
           </div>
         </div>
         <div className="reading-body">
-          <div className="passage">
-            {item.passage.split(/\r?\n\s*\r?\n/).map((paragraph, index) => (
-              <p key={`${index}-${paragraph.slice(0, 24)}`}>{paragraph}</p>
-            ))}
-          </div>
+          <PassageHighlighter
+            passage={item.passage}
+            highlights={highlights}
+            onCreateHighlight={onCreateHighlight}
+            onDeleteHighlight={onDeleteHighlight}
+          />
           <div className="question-block">
             <h3>{item.question}</h3>
             <div

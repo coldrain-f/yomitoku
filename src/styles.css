@@ -1808,12 +1808,76 @@ fieldset.admin-edit-form {
 }
 
 .passage p {
-  margin: 0 0 22px;
-  white-space: pre-line;
+  margin: 0;
+  white-space: pre-wrap;
 }
 
 .passage p:last-child {
   margin-bottom: 0;
+}
+
+.passage-highlightable {
+  user-select: text;
+}
+
+.passage-highlight {
+  background: #f6e28b;
+  color: inherit;
+  padding: 0 1px;
+  cursor: pointer;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.passage-highlight:hover,
+.passage-highlight:focus-visible {
+  background: #e8ce60;
+  outline: 1px solid #b99f2b;
+  outline-offset: 1px;
+}
+
+.passage-highlight[aria-busy="true"] {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.passage-highlight-action {
+  position: fixed;
+  z-index: 30;
+  transform: translateX(-50%);
+}
+
+.passage-highlight-action button {
+  min-height: 32px;
+  border: 1px solid var(--ink);
+  border-radius: 2px;
+  background: var(--ink);
+  color: #ffffff;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: "Yu Gothic", YuGothic, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.passage-highlight-action button:hover,
+.passage-highlight-action button:focus-visible {
+  background: #333333;
+  border-color: #333333;
+}
+
+.passage-highlight-action [data-lucide] {
+  width: 14px;
+  height: 14px;
+}
+
+.passage-highlight-error {
+  margin: 12px 0 0;
+  color: var(--danger);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .question-block {

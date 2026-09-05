@@ -11,17 +11,21 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import selectinload
 
 from app.api.routes.readings import (
+    create_passage_highlight,
+    delete_passage_highlight,
     elapsed_seconds_since,
     get_attempt_state,
     get_owned_attempt_for_update,
+    list_passage_highlights,
     list_published_reading_items,
+    selected_text_for_offsets,
     start_attempt,
     submit_attempt,
 )
 from app.core.security import CurrentUser
 from app.db.base import Base
 from app.db.models import Attempt, ReadingChoice, ReadingItem, User
-from app.schemas import AttemptSubmitRequest
+from app.schemas import AttemptSubmitRequest, PassageHighlightCreateRequest
 
 
 @pytest.fixture
@@ -196,6 +200,44 @@ async def test_list_keeps_first_submission_timeout_after_a_retry(
 
     assert page.items[0].my_first_submission_timed_out is True
     assert page.items[0].my_latest_status == "correct"
+
+
+@pytest.mark.asyncio
+async def test_passage_highlights_persist_per_user_and_can_be_removed(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    user, _, _ = await make_open_attempt(sessions)
+
+    async with sessions() as session:
+        item = await session.scalar(select(ReadingItem))
+        assert item is not None
+        start_offset = item.passage.index("근거")
+        created = await create_passage_highlight(
+            item.id,
+            PassageHighlightCreateRequest(
+                start_offset=start_offset,
+                end_offset=start_offset + len("근거"),
+                selected_text="근거",
+            ),
+            session,
+            user,
+        )
+        saved = await list_passage_highlights(item.id, session, user)
+
+        await delete_passage_highlight(item.id, created.id, session, user)
+        remaining = await list_passage_highlights(item.id, session, user)
+
+    assert [(highlight.start_offset, highlight.selected_text) for highlight in saved] == [
+        (start_offset, "근거")
+    ]
+    assert remaining == []
+
+
+def test_highlight_offsets_do_not_split_utf16_surrogate_pairs() -> None:
+    passage = "가😀나"
+
+    assert selected_text_for_offsets(passage, 1, 4) == "😀나"
+    assert selected_text_for_offsets(passage, 2, 4) is None
 
 
 @pytest.mark.asyncio

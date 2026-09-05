@@ -279,6 +279,25 @@ class PassageTranslationResponse(ApiModel):
     translated_text: str
 
 
+class PassageHighlightResponse(ApiModel):
+    id: UUID
+    start_offset: int
+    end_offset: int
+    selected_text: str
+
+
+class PassageHighlightCreateRequest(ApiModel):
+    start_offset: int = Field(ge=0, le=100_000)
+    end_offset: int = Field(ge=1, le=100_000)
+    selected_text: str = Field(min_length=1, max_length=2_000)
+
+    @model_validator(mode="after")
+    def offsets_are_ordered(self) -> "PassageHighlightCreateRequest":
+        if self.end_offset <= self.start_offset:
+            raise ValueError("end_offset must be greater than start_offset.")
+        return self
+
+
 class AttemptStarted(ApiModel):
     id: UUID
     item_id: UUID

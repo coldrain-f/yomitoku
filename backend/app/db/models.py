@@ -102,6 +102,33 @@ class Attempt(TimestampedModel, Base):
     elapsed_seconds: Mapped[int | None] = mapped_column(Integer)
 
 
+class PassageHighlight(TimestampedModel, Base):
+    __tablename__ = "passage_highlights"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "reading_item_id",
+            "start_offset",
+            "end_offset",
+            name="uq_passage_highlight_range",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    reading_item_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("reading_items.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    start_offset: Mapped[int] = mapped_column(Integer, nullable=False)
+    end_offset: Mapped[int] = mapped_column(Integer, nullable=False)
+    selected_text: Mapped[str] = mapped_column(Text, nullable=False)
+
+
 class ItemFeedback(TimestampedModel, Base):
     __tablename__ = "item_feedback"
     __table_args__ = (

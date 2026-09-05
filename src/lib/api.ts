@@ -7,6 +7,7 @@ import type {
   ItemValidation,
   LengthType,
   ManualReadingDraft,
+  PassageHighlight,
   ReadingItem,
   ReadingLanguage,
   ReadingStatus,
@@ -79,6 +80,13 @@ interface ApiPublicReadingDetail {
   passage: string;
   question: string;
   choices: ApiChoice[];
+}
+
+interface ApiPassageHighlight {
+  id: string;
+  startOffset: number;
+  endOffset: number;
+  selectedText: string;
 }
 
 interface ApiPage<T> {
@@ -458,6 +466,24 @@ export const api = {
   translateReading: (itemId: string) =>
     request<PassageTranslation>(`/reading-items/${itemId}/translation`, {
       method: "POST",
+    }),
+  highlights: (itemId: string) =>
+    request<ApiPassageHighlight[]>(`/reading-items/${itemId}/highlights`).then(
+      (highlights) => highlights.map((highlight) => ({ ...highlight })),
+    ),
+  createHighlight: (
+    itemId: string,
+    startOffset: number,
+    endOffset: number,
+    selectedText: string,
+  ) =>
+    request<ApiPassageHighlight>(`/reading-items/${itemId}/highlights`, {
+      method: "POST",
+      body: JSON.stringify({ startOffset, endOffset, selectedText }),
+    }).then((highlight) => ({ ...highlight })),
+  deleteHighlight: (itemId: string, highlightId: string) =>
+    request<void>(`/reading-items/${itemId}/highlights/${highlightId}`, {
+      method: "DELETE",
     }),
   abandonAttempt: (attemptId: string) =>
     request<void>(`/reading-items/attempts/${attemptId}/abandon`, { method: "POST" }),
