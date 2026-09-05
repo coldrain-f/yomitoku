@@ -22,9 +22,9 @@ from app.services.reading_policy import PASSAGE_CHARACTER_LIMITS, TOPIC_LABELS
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
 GENERATOR_MAX_TOKENS_BY_LENGTH: Final = {
-    "short": 3_500,
-    "medium": 5_000,
-    "long": 7_000,
+    "short": 5_000,
+    "medium": 7_000,
+    "long": 10_000,
 }
 ANSWER_VALIDATOR_MAX_TOKENS: Final = 600
 QUALITY_VALIDATOR_MAX_TOKENS: Final = 1_600

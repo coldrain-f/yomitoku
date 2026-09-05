@@ -437,9 +437,9 @@ def test_quality_validator_budget_has_room_for_complete_structured_feedback() ->
 @pytest.mark.parametrize(
     ("length_type", "expected_max_tokens"),
     [
-        ("short", 3_500),
-        ("medium", 5_000),
-        ("long", 7_000),
+        ("short", 5_000),
+        ("medium", 7_000),
+        ("long", 10_000),
     ],
 )
 def test_generation_output_budget_scales_by_requested_length(
