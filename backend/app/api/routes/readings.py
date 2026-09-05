@@ -18,8 +18,10 @@ from app.core.security import (
 from app.db.models import Attempt, ItemFeedback, ItemReport, ReadingChoice, ReadingItem
 from app.db.session import get_session
 from app.schemas import (
+    AttemptItemDetail,
     AttemptResult,
     AttemptStarted,
+    AttemptState,
     AttemptSubmitRequest,
     FeedbackRequest,
     LengthType,
@@ -68,6 +70,17 @@ async def get_published_item(session: AsyncSession, item_id: UUID) -> ReadingIte
 
 def public_choices(choices: Iterable[ReadingChoice]) -> list[ReadingChoicePublic]:
     return [ReadingChoicePublic(id=choice.id, text=choice.text) for choice in choices]
+
+
+def choices_for_attempt(item: ReadingItem, attempt: Attempt) -> list[ReadingChoice]:
+    """Return the issued order, with a stable fallback for attempts created before it."""
+    by_id = {str(choice.id): choice for choice in item.choices}
+    choices: list[ReadingChoice] = []
+    for choice_id in attempt.choice_order:
+        choice = by_id.pop(choice_id, None)
+        if choice:
+            choices.append(choice)
+    return [*choices, *by_id.values()]
 
 
 def serialize_public_summary(
@@ -285,15 +298,16 @@ async def start_attempt(
 ) -> AttemptStarted:
     item = await get_published_item(session, item_id)
     await ensure_user(session, current_user)
+    choices = random.SystemRandom().sample(item.choices, k=len(item.choices))
     attempt = Attempt(
         user_id=current_user.id,
         reading_item_id=item.id,
         started_at=datetime.now(UTC),
+        choice_order=[str(choice.id) for choice in choices],
     )
     session.add(attempt)
     await session.commit()
     await session.refresh(attempt)
-    choices = random.SystemRandom().sample(item.choices, k=len(item.choices))
     return AttemptStarted(
         id=attempt.id,
         item_id=item.id,
@@ -337,6 +351,21 @@ async def get_owned_attempt_for_update(
     return attempt
 
 
+async def get_owned_attempt(
+    session: AsyncSession, attempt_id: UUID, current_user: CurrentUser
+) -> Attempt:
+    attempt = await session.scalar(
+        select(Attempt).where(
+            Attempt.id == attempt_id, Attempt.user_id == current_user.id
+        )
+    )
+    if not attempt:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Attempt not found."
+        )
+    return attempt
+
+
 def elapsed_seconds_since(started_at: datetime, completed_at: datetime) -> int:
     """Accept timestamps from drivers that do not restore timezone metadata."""
     if started_at.tzinfo is None:
@@ -344,6 +373,87 @@ def elapsed_seconds_since(started_at: datetime, completed_at: datetime) -> int:
     if completed_at.tzinfo is None:
         completed_at = completed_at.replace(tzinfo=UTC)
     return max(0, int((completed_at - started_at).total_seconds()))
+
+
+async def serialize_attempt_result(
+    session: AsyncSession, attempt: Attempt, item: ReadingItem
+) -> AttemptResult:
+    selected = next(
+        (choice for choice in item.choices if choice.id == attempt.selected_choice_id),
+        None,
+    )
+    correct = next(choice for choice in item.choices if choice.is_correct)
+    if not selected or attempt.is_correct is None or attempt.elapsed_seconds is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This submitted attempt is incomplete.",
+        )
+    accuracy, challenger_count = await item_outcomes(session, item.id)
+    return AttemptResult(
+        attempt_id=attempt.id,
+        item_id=item.id,
+        is_correct=attempt.is_correct,
+        selected_choice_id=selected.id,
+        correct_choice_id=correct.id,
+        explanation=item.explanation,
+        selected_choice_wrong_explanation=selected.wrong_explanation,
+        elapsed_seconds=attempt.elapsed_seconds,
+        recommended_seconds=item.recommended_seconds,
+        item_accuracy=accuracy,
+        challenger_count=challenger_count,
+    )
+
+
+@router.get("/attempts/{attempt_id}", response_model=AttemptState)
+async def get_attempt_state(
+    attempt_id: UUID,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> AttemptState:
+    attempt = await get_owned_attempt(session, attempt_id, current_user)
+    if attempt.abandoned_at:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Attempt not found."
+        )
+    item = await session.scalar(
+        select(ReadingItem)
+        .where(ReadingItem.id == attempt.reading_item_id)
+        .options(selectinload(ReadingItem.choices))
+    )
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Item not found."
+        )
+
+    metrics = await collect_item_metrics(session, [item.id])
+    latest_status: Literal["correct", "wrong"] | None = None
+    if attempt.submitted_at:
+        latest_status = "correct" if attempt.is_correct else "wrong"
+    item_summary = serialize_public_summary(item, metrics[item.id], latest_status)
+    submitted = attempt.submitted_at is not None
+    return AttemptState(
+        id=attempt.id,
+        item_id=item.id,
+        item=AttemptItemDetail(
+            **item_summary.model_dump(),
+            passage=item.passage,
+            question=item.question,
+            choices=public_choices(choices_for_attempt(item, attempt)),
+        ),
+        started_at=attempt.started_at,
+        elapsed_seconds=(
+            attempt.elapsed_seconds
+            if submitted and attempt.elapsed_seconds is not None
+            else elapsed_seconds_since(attempt.started_at, datetime.now(UTC))
+        ),
+        selected_choice_id=attempt.selected_choice_id,
+        submitted=submitted,
+        result=(
+            await serialize_attempt_result(session, attempt, item)
+            if submitted
+            else None
+        ),
+    )
 
 
 @router.post("/attempts/{attempt_id}/submit", response_model=AttemptResult)
@@ -378,20 +488,7 @@ async def submit_attempt(
     attempt.submitted_at = submitted_at
     attempt.elapsed_seconds = elapsed_seconds_since(attempt.started_at, submitted_at)
     await session.commit()
-    accuracy, challenger_count = await item_outcomes(session, item.id)
-    return AttemptResult(
-        attempt_id=attempt.id,
-        item_id=item.id,
-        is_correct=bool(attempt.is_correct),
-        selected_choice_id=selected.id,
-        correct_choice_id=correct.id,
-        explanation=item.explanation,
-        selected_choice_wrong_explanation=selected.wrong_explanation,
-        elapsed_seconds=attempt.elapsed_seconds,
-        recommended_seconds=item.recommended_seconds,
-        item_accuracy=accuracy,
-        challenger_count=challenger_count,
-    )
+    return await serialize_attempt_result(session, attempt, item)
 
 
 @router.post("/attempts/{attempt_id}/abandon", status_code=status.HTTP_204_NO_CONTENT)

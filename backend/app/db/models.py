@@ -93,6 +93,8 @@ class Attempt(TimestampedModel, Base):
         Uuid, ForeignKey("reading_items.id", ondelete="CASCADE"), nullable=False, index=True
     )
     selected_choice_id: Mapped[UUID | None] = mapped_column(Uuid)
+    # Keep the exact shuffled order that the learner received for later recovery.
+    choice_order: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     is_correct: Mapped[bool | None] = mapped_column()
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

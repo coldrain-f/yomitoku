@@ -142,6 +142,28 @@ export interface SubmittedAttempt {
   challengerCount: number;
 }
 
+interface ApiAttemptState {
+  id: string;
+  itemId: string;
+  item: ApiReadingDetail;
+  startedAt: string;
+  elapsedSeconds: number;
+  selectedChoiceId: string | null;
+  submitted: boolean;
+  result: SubmittedAttempt | null;
+}
+
+export interface RestoredAttempt {
+  id: string;
+  itemId: string;
+  item: ReadingItem;
+  startedAt: string;
+  elapsedSeconds: number;
+  selectedChoiceId: string | null;
+  submitted: boolean;
+  result: SubmittedAttempt | null;
+}
+
 export interface PassageTranslation {
   sourceLanguage: ReadingLanguage;
   targetLanguage: ReadingLanguage;
@@ -417,6 +439,14 @@ export const api = {
     return {
       ...response,
       choices: response.choices.map((choice) => ({ ...choice })),
+    };
+  },
+  async attempt(attemptId: string): Promise<RestoredAttempt> {
+    const response = await request<ApiAttemptState>(`/reading-items/attempts/${attemptId}`);
+    return {
+      ...response,
+      item: toItem(response.item, response.item),
+      result: response.result ? { ...response.result } : null,
     };
   },
   submitAttempt: (attemptId: string, selectedChoiceId: string, clientElapsedSeconds: number) =>

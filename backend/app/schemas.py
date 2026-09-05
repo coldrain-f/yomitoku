@@ -299,6 +299,23 @@ class AttemptResult(ApiModel):
     challenger_count: int
 
 
+class AttemptItemDetail(ReadingItemSummary):
+    passage: str
+    question: str
+    choices: list[ReadingChoicePublic]
+
+
+class AttemptState(ApiModel):
+    id: UUID
+    item_id: UUID
+    item: AttemptItemDetail
+    started_at: datetime
+    elapsed_seconds: int
+    selected_choice_id: UUID | None
+    submitted: bool
+    result: AttemptResult | None
+
+
 class FeedbackRequest(ApiModel):
     quality_rating: int = Field(ge=1, le=5)
     perceived_level: ReadingLevel

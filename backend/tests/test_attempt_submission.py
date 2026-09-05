@@ -5,12 +5,16 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import selectinload
 
 from app.api.routes.readings import (
     elapsed_seconds_since,
+    get_attempt_state,
     get_owned_attempt_for_update,
+    start_attempt,
     submit_attempt,
 )
 from app.core.security import CurrentUser
@@ -108,6 +112,58 @@ async def test_submission_closes_an_attempt_before_a_second_submission(
             )
 
     assert error.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_started_attempt_persists_the_issued_choice_order(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    user, _, _ = await make_open_attempt(sessions)
+    async with sessions() as session:
+        item_id = await session.scalar(select(ReadingItem.id))
+        assert item_id is not None
+        started = await start_attempt(item_id, session, user)
+        attempt = await session.get(Attempt, started.id)
+
+    assert attempt is not None
+    assert attempt.choice_order == [str(choice.id) for choice in started.choices]
+
+
+@pytest.mark.asyncio
+async def test_attempt_state_restores_issued_order_and_submitted_result(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    user, attempt_id, correct_choice_id = await make_open_attempt(sessions)
+    async with sessions() as session:
+        attempt = await session.get(Attempt, attempt_id)
+        assert attempt is not None
+        item = await session.scalar(
+            select(ReadingItem).options(selectinload(ReadingItem.choices))
+        )
+        assert item is not None
+        ordered_ids = [str(choice.id) for choice in reversed(item.choices)]
+        attempt.choice_order = ordered_ids
+        await session.commit()
+
+        active = await get_attempt_state(attempt_id, session, user)
+        assert [str(choice.id) for choice in active.item.choices] == ordered_ids
+        assert active.submitted is False
+        assert active.result is None
+
+        await submit_attempt(
+            attempt_id,
+            AttemptSubmitRequest(
+                selected_choice_id=correct_choice_id, client_elapsed_seconds=30
+            ),
+            session,
+            user,
+        )
+        restored = await get_attempt_state(attempt_id, session, user)
+
+    assert restored.submitted is True
+    assert restored.result is not None
+    assert restored.result.selected_choice_id == correct_choice_id
+    assert [str(choice.id) for choice in restored.item.choices] == ordered_ids
 
 
 @pytest.mark.asyncio
