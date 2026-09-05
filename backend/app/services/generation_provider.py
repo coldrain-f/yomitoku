@@ -26,7 +26,8 @@ GENERATOR_MAX_TOKENS_BY_LENGTH: Final = {
     "medium": 5_000,
     "long": 7_000,
 }
-VALIDATOR_MAX_TOKENS: Final = 3_000
+ANSWER_VALIDATOR_MAX_TOKENS: Final = 600
+QUALITY_VALIDATOR_MAX_TOKENS: Final = 900
 CACHE_CONTROL: Final = {"type": "ephemeral"}
 PASSAGE_CHARACTER_TARGETS: Final = {
     "short": (140, 320),
@@ -65,6 +66,8 @@ Use status failed for no supported answer or multiple supported answers; warning
 Use precise issueCodes when needed: ANSWER_MISMATCH, MULTIPLE_SUPPORTED_ANSWERS,
 NO_SUPPORTED_ANSWER, UNSUPPORTED_CORRECT_ANSWER, QUESTION_AMBIGUITY, or
 BACKGROUND_KNOWLEDGE_DEPENDENCY. Evidence must name the choice and the passage fact that supports the judgment.
+For passed items, return empty issueCodes and evidence. Otherwise return at most three concise evidence strings,
+each no longer than 220 characters. Do not include chain-of-thought or a general review.
 Return status, score (0-100), issueCodes, evidence, and correctChoiceIndex (1-4)."""
 
 QUALITY_VALIDATOR_SYSTEM_PROMPT: Final = """You are an exacting reading-comprehension item editor.
@@ -83,6 +86,8 @@ DISTRACTOR_OVERLAP, DISTRACTOR_NOT_TEXT_ANCHORED, DISTRACTOR_TYPE_MISMATCH,
 BACKGROUND_KNOWLEDGE_DEPENDENCY, QUESTION_AMBIGUITY, OUT_OF_LEVEL, or EXPLANATION_MISMATCH.
 Give passed only to a clean item with score 85 or higher. Use warning for a repairable problem and failed for
 an ambiguous item with more than one defensible answer. Evidence must identify the choice and its exact issue.
+For passed items, return empty issueCodes and evidence. Otherwise return at most three concise evidence strings,
+each no longer than 220 characters. Do not include chain-of-thought or a general review.
 Return status, score (0-100), issueCodes, and evidence."""
 
 
@@ -401,7 +406,7 @@ text outside the requested object.
             ANSWER_VALIDATOR_SYSTEM_PROMPT,
             prompt,
             ValidatorOutcome,
-            max_tokens=VALIDATOR_MAX_TOKENS,
+            max_tokens=ANSWER_VALIDATOR_MAX_TOKENS,
         )
 
     async def verify_quality(
@@ -420,7 +425,7 @@ Requested level: {conditions.official_level}
             QUALITY_VALIDATOR_SYSTEM_PROMPT,
             prompt,
             ValidatorOutcome,
-            max_tokens=VALIDATOR_MAX_TOKENS,
+            max_tokens=QUALITY_VALIDATOR_MAX_TOKENS,
         )
 
     async def _structured_response(

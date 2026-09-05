@@ -45,6 +45,8 @@ class GenerationState(TypedDict):
 
 
 VALIDATION_SCORE_FLOORS: Final = {"answer": 85, "quality": 85}
+MAX_REVISION_FEEDBACK_ITEMS: Final = 6
+MAX_REVISION_FEEDBACK_CHARACTERS: Final = 180
 OUTPUT_RETRY_EXHAUSTED_CODE: Final = "generation_output_retry_exhausted"
 COMPACT_OUTPUT_RETRY_FEEDBACK: Final = (
     "The previous response was incomplete. Return one complete object only, keep every "
@@ -75,9 +77,12 @@ def validation_feedback(state: GenerationState) -> list[str]:
         if outcome_data:
             outcome = ValidatorOutcome.model_validate(outcome_data)
             role = key.removesuffix("_validation")
-            feedback.extend(f"{role}: {code}" for code in outcome.issue_codes)
-            feedback.extend(f"{role}: {evidence}" for evidence in outcome.evidence)
-    return list(dict.fromkeys(feedback))
+            feedback.extend(f"{role}: {code}" for code in outcome.issue_codes[:2])
+            feedback.extend(
+                f"{role}: {' '.join(evidence.split())[:MAX_REVISION_FEEDBACK_CHARACTERS]}"
+                for evidence in outcome.evidence[:1]
+            )
+    return list(dict.fromkeys(feedback))[:MAX_REVISION_FEEDBACK_ITEMS]
 
 
 def enforce_validation_gate(

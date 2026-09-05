@@ -17,7 +17,9 @@ from app.schemas import (
     ValidatorOutcome,
 )
 from app.services.generation_provider import (
+    ANSWER_VALIDATOR_MAX_TOKENS,
     GENERATOR_MAX_TOKENS_BY_LENGTH,
+    QUALITY_VALIDATOR_MAX_TOKENS,
     AnthropicGenerationProvider,
     GenerationOutputFormatError,
     GenerationOutputTruncatedError,
@@ -242,6 +244,11 @@ async def test_anthropic_validators_use_native_structured_output() -> None:
     ]
     assert "DISTRACTOR_TYPE_MISMATCH" in messages.calls[1]["system"][0]["text"]
     assert messages.calls[1]["system"][0]["cache_control"] == {"type": "ephemeral"}
+    assert [call["max_tokens"] for call in messages.calls] == [
+        ANSWER_VALIDATOR_MAX_TOKENS,
+        QUALITY_VALIDATOR_MAX_TOKENS,
+    ]
+    assert "at most three concise evidence strings" in messages.calls[1]["system"][0]["text"]
 
 
 @pytest.mark.asyncio
@@ -299,6 +306,21 @@ def test_validator_outcome_accepts_structured_evidence_entries() -> None:
         "WEAK_DISTRACTOR: Distractor choice is too easy to eliminate.",
         "DISTRACTOR_OVERLAP: Two incorrect choices overlap in meaning.",
     ]
+
+
+def test_validator_outcome_limits_long_or_redundant_feedback() -> None:
+    outcome = ValidatorOutcome.model_validate(
+        {
+            "status": "warning",
+            "score": 72,
+            "issueCodes": [f"ISSUE_{index}" for index in range(6)],
+            "evidence": ["근거 " * 80 for _ in range(5)],
+        }
+    )
+
+    assert len(outcome.issue_codes) == 4
+    assert len(outcome.evidence) == 3
+    assert all(len(evidence) <= 220 for evidence in outcome.evidence)
 
 
 def test_usage_cost_counts_cache_reads_separately() -> None:
@@ -436,3 +458,26 @@ def test_validation_gate_rejects_low_scores_and_preserves_repair_feedback() -> N
     assert "answer_score_below_85" in answer.issue_codes
     assert "quality: WEAK_DISTRACTOR" in feedback
     assert "quality: Choice 3 is unrelated to the passage." in feedback
+
+
+def test_validation_feedback_is_compact_for_revisions() -> None:
+    feedback = validation_feedback(
+        {
+            "schema_issues": [],
+            "answer_validation": ValidatorOutcome(
+                status="warning",
+                score=70,
+                issue_codes=["QUESTION_AMBIGUITY", "ANSWER_MISMATCH"],
+                evidence=["answer evidence " * 30],
+            ).model_dump(mode="json"),
+            "quality_validation": ValidatorOutcome(
+                status="warning",
+                score=70,
+                issue_codes=["WEAK_DISTRACTOR", "DISTRACTOR_OVERLAP"],
+                evidence=["quality evidence " * 30],
+            ).model_dump(mode="json"),
+        }
+    )
+
+    assert len(feedback) == 6
+    assert all(len(entry) <= 189 for entry in feedback)

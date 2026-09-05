@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -94,18 +94,18 @@ class GenerationModelOptionsResponse(ApiModel):
 
 
 class GeneratedChoice(ApiModel):
-    text: str = Field(min_length=1)
+    text: str = Field(min_length=1, max_length=400)
     is_correct: bool
-    wrong_explanation: str | None = None
+    wrong_explanation: str | None = Field(default=None, max_length=500)
     distractor_type: DistractorType | None = None
 
 
 class GeneratedReading(ApiModel):
     title: str = Field(min_length=1, max_length=255)
-    passage: str = Field(min_length=1)
-    question: str = Field(min_length=1)
+    passage: str = Field(min_length=1, max_length=2_200)
+    question: str = Field(min_length=1, max_length=600)
     choices: list[GeneratedChoice]
-    explanation: str = Field(min_length=1)
+    explanation: str = Field(min_length=1, max_length=800)
 
     @model_validator(mode="after")
     def validate_choices(self) -> "GeneratedReading":
@@ -126,8 +126,12 @@ class GeneratedTitle(ApiModel):
 class ValidatorOutcome(ApiModel):
     status: ValidationStatus
     score: int = Field(ge=0, le=100)
-    issue_codes: list[str] = Field(default_factory=list)
-    evidence: list[str] = Field(default_factory=list)
+    issue_codes: list[Annotated[str, Field(min_length=1, max_length=80)]] = Field(
+        default_factory=list, max_length=4
+    )
+    evidence: list[Annotated[str, Field(min_length=1, max_length=220)]] = Field(
+        default_factory=list, max_length=3
+    )
     correct_choice_index: int | None = Field(default=None, ge=1, le=4)
 
     @model_validator(mode="before")
@@ -145,8 +149,8 @@ class ValidatorOutcome(ApiModel):
         for issue_code in evidence_issue_codes:
             if issue_code not in issue_codes:
                 issue_codes.append(issue_code)
-        values["issueCodes"] = issue_codes
-        values["evidence"] = evidence
+        values["issueCodes"] = issue_codes[:4]
+        values["evidence"] = [entry[:220] for entry in evidence[:3]]
         return values
 
 
