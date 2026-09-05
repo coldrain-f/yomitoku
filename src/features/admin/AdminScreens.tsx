@@ -137,6 +137,26 @@ const generationStageLabels: Record<string, string> = {
   verify_quality: "품질 검증",
 };
 
+const validationRoleLabels: Record<string, string> = {
+  schema: "형식 검증",
+  answer: "정답 검증",
+  quality: "문항 품질",
+};
+
+function validationStatusLabel(status: string): string {
+  return {
+    passed: "통과",
+    warning: "확인 필요",
+    failed: "실패",
+  }[status] ?? status;
+}
+
+function validationStatusClass(status: string): string {
+  if (status === "passed") return "badge ok";
+  if (status === "failed") return "badge danger";
+  return "badge";
+}
+
 function generationStatusLabel(status: string): string {
   return {
     queued: "대기",
@@ -574,6 +594,15 @@ export function AdminEdit({
   isSuggestingTitle = false,
   titleSuggestionError = "",
 }: AdminEditProps) {
+  const validationState = item.validations.some(
+    (validation) => validation.status === "failed",
+  )
+    ? "failed"
+    : item.validations.some((validation) => validation.status === "warning")
+      ? "warning"
+      : item.validations.length
+        ? "passed"
+        : "unknown";
 
   const updateChoice = (index: number, text: string) =>
     setDraft({
@@ -818,37 +847,77 @@ export function AdminEdit({
                 <dd>{item.reportCount}건</dd>
               </div>
             </dl>
-            <div className="admin-latest-report">
-              <span className="form-label">최근 오류 제보</span>
-              <p>{item.latestReport}</p>
-              <time className="row-date">{formatDate(item.updatedAt)}</time>
-            </div>
+            <section className="admin-report-section" aria-label="오류 제보 상세">
+              <div className="admin-section-heading">
+                <h3 className="admin-subsection-title">오류 제보 상세</h3>
+                <span className="admin-section-note">{item.reports.length}건</span>
+              </div>
+              {item.reports.length ? (
+                <div className="admin-report-list">
+                  {item.reports.map((report) => (
+                    <article className="admin-report-item" key={report.id}>
+                      <div className="admin-record-meta">
+                        <span className="badge">
+                          {report.status === "open" ? "접수됨" : report.status}
+                        </span>
+                        <time className="row-date">{formatDate(report.createdAt)}</time>
+                      </div>
+                      <p>{report.content}</p>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className="admin-empty-detail">접수된 오류 제보가 없습니다.</p>
+              )}
+            </section>
           </section> : null}
           {!manual ? <section className="admin-validation">
             <div className="admin-section-heading">
               <h2 className="admin-section-title">생성 검증</h2>
-              <span
-                className={
-                  item.validation.status === "passed" ? "badge ok" : "badge danger"
-                }
-              >
-                {item.validation.status === "passed" ? "검증 통과" : "검증 확인"}
+              <span className={validationStatusClass(validationState)}>
+                {validationState === "unknown"
+                  ? "기록 없음"
+                  : `검증 ${validationStatusLabel(validationState)}`}
               </span>
             </div>
-            <dl className="admin-validation-list">
-              <div>
-                <dt>정답 검증</dt>
-                <dd>{item.validation.answer}</dd>
+            {item.validations.length ? (
+              <div className="admin-validation-records">
+                {item.validations.map((validation) => (
+                  <article className="admin-validation-record" key={`${validation.validatorRole}-${validation.createdAt}`}>
+                    <div className="admin-validation-record-head">
+                      <div>
+                        <h3 className="admin-subsection-title">
+                          {validationRoleLabels[validation.validatorRole] ?? validation.validatorRole}
+                        </h3>
+                        <p className="admin-record-model">{validation.modelId}</p>
+                      </div>
+                      <div className="admin-record-meta">
+                        {validation.score !== null ? (
+                          <span className="admin-validation-score">{validation.score}점</span>
+                        ) : null}
+                        <span className={validationStatusClass(validation.status)}>
+                          {validationStatusLabel(validation.status)}
+                        </span>
+                      </div>
+                    </div>
+                    {validation.issueCodes.length ? (
+                      <p className="admin-validation-issues">
+                        {validation.issueCodes.join(" · ")}
+                      </p>
+                    ) : null}
+                    {validation.evidence.length ? (
+                      <ul className="admin-validation-evidence">
+                        {validation.evidence.map((evidence, index) => (
+                          <li key={`${validation.validatorRole}-${index}`}>{evidence}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </article>
+                ))}
               </div>
-              <div>
-                <dt>오답 설계</dt>
-                <dd>{item.validation.distractor}</dd>
-              </div>
-              <div>
-                <dt>해설 논리</dt>
-                <dd>{item.validation.explanation}</dd>
-              </div>
-            </dl>
+            ) : (
+              <p className="admin-empty-detail">AI 생성 문항이 아니어서 검증 기록이 없습니다.</p>
+            )}
           </section> : null}
         </fieldset>
         <div className="footer-actions admin-edit-actions">
@@ -951,13 +1020,8 @@ export function ManualCreateScreen({
     explanation: values.explanation,
     quality: 0,
     reportCount: 0,
-    latestReport: "",
-    validation: {
-      status: "warning",
-      answer: "",
-      distractor: "",
-      explanation: "",
-    },
+    reports: [],
+    validations: [],
   };
 
   return (

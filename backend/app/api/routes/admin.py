@@ -13,6 +13,8 @@ from app.core.security import CurrentUser, require_admin
 from app.db.models import (
     GenerationJob,
     GenerationUsageEvent,
+    ItemReport,
+    ItemValidation,
     ReadingChoice,
     ReadingItem,
     User,
@@ -31,6 +33,8 @@ from app.schemas import (
     GenerationJobResponse,
     GenerationModelOptionsResponse,
     GenerationUsageEventResponse,
+    ItemReportDetail,
+    ItemValidationDetail,
     LengthType,
     ReadingChoiceInput,
     ReadingItemPage,
@@ -165,11 +169,26 @@ def serialize_summary(
     )
 
 
-def serialize_detail(
+async def serialize_detail(
+    session: AsyncSession,
     item: ReadingItem,
     metrics: ItemMetrics,
 ) -> AdminReadingItemDetail:
     summary = serialize_summary(item, metrics)
+    reports = list(
+        await session.scalars(
+            select(ItemReport)
+            .where(ItemReport.reading_item_id == item.id)
+            .order_by(ItemReport.created_at.desc(), ItemReport.id.desc())
+        )
+    )
+    validations = list(
+        await session.scalars(
+            select(ItemValidation)
+            .where(ItemValidation.reading_item_id == item.id)
+            .order_by(ItemValidation.created_at.asc(), ItemValidation.id.asc())
+        )
+    )
     return AdminReadingItemDetail(
         **summary.model_dump(),
         passage=item.passage,
@@ -191,6 +210,27 @@ def serialize_detail(
         ),
         report_count=int(metrics["report_count"] or 0),
         challenger_count=int(metrics["challenger_count"] or 0),
+        reports=[
+            ItemReportDetail(
+                id=report.id,
+                content=report.content,
+                status=report.status,
+                created_at=report.created_at,
+            )
+            for report in reports
+        ],
+        validations=[
+            ItemValidationDetail(
+                validator_role=validation.validator_role,
+                model_id=validation.model_id,
+                status=validation.status,
+                score=validation.score,
+                issue_codes=validation.issue_codes,
+                evidence=validation.evidence,
+                created_at=validation.created_at,
+            )
+            for validation in validations
+        ],
     )
 
 
@@ -510,7 +550,7 @@ async def create_admin_reading_item(
     await session.commit()
     item = await get_admin_item(session, item.id)
     metrics = await collect_item_metrics(session, [item.id])
-    return serialize_detail(item, metrics[item.id])
+    return await serialize_detail(session, item, metrics[item.id])
 
 
 @router.get("/reading-items/{item_id}", response_model=AdminReadingItemDetail)
@@ -521,7 +561,7 @@ async def get_admin_reading_item(
 ) -> AdminReadingItemDetail:
     item = await get_admin_item(session, item_id)
     metrics = await collect_item_metrics(session, [item.id])
-    return serialize_detail(item, metrics[item.id])
+    return await serialize_detail(session, item, metrics[item.id])
 
 
 @router.patch("/reading-items/{item_id}", response_model=AdminReadingItemDetail)
@@ -560,7 +600,7 @@ async def update_admin_reading_item(
     await session.commit()
     item = await get_admin_item(session, item.id)
     metrics = await collect_item_metrics(session, [item.id])
-    return serialize_detail(item, metrics[item.id])
+    return await serialize_detail(session, item, metrics[item.id])
 
 
 async def update_item_status(
@@ -578,7 +618,7 @@ async def update_item_status(
     await session.commit()
     item = await get_admin_item(session, item.id)
     metrics = await collect_item_metrics(session, [item.id])
-    return serialize_detail(item, metrics[item.id])
+    return await serialize_detail(session, item, metrics[item.id])
 
 
 @router.post("/reading-items/{item_id}/publish", response_model=AdminReadingItemDetail)

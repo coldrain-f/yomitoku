@@ -351,6 +351,23 @@ class ReadingChoiceInput(ApiModel):
     wrong_explanation: str | None = Field(default=None, max_length=4_000)
 
 
+class ItemReportDetail(ApiModel):
+    id: UUID
+    content: str
+    status: str
+    created_at: datetime
+
+
+class ItemValidationDetail(ApiModel):
+    validator_role: Literal["schema", "answer", "quality"]
+    model_id: str
+    status: ValidationStatus
+    score: int | None
+    issue_codes: list[str]
+    evidence: list[str]
+    created_at: datetime
+
+
 class AdminReadingItemDetail(ReadingItemSummary):
     passage: str
     question: str
@@ -359,6 +376,8 @@ class AdminReadingItemDetail(ReadingItemSummary):
     quality_average: float | None
     report_count: int
     challenger_count: int
+    reports: list[ItemReportDetail]
+    validations: list[ItemValidationDetail]
 
 
 class AdminReadingItemCreate(ApiModel):

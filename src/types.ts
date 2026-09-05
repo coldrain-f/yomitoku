@@ -22,11 +22,21 @@ export interface Choice {
   wrongExplanation?: string;
 }
 
-export interface ValidationResult {
-  status: "passed" | "warning";
-  answer: string;
-  distractor: string;
-  explanation: string;
+export interface ItemReport {
+  id: string;
+  content: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface ItemValidation {
+  validatorRole: "schema" | "answer" | "quality";
+  modelId: string;
+  status: "passed" | "warning" | "failed";
+  score: number | null;
+  issueCodes: string[];
+  evidence: string[];
+  createdAt: string;
 }
 
 export interface ReadingItem {
@@ -51,8 +61,8 @@ export interface ReadingItem {
   explanation: string;
   quality: number;
   reportCount: number;
-  latestReport: string;
-  validation: ValidationResult;
+  reports: ItemReport[];
+  validations: ItemValidation[];
 }
 
 export interface AttemptRecord {

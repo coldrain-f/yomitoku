@@ -761,8 +761,7 @@ fieldset.admin-edit-form {
   font-variant-numeric: tabular-nums;
 }
 
-.admin-insight-list,
-.admin-validation-list {
+.admin-insight-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   margin: 0;
@@ -770,47 +769,109 @@ fieldset.admin-edit-form {
   border-bottom: 1px solid var(--line);
 }
 
-.admin-insight-list > div,
-.admin-validation-list > div {
+.admin-insight-list > div {
   min-width: 0;
   padding: 14px 16px;
   border-right: 1px solid var(--line);
 }
 
-.admin-insight-list > div:first-child,
-.admin-validation-list > div:first-child {
+.admin-insight-list > div:first-child {
   padding-left: 0;
 }
 
-.admin-insight-list > div:last-child,
-.admin-validation-list > div:last-child {
+.admin-insight-list > div:last-child {
   padding-right: 0;
   border-right: 0;
 }
 
-.admin-insight-list dt,
-.admin-validation-list dt {
+.admin-insight-list dt {
   color: var(--muted);
   font-size: 12px;
 }
 
-.admin-insight-list dd,
-.admin-validation-list dd {
+.admin-insight-list dd {
   margin: 6px 0 0;
   color: var(--ink);
   font-size: 14px;
   line-height: 1.5;
 }
 
-.admin-latest-report {
+.admin-report-section,
+.admin-validation-records {
   display: grid;
-  grid-template-columns: 108px minmax(0, 1fr) auto;
-  align-items: baseline;
   gap: 12px;
 }
 
-.admin-latest-report p {
+.admin-subsection-title {
   margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.admin-report-list {
+  border-top: 1px solid var(--line);
+}
+
+.admin-report-item,
+.admin-validation-record {
+  display: grid;
+  gap: 8px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-report-item p,
+.admin-validation-issues,
+.admin-record-model,
+.admin-empty-detail {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.admin-empty-detail,
+.admin-record-model {
+  color: var(--muted);
+}
+
+.admin-record-meta,
+.admin-validation-record-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.admin-record-meta {
+  justify-content: flex-start;
+}
+
+.admin-validation-record-head > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.admin-validation-score {
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-validation-issues {
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.admin-validation-evidence {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 13px;
   line-height: 1.55;
 }
 
@@ -2405,30 +2466,24 @@ body.dialog-open {
     grid-template-columns: 1fr;
   }
 
-  .admin-insight-list,
-  .admin-validation-list {
+  .admin-insight-list {
     grid-template-columns: 1fr;
   }
 
   .admin-insight-list > div,
-  .admin-validation-list > div,
   .admin-insight-list > div:first-child,
-  .admin-validation-list > div:first-child,
-  .admin-insight-list > div:last-child,
-  .admin-validation-list > div:last-child {
+  .admin-insight-list > div:last-child {
     padding: 12px 0;
     border-right: 0;
     border-bottom: 1px solid var(--line);
   }
 
-  .admin-insight-list > div:last-child,
-  .admin-validation-list > div:last-child {
+  .admin-insight-list > div:last-child {
     border-bottom: 0;
   }
 
-  .admin-latest-report {
-    grid-template-columns: 1fr;
-    gap: 5px;
+  .admin-validation-record-head {
+    align-items: flex-start;
   }
 
   .admin-options-heading {

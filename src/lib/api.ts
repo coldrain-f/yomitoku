@@ -3,6 +3,8 @@ import type {
   Choice,
   DifficultyLevel,
   GenerationValues,
+  ItemReport,
+  ItemValidation,
   LengthType,
   ManualReadingDraft,
   ReadingItem,
@@ -61,6 +63,8 @@ interface ApiReadingDetail extends ApiReadingSummary {
   qualityAverage?: number | null;
   reportCount?: number;
   challengerCount?: number;
+  reports?: ItemReport[];
+  validations?: ItemValidation[];
 }
 
 interface ApiPublicReadingDetail {
@@ -280,13 +284,8 @@ function toItem(summary: ApiReadingSummary, detail?: ApiReadingDetail): ReadingI
     explanation: detail?.explanation ?? "",
     quality: detail?.qualityAverage ?? 0,
     reportCount: detail?.reportCount ?? 0,
-    latestReport: "접수된 오류 제보가 없습니다.",
-    validation: {
-      status: "warning",
-      answer: "검증 기록을 불러오는 중입니다.",
-      distractor: "검증 기록을 불러오는 중입니다.",
-      explanation: "검증 기록을 불러오는 중입니다.",
-    },
+    reports: detail?.reports?.map((report) => ({ ...report })) ?? [],
+    validations: detail?.validations?.map((validation) => ({ ...validation })) ?? [],
   };
 }
 
