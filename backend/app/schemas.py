@@ -222,6 +222,7 @@ class ReadingItemSummary(ApiModel):
     perceived_vote_count: int = 0
     item_accuracy: float | None = None
     my_latest_status: Literal["correct", "wrong"] | None = None
+    my_first_submission_timed_out: bool = False
 
 
 class ReadingItemPage(ApiModel):

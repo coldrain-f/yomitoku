@@ -55,6 +55,7 @@ export interface ReadingItem {
   updatedAt: string;
   publishedAt: string | null;
   myLatestStatus?: Exclude<AttemptStatus, "unstarted"> | null;
+  myFirstSubmissionTimedOut: boolean;
   passage: string;
   question: string;
   choices: Choice[];

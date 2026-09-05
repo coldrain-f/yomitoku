@@ -87,6 +87,7 @@ def serialize_public_summary(
     item: ReadingItem,
     metrics: ItemMetrics,
     my_latest_status: Literal["correct", "wrong"] | None,
+    my_first_submission_timed_out: bool = False,
 ) -> ReadingItemSummary:
     perceived_level = metrics["perceived_level"]
     perceived_vote_count = int(metrics["perceived_vote_count"] or 0)
@@ -113,6 +114,7 @@ def serialize_public_summary(
             else None
         ),
         my_latest_status=my_latest_status,
+        my_first_submission_timed_out=my_first_submission_timed_out,
     )
 
 
@@ -204,7 +206,9 @@ async def list_published_reading_items(
     )
     metrics_by_item = await collect_item_metrics(session, [item.id for item in items])
     latest_statuses: dict[UUID, Literal["correct", "wrong"]] = {}
-    if current_user:
+    first_submission_timed_out: dict[UUID, bool] = {}
+    if current_user and items:
+        items_by_id = {item.id: item for item in items}
         submissions = list(
             await session.scalars(
                 select(Attempt)
@@ -213,13 +217,19 @@ async def list_published_reading_items(
                     Attempt.reading_item_id.in_([item.id for item in items]),
                     Attempt.submitted_at.is_not(None),
                 )
-                .order_by(Attempt.submitted_at.desc())
+                .order_by(Attempt.submitted_at.asc(), Attempt.id.asc())
             )
         )
         for attempt in submissions:
-            latest_statuses.setdefault(
-                attempt.reading_item_id, "correct" if attempt.is_correct else "wrong"
+            latest_statuses[attempt.reading_item_id] = (
+                "correct" if attempt.is_correct else "wrong"
             )
+            if attempt.reading_item_id not in first_submission_timed_out:
+                first_submission_timed_out[attempt.reading_item_id] = (
+                    attempt.elapsed_seconds is not None
+                    and attempt.elapsed_seconds
+                    > items_by_id[attempt.reading_item_id].recommended_seconds
+                )
     if attempt_status == "unstarted":
         items = [item for item in items if item.id not in latest_statuses]
     elif attempt_status:
@@ -232,7 +242,10 @@ async def list_published_reading_items(
     return ReadingItemPage(
         items=[
             serialize_public_summary(
-                item, metrics_by_item[item.id], latest_statuses.get(item.id)
+                item,
+                metrics_by_item[item.id],
+                latest_statuses.get(item.id),
+                first_submission_timed_out.get(item.id, False),
             )
             for item in page_items
         ],

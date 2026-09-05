@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -14,6 +14,7 @@ from app.api.routes.readings import (
     elapsed_seconds_since,
     get_attempt_state,
     get_owned_attempt_for_update,
+    list_published_reading_items,
     start_attempt,
     submit_attempt,
 )
@@ -164,6 +165,37 @@ async def test_attempt_state_restores_issued_order_and_submitted_result(
     assert restored.result is not None
     assert restored.result.selected_choice_id == correct_choice_id
     assert [str(choice.id) for choice in restored.item.choices] == ordered_ids
+
+
+@pytest.mark.asyncio
+async def test_list_keeps_first_submission_timeout_after_a_retry(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    user, attempt_id, correct_choice_id = await make_open_attempt(sessions)
+
+    async with sessions() as session:
+        first = await session.get(Attempt, attempt_id)
+        assert first is not None
+        first.is_correct = False
+        first.elapsed_seconds = 181
+        first.submitted_at = first.started_at + timedelta(seconds=181)
+        session.add(
+            Attempt(
+                user_id=user.id,
+                reading_item_id=first.reading_item_id,
+                selected_choice_id=correct_choice_id,
+                is_correct=True,
+                started_at=first.submitted_at + timedelta(seconds=1),
+                submitted_at=first.submitted_at + timedelta(seconds=46),
+                elapsed_seconds=45,
+            )
+        )
+        await session.commit()
+
+        page = await list_published_reading_items(session=session, current_user=user)
+
+    assert page.items[0].my_first_submission_timed_out is True
+    assert page.items[0].my_latest_status == "correct"
 
 
 @pytest.mark.asyncio

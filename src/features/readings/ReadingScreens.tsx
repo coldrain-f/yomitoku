@@ -8,6 +8,7 @@ import {
   RotateCcw,
   Search,
   SlidersHorizontal,
+  TimerOff,
   X,
 } from "lucide-react";
 import { Icon } from "../../components/ui/Icon";
@@ -255,20 +256,32 @@ export function ReadingListScreen({
                   </span>
                 </span>
                 <span className="row-state">
-                  <span
-                    className={
-                      status === "correct"
-                        ? "badge ok row-status"
+                  <span className="row-status-line">
+                    <span
+                      className={
+                        status === "correct"
+                          ? "badge ok row-status"
+                          : status === "wrong"
+                            ? "badge danger row-status"
+                            : "badge row-status"
+                      }
+                    >
+                      {status === "correct"
+                        ? "정답"
                         : status === "wrong"
-                          ? "badge danger row-status"
-                          : "badge row-status"
-                    }
-                  >
-                    {status === "correct"
-                      ? "정답"
-                      : status === "wrong"
-                        ? "오답"
-                        : "미풀이"}
+                          ? "오답"
+                          : "미풀이"}
+                    </span>
+                    {item.myFirstSubmissionTimedOut ? (
+                      <span
+                        className="row-timeout-indicator"
+                        role="img"
+                        aria-label="첫 제출 시간 초과"
+                        title="첫 제출 시간 초과"
+                      >
+                        <Icon icon={TimerOff} />
+                      </span>
+                    ) : null}
                   </span>
                   <time className="row-date">
                     등록 {formatDate(item.publishedAt ?? item.createdAt)} · 정답률{" "}

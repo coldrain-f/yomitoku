@@ -1030,6 +1030,7 @@ export function ManualCreateScreen({
     createdAt: "",
     updatedAt: "",
     publishedAt: null,
+    myFirstSubmissionTimedOut: false,
     passage: values.passage,
     question: values.question,
     choices: values.choices,

@@ -1352,6 +1352,27 @@ fieldset.admin-edit-form {
   justify-content: center;
 }
 
+.row-status-line {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  min-height: 24px;
+}
+
+.row-timeout-indicator {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  color: var(--danger);
+}
+
+.row-timeout-indicator [data-lucide] {
+  width: 16px;
+  height: 16px;
+}
+
 .row-date {
   color: var(--muted);
   font-size: 11px;
@@ -1806,6 +1827,14 @@ fieldset.admin-edit-form {
   font-size: 18px;
   line-height: 1.55;
   font-weight: 500;
+}
+
+.screen-reading[data-reading-language="ja"] .question-block h3 {
+  font-family: "Yu Mincho", YuMincho, "Hiragino Mincho ProN", "Hiragino Mincho Pro", "MS PMincho", "Noto Serif JP", serif;
+}
+
+.screen-reading[data-reading-language="ko"] .question-block h3 {
+  font-family: "Yu Gothic", YuGothic, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, "Malgun Gothic", Arial, sans-serif;
 }
 
 .answer-list {

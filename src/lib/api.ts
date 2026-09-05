@@ -53,6 +53,7 @@ interface ApiReadingSummary {
   perceivedVoteCount: number;
   itemAccuracy: number | null;
   myLatestStatus: "correct" | "wrong" | null;
+  myFirstSubmissionTimedOut: boolean;
 }
 
 interface ApiReadingDetail extends ApiReadingSummary {
@@ -278,6 +279,7 @@ function toItem(summary: ApiReadingSummary, detail?: ApiReadingDetail): ReadingI
     updatedAt: summary.updatedAt,
     publishedAt: summary.publishedAt,
     myLatestStatus: summary.myLatestStatus,
+    myFirstSubmissionTimedOut: summary.myFirstSubmissionTimedOut,
     passage: detail?.passage ?? "",
     question: detail?.question ?? "",
     choices,
