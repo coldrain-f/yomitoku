@@ -257,6 +257,16 @@ export function ReadingListScreen({
                 </span>
                 <span className="row-state">
                   <span className="row-status-line">
+                    {item.myFirstSubmissionTimedOut ? (
+                      <span
+                        className="row-timeout-indicator"
+                        role="img"
+                        aria-label="첫 제출 시간 초과"
+                        title="첫 제출 시간 초과"
+                      >
+                        <Icon icon={TimerOff} />
+                      </span>
+                    ) : null}
                     <span
                       className={
                         status === "correct"
@@ -272,16 +282,6 @@ export function ReadingListScreen({
                           ? "오답"
                           : "미풀이"}
                     </span>
-                    {item.myFirstSubmissionTimedOut ? (
-                      <span
-                        className="row-timeout-indicator"
-                        role="img"
-                        aria-label="첫 제출 시간 초과"
-                        title="첫 제출 시간 초과"
-                      >
-                        <Icon icon={TimerOff} />
-                      </span>
-                    ) : null}
                   </span>
                   <time className="row-date">
                     등록 {formatDate(item.publishedAt ?? item.createdAt)} · 정답률{" "}
