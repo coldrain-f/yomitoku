@@ -1338,20 +1338,27 @@ fieldset.admin-edit-form {
   display: none;
 }
 
+.reading-row > :not(.reading-row-launch) {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+
 .reading-row:hover,
 .reading-row:focus-within {
   background: #fbfcf8;
 }
 
 .reading-row-launch {
-  min-width: 0;
-  align-self: stretch;
+  position: absolute;
+  inset: 0;
   border: 0;
   background: transparent;
-  color: inherit;
-  margin: -14px 0;
-  padding: 14px 0;
-  text-align: left;
+  padding: 0;
+}
+
+.reading-row-main {
+  min-width: 0;
 }
 
 .row-arrow {
@@ -1462,6 +1469,7 @@ fieldset.admin-edit-form {
   position: relative;
   display: inline-flex;
   z-index: 1;
+  pointer-events: auto;
 }
 
 .row-status-button {

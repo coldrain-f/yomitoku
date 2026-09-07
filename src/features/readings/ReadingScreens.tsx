@@ -298,7 +298,8 @@ export function ReadingListScreen({
                   type="button"
                   aria-label={`${item.title} 문항 풀기`}
                   onClick={() => onStart(item)}
-                >
+                />
+                <div className="reading-row-main">
                   <span className="row-title-line">
                     <span className="row-title">{item.title}</span>
                     {isNew(item) ? (
@@ -319,7 +320,7 @@ export function ReadingListScreen({
                     </span>
                     <span className="row-topic">{item.topic}</span>
                   </span>
-                </button>
+                </div>
                 <span className="row-state">
                   <span className="row-status-line">
                     {item.myFirstSubmissionTimedOut ? (
