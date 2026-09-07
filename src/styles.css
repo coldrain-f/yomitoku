@@ -1403,6 +1403,12 @@ fieldset.admin-edit-form {
   justify-content: center;
 }
 
+.row-status [data-lucide] {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+}
+
 .row-status-line {
   display: inline-flex;
   align-items: center;
@@ -1433,12 +1439,6 @@ fieldset.admin-edit-form {
 .row-status-button {
   border: 0;
   cursor: pointer;
-}
-
-.row-status-button [data-lucide] {
-  width: 14px;
-  height: 14px;
-  stroke-width: 2;
 }
 
 .row-status-tooltip {

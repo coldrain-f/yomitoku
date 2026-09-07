@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Check,
   ChevronRight,
+  Circle,
   Copy,
   Highlighter,
   Languages,
@@ -329,15 +330,17 @@ function LearningStatusBadge({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   if (progress.status !== "passed" || progress.score === null || progress.reason === null) {
+    const isWrong = progress.status === "wrong";
     return (
       <span
         className={
-          progress.status === "wrong"
+          isWrong
             ? "badge danger row-status"
             : "badge row-status"
         }
       >
-        {progress.status === "wrong" ? "오답" : "미풀이"}
+        <Icon icon={isWrong ? X : Circle} />
+        {isWrong ? "오답" : "미풀이"}
       </span>
     );
   }
