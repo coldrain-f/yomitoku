@@ -2962,6 +2962,24 @@ body.dialog-open {
     padding: 18px;
   }
 
+  .admin-list-actions {
+    gap: 6px;
+  }
+
+  .admin-list-actions .text-button,
+  .admin-list-actions .primary-button {
+    min-height: 32px;
+    padding: 0 7px;
+    gap: 4px;
+    font-size: 11px;
+  }
+
+  .admin-list-actions .text-button [data-lucide],
+  .admin-list-actions .primary-button [data-lucide] {
+    width: 13px;
+    height: 13px;
+  }
+
   .title-jp {
     font-size: 29px;
   }

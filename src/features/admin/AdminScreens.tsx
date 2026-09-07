@@ -395,9 +395,6 @@ export function AdminScreen({
             <p className="kicker">Administrator</p>
             <h1 className="screen-title">문항 관리</h1>
           </div>
-          <div className="admin-head-actions">
-            <span className="badge dark">관리자</span>
-          </div>
         </div>
         <div className="admin-toolbar">
           <div className="filter-search">
@@ -480,7 +477,7 @@ export function AdminScreen({
             ariaLabel="관리 문항 목록 페이지"
           />
         )}
-        <div className="home-actions">
+        <div className="home-actions admin-list-actions">
           <button className="text-button" type="button" onClick={onHistory}>
             <Icon icon={History} />
             생성 이력
