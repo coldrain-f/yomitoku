@@ -12,7 +12,7 @@ export type ReadingLanguage = (typeof readingLanguages)[number];
 export type LengthType = (typeof lengthTypes)[number];
 export type ReadingStatus = "review" | "held" | "published";
 export type AttemptStatus = "unstarted" | "wrong" | "correct";
-export type LearningScore = 80 | 100;
+export type LearningScore = 80 | 90 | 100;
 export type ScoreReason =
   | "first_submission_on_time"
   | "first_submission_timed_out"

@@ -79,11 +79,10 @@ function progressForScore(
   return { status: "passed", score, reason };
 }
 
-function fallbackScoreReason(item: ReadingItem, score: LearningScore): ScoreReason {
+function fallbackScoreReason(score: LearningScore): ScoreReason {
   if (score === 100) return "first_submission_on_time";
-  return item.myFirstSubmissionTimedOut
-    ? "first_submission_timed_out"
-    : "retry_passed";
+  if (score === 90) return "first_submission_timed_out";
+  return "retry_passed";
 }
 
 export function learningProgressForItem(
@@ -93,7 +92,7 @@ export function learningProgressForItem(
   if (item.myScore !== null && item.myScore !== undefined) {
     return progressForScore(
       item.myScore,
-      item.myScoreReason ?? fallbackScoreReason(item, item.myScore),
+      item.myScoreReason ?? fallbackScoreReason(item.myScore),
     );
   }
 
@@ -108,7 +107,7 @@ export function learningProgressForItem(
       return progressForScore(80, "retry_passed");
     }
     return firstCorrect.elapsedSeconds > item.recommendedSeconds
-      ? progressForScore(80, "first_submission_timed_out")
+      ? progressForScore(90, "first_submission_timed_out")
       : progressForScore(100, "first_submission_on_time");
   }
 
@@ -117,8 +116,8 @@ export function learningProgressForItem(
   }
 
   if (item.myLatestStatus === "correct") {
-    const score = item.myFirstSubmissionTimedOut ? 80 : 100;
-    return progressForScore(score, fallbackScoreReason(item, score));
+    const score = item.myFirstSubmissionTimedOut ? 90 : 100;
+    return progressForScore(score, fallbackScoreReason(score));
   }
 
   return { status: "unstarted", score: null, reason: null };

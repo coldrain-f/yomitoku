@@ -231,7 +231,7 @@ class ReadingItemSummary(ApiModel):
     item_accuracy: float | None = None
     my_latest_status: Literal["correct", "wrong"] | None = None
     my_first_submission_timed_out: bool = False
-    my_score: Literal[80, 100] | None = None
+    my_score: Literal[80, 90, 100] | None = None
     my_score_reason: Literal[
         "first_submission_on_time",
         "first_submission_timed_out",

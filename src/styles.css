@@ -14,6 +14,8 @@
   --danger-soft: #fbefeb;
   --warning: #936117;
   --warning-soft: #fbf3e2;
+  --retry: #a65b32;
+  --retry-soft: #fbeee8;
   --ok: #3e6b56;
   --ok-soft: #edf4ee;
   --focus: #2e6251;
@@ -1190,6 +1192,12 @@ fieldset.admin-edit-form {
   border-color: rgba(147, 97, 23, 0.3);
   background: var(--warning-soft);
   color: var(--warning);
+}
+
+.badge.retry {
+  border-color: rgba(166, 91, 50, 0.3);
+  background: var(--retry-soft);
+  color: var(--retry);
 }
 
 .body-copy {

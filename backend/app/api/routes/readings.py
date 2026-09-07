@@ -130,7 +130,7 @@ def serialize_public_summary(
     metrics: ItemMetrics,
     my_latest_status: Literal["correct", "wrong"] | None,
     my_first_submission_timed_out: bool = False,
-    my_score: Literal[80, 100] | None = None,
+    my_score: Literal[80, 90, 100] | None = None,
     my_score_reason: Literal[
         "first_submission_on_time",
         "first_submission_timed_out",
@@ -173,7 +173,7 @@ def learner_progress_for_submissions(
 ) -> tuple[
     Literal["correct", "wrong"] | None,
     bool,
-    Literal[80, 100] | None,
+    Literal[80, 90, 100] | None,
     Literal[
         "first_submission_on_time",
         "first_submission_timed_out",
@@ -204,7 +204,7 @@ def learner_progress_for_submissions(
                 return (
                     latest_status,
                     first_submission_timed_out,
-                    80,
+                    90,
                     "first_submission_timed_out",
                 )
             return (
@@ -307,7 +307,7 @@ async def list_published_reading_items(
     metrics_by_item = await collect_item_metrics(session, [item.id for item in items])
     latest_statuses: dict[UUID, Literal["correct", "wrong"]] = {}
     first_submission_timed_out: dict[UUID, bool] = {}
-    scores: dict[UUID, Literal[80, 100]] = {}
+    scores: dict[UUID, Literal[80, 90, 100]] = {}
     score_reasons: dict[
         UUID,
         Literal[

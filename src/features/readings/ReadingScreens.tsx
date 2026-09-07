@@ -360,7 +360,9 @@ function LearningStatusBadge({
   return (
     <span className={`row-status-popover${isOpen ? " is-open" : ""}`}>
       <button
-        className={`badge ${progress.score === 100 ? "ok" : "warning"} row-status row-status-button`}
+        className={`badge ${
+          progress.score === 100 ? "ok" : progress.score === 90 ? "warning" : "retry"
+        } row-status row-status-button`}
         type="button"
         aria-describedby={tooltipId}
         aria-expanded={isOpen}

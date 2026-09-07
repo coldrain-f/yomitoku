@@ -82,11 +82,11 @@ export function AppDialogContent({
             <dd>첫 제출을 권장 시간 내 통과</dd>
           </div>
           <div>
-            <dt className="badge warning">✓ 80</dt>
+            <dt className="badge warning">✓ 90</dt>
             <dd>첫 제출 시간 초과 통과</dd>
           </div>
           <div>
-            <dt className="badge warning">✓ 80</dt>
+            <dt className="badge retry">✓ 80</dt>
             <dd>오답 후 재시도 통과</dd>
           </div>
         </dl>

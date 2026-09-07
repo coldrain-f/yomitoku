@@ -244,7 +244,7 @@ async def test_list_keeps_a_first_submission_score_after_later_attempts(
 
 
 @pytest.mark.asyncio
-async def test_list_scores_a_timed_out_first_submission_as_80(
+async def test_list_scores_a_timed_out_first_submission_as_90(
     sessions: async_sessionmaker[AsyncSession],
 ) -> None:
     user, attempt_id, _ = await make_open_attempt(sessions)
@@ -259,7 +259,7 @@ async def test_list_scores_a_timed_out_first_submission_as_80(
 
         page = await list_published_reading_items(session=session, current_user=user)
 
-    assert page.items[0].my_score == 80
+    assert page.items[0].my_score == 90
     assert page.items[0].my_score_reason == "first_submission_timed_out"
 
 
