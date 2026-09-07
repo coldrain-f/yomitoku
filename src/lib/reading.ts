@@ -1,5 +1,6 @@
 import type {
   AttemptRecord,
+  FirstSubmissionTiming,
   LearningProgress,
   LearningScore,
   ReadingItem,
@@ -121,4 +122,24 @@ export function learningProgressForItem(
   }
 
   return { status: "unstarted", score: null, reason: null };
+}
+
+export function firstSubmissionTimingForItem(
+  item: ReadingItem,
+  attempts: AttemptRecord[],
+): FirstSubmissionTiming {
+  const hasPersistedSubmission =
+    item.myLatestStatus !== null && item.myLatestStatus !== undefined ||
+    item.myScore !== null && item.myScore !== undefined;
+  if (hasPersistedSubmission) {
+    return item.myFirstSubmissionTimedOut ? "timed-out" : "on-time";
+  }
+
+  const firstLocalAttempt = attempts
+    .filter((attempt) => attempt.itemId === item.id)
+    .sort((left, right) => left.submittedAt.localeCompare(right.submittedAt))[0];
+  if (!firstLocalAttempt) return "not-submitted";
+  return firstLocalAttempt.elapsedSeconds > item.recommendedSeconds
+    ? "timed-out"
+    : "on-time";
 }

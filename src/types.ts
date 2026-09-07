@@ -29,6 +29,8 @@ export type LearningResultFilter =
   | "score-100"
   | "score-90"
   | "score-80";
+export type FirstSubmissionTiming = "not-submitted" | "on-time" | "timed-out";
+export type FirstSubmissionTimeFilter = "all" | "on-time" | "timed-out";
 export type Role = "admin" | "learner";
 export type Topic = (typeof readingTopics)[number];
 
@@ -132,6 +134,7 @@ export interface ListFilters {
   level: DifficultyLevel | "all";
   length: LengthType | "all";
   status: LearningResultFilter;
+  firstSubmissionTime: FirstSubmissionTimeFilter;
   sort:
     | "published-desc"
     | "published-asc"

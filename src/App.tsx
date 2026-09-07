@@ -72,6 +72,7 @@ const defaultListFilters: ListFilters = {
   level: "all",
   length: "all",
   status: "all",
+  firstSubmissionTime: "all",
   sort: "published-desc",
 };
 const defaultAdminFilters: AdminFilters = {
@@ -102,6 +103,14 @@ function normalizeLearningResultFilter(value: unknown): ListFilters["status"] {
     value as string,
   )
     ? value as ListFilters["status"]
+    : "all";
+}
+
+function normalizeFirstSubmissionTimeFilter(
+  value: unknown,
+): ListFilters["firstSubmissionTime"] {
+  return ["all", "on-time", "timed-out"].includes(value as string)
+    ? value as ListFilters["firstSubmissionTime"]
     : "all";
 }
 
@@ -430,6 +439,9 @@ export default function App() {
         storedListFilters.length,
       status: normalizeLearningResultFilter(
         searchParams.get("status") ?? storedListFilters.status,
+      ),
+      firstSubmissionTime: normalizeFirstSubmissionTimeFilter(
+        searchParams.get("time") ?? storedListFilters.firstSubmissionTime,
       ),
       sort:
         (searchParams.get("sort") as ListFilters["sort"] | null) ??
@@ -840,6 +852,7 @@ export default function App() {
       level: next.level,
       length: next.length,
       status: next.status,
+      firstSubmissionTime: next.firstSubmissionTime,
       sort: next.sort,
     });
     const params = new URLSearchParams();
@@ -848,6 +861,9 @@ export default function App() {
     if (next.level !== "all") params.set("level", next.level);
     if (next.length !== "all") params.set("length", next.length);
     if (next.status !== "all") params.set("status", next.status);
+    if (next.firstSubmissionTime !== "all") {
+      params.set("time", next.firstSubmissionTime);
+    }
     if (next.sort !== "published-desc") params.set("sort", next.sort);
     setSearchParams(params, { replace });
   };
@@ -1060,6 +1076,7 @@ export default function App() {
           level: "all" as const,
           length: "all" as const,
           status: "all" as const,
+          firstSubmissionTime: "all" as const,
           sort: "published-desc" as const,
         };
         filterDraftRef.current = reset;

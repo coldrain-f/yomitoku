@@ -20,6 +20,7 @@ import { LoadingBar } from "../../components/ui/LoadingBar";
 import { OptionButtons } from "../../components/ui/OptionButtons";
 import {
   difficultyRank,
+  firstSubmissionTimingForItem,
   formatDate,
   formatTime,
   isNew,
@@ -102,6 +103,13 @@ function unscoredResultRank(progress: LearningProgress): number {
   return progress.status === "wrong" ? 0 : 1;
 }
 
+function matchesFirstSubmissionTimeFilter(
+  timing: ReturnType<typeof firstSubmissionTimingForItem>,
+  filter: ListFilters["firstSubmissionTime"],
+): boolean {
+  return filter === "all" || timing === filter;
+}
+
 export function ReadingListScreen({
   items,
   loading,
@@ -119,11 +127,17 @@ export function ReadingListScreen({
   const filtered = useMemo(() => {
     const rows = items.filter((item) => {
       const progress = learningProgressForItem(item, attempts);
+      const firstSubmissionTiming = firstSubmissionTimingForItem(item, attempts);
       return (
         item.language === filters.language &&
         (filters.level === "all" || item.officialLevel === filters.level) &&
         (filters.length === "all" || item.lengthType === filters.length) &&
-        (!authenticated || matchesLearningResultFilter(progress, filters.status)) &&
+        (!authenticated ||
+          (matchesLearningResultFilter(progress, filters.status) &&
+            matchesFirstSubmissionTimeFilter(
+              firstSubmissionTiming,
+              filters.firstSubmissionTime,
+            ))) &&
         item.title
           .toLocaleLowerCase()
           .includes(query.trim().toLocaleLowerCase())
@@ -190,7 +204,8 @@ export function ReadingListScreen({
     filters.level !== "all" ||
     filters.length !== "all" ||
     filters.sort !== "published-desc" ||
-    (authenticated && filters.status !== "all");
+    (authenticated &&
+      (filters.status !== "all" || filters.firstSubmissionTime !== "all"));
   const active =
     query ||
     hasAppliedFilters;
@@ -201,6 +216,7 @@ export function ReadingListScreen({
       level: "all",
       length: "all",
       status: "all",
+      firstSubmissionTime: "all",
       sort: "published-desc",
     });
   };

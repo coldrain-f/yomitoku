@@ -138,27 +138,47 @@ export function AppDialogContent({
           />
         </div>
         {authenticated ? (
-          <div className="dialog-filter-section">
-            <span className="form-label">결과</span>
-            <OptionButtons
-              value={filterDraft.status}
-              options={[
-                { value: "all", label: "전체" },
-                { value: "unstarted", label: "미풀이" },
-                { value: "wrong", label: "오답" },
-                { value: "score-100", label: "100점" },
-                { value: "score-90", label: "90점" },
-                { value: "score-80", label: "80점" },
-              ]}
-              onChange={(status) =>
-                setFilterDraft({
-                  ...filterDraft,
-                  status: status as ListFilters["status"],
-                })
-              }
-              ariaLabel="결과 필터"
-            />
-          </div>
+          <>
+            <div className="dialog-filter-section">
+              <span className="form-label">결과</span>
+              <OptionButtons
+                value={filterDraft.status}
+                options={[
+                  { value: "all", label: "전체" },
+                  { value: "unstarted", label: "미풀이" },
+                  { value: "wrong", label: "오답" },
+                  { value: "score-100", label: "100점" },
+                  { value: "score-90", label: "90점" },
+                  { value: "score-80", label: "80점" },
+                ]}
+                onChange={(status) =>
+                  setFilterDraft({
+                    ...filterDraft,
+                    status: status as ListFilters["status"],
+                  })
+                }
+                ariaLabel="결과 필터"
+              />
+            </div>
+            <div className="dialog-filter-section">
+              <span className="form-label">첫 제출 시간</span>
+              <OptionButtons
+                value={filterDraft.firstSubmissionTime}
+                options={[
+                  { value: "all", label: "전체" },
+                  { value: "on-time", label: "시간 내" },
+                  { value: "timed-out", label: "시간 초과" },
+                ]}
+                onChange={(firstSubmissionTime) =>
+                  setFilterDraft({
+                    ...filterDraft,
+                    firstSubmissionTime: firstSubmissionTime as ListFilters["firstSubmissionTime"],
+                  })
+                }
+                ariaLabel="첫 제출 시간 필터"
+              />
+            </div>
+          </>
         ) : null}
         <label className="dialog-filter-section">
           <span className="form-label">정렬</span>
