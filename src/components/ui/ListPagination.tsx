@@ -1,8 +1,6 @@
 import {
   ChevronLeft,
   ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
 } from "lucide-react";
 import { Icon } from "./Icon";
 
@@ -25,15 +23,6 @@ export function ListPagination({
 
   return (
     <nav className="list-pagination" aria-label={ariaLabel}>
-      <button
-        className="pagination-button"
-        type="button"
-        disabled={page === 1}
-        aria-label="첫 페이지"
-        onClick={() => onChange(1)}
-      >
-        <Icon icon={ChevronsLeft} />
-      </button>
       <button
         className="pagination-button"
         type="button"
@@ -66,15 +55,6 @@ export function ListPagination({
         onClick={() => onChange(page + 1)}
       >
         <Icon icon={ChevronRight} />
-      </button>
-      <button
-        className="pagination-button"
-        type="button"
-        disabled={page === totalPages}
-        aria-label="마지막 페이지"
-        onClick={() => onChange(totalPages)}
-      >
-        <Icon icon={ChevronsRight} />
       </button>
     </nav>
   );
