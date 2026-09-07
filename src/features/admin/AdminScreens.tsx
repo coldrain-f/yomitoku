@@ -1158,6 +1158,8 @@ export function ManualCreateScreen({
     updatedAt: "",
     publishedAt: null,
     myFirstSubmissionTimedOut: false,
+    myScore: null,
+    myScoreReason: null,
     passage: values.passage,
     question: values.question,
     choices: values.choices,

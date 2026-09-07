@@ -5,6 +5,7 @@ import type {
   GenerationValues,
   ItemReport,
   ItemValidation,
+  LearningScore,
   LengthType,
   ManualReadingDraft,
   PassageHighlight,
@@ -12,6 +13,7 @@ import type {
   ReadingLanguage,
   ReadingStatus,
   Role,
+  ScoreReason,
   Topic,
 } from "../types";
 
@@ -55,6 +57,8 @@ interface ApiReadingSummary {
   itemAccuracy: number | null;
   myLatestStatus: "correct" | "wrong" | null;
   myFirstSubmissionTimedOut: boolean;
+  myScore: LearningScore | null;
+  myScoreReason: ScoreReason | null;
 }
 
 interface ApiReadingDetail extends ApiReadingSummary {
@@ -292,8 +296,10 @@ function toItem(summary: ApiReadingSummary, detail?: ApiReadingDetail): ReadingI
     createdAt: summary.createdAt,
     updatedAt: summary.updatedAt,
     publishedAt: summary.publishedAt,
-    myLatestStatus: summary.myLatestStatus,
-    myFirstSubmissionTimedOut: summary.myFirstSubmissionTimedOut,
+    myLatestStatus: summary.myLatestStatus ?? null,
+    myFirstSubmissionTimedOut: summary.myFirstSubmissionTimedOut ?? false,
+    myScore: summary.myScore ?? null,
+    myScoreReason: summary.myScoreReason ?? null,
     passage: detail?.passage ?? "",
     question: detail?.question ?? "",
     choices,

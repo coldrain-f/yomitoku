@@ -847,20 +847,21 @@ export default function App() {
   const setListQuery = (nextQuery: string) =>
     writeListParams({ ...filters, query: nextQuery }, { replace: true });
 
-  const openStartDialog = (
-    item: ReadingItem,
-    existing: ReadingItem["myLatestStatus"],
-  ) =>
-    openDialog({
+  const openStartDialog = (item: ReadingItem) => {
+    const hasScore = item.myScore !== null;
+    const hasPreviousSubmission = hasScore || item.myLatestStatus !== null;
+    return openDialog({
       kicker: "Start reading",
       title:
-        existing === "wrong"
+        !hasScore && item.myLatestStatus === "wrong"
           ? "오답 문항을 다시 풀까요?"
-          : existing === "correct"
+          : hasPreviousSubmission
             ? "문항을 다시 풀까요?"
             : "독해를 시작할까요?",
-      description: existing ? "새 답안과 풀이 시간을 기록합니다." : "문제를 열면 풀이 시간이 시작됩니다.",
-      confirmLabel: existing ? "다시 풀기" : "시작하기",
+      description: hasPreviousSubmission
+        ? "새 답안과 풀이 시간을 기록합니다."
+        : "문제를 열면 풀이 시간이 시작됩니다.",
+      confirmLabel: hasPreviousSubmission ? "다시 풀기" : "시작하기",
       onConfirm: () => {
         closeDialog();
         void (async () => {
@@ -907,10 +908,11 @@ export default function App() {
         })();
       },
     });
+  };
 
   const start = (item: ReadingItem) => {
     if (authenticated) {
-      openStartDialog(item, item.myLatestStatus);
+      openStartDialog(item);
       return;
     }
     setPendingStart(item);
@@ -1149,7 +1151,7 @@ export default function App() {
       setPendingStart(null);
       closeDialog();
       setToast("로그인되었습니다.");
-      if (itemToStart) openStartDialog(itemToStart, itemToStart.myLatestStatus);
+      if (itemToStart) openStartDialog(itemToStart);
     } catch (error) {
       setDialogError(
         error instanceof Error ? error.message : "로그인하지 못했습니다. 다시 시도해 주세요.",

@@ -12,6 +12,16 @@ export type ReadingLanguage = (typeof readingLanguages)[number];
 export type LengthType = (typeof lengthTypes)[number];
 export type ReadingStatus = "review" | "held" | "published";
 export type AttemptStatus = "unstarted" | "wrong" | "correct";
+export type LearningScore = 80 | 100;
+export type ScoreReason =
+  | "first_submission_on_time"
+  | "first_submission_timed_out"
+  | "retry_passed";
+export type LearningProgress = {
+  status: "unstarted" | "wrong" | "passed";
+  score: LearningScore | null;
+  reason: ScoreReason | null;
+};
 export type Role = "admin" | "learner";
 export type Topic = (typeof readingTopics)[number];
 
@@ -63,6 +73,8 @@ export interface ReadingItem {
   publishedAt: string | null;
   myLatestStatus?: Exclude<AttemptStatus, "unstarted"> | null;
   myFirstSubmissionTimedOut: boolean;
+  myScore: LearningScore | null;
+  myScoreReason: ScoreReason | null;
   passage: string;
   question: string;
   choices: Choice[];

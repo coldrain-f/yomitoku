@@ -10,7 +10,6 @@ import {
   RotateCcw,
   Search,
   SlidersHorizontal,
-  TimerOff,
   X,
 } from "lucide-react";
 import { Icon } from "../../components/ui/Icon";
@@ -22,7 +21,7 @@ import {
   formatDate,
   formatTime,
   isNew,
-  latestAttempts,
+  learningProgressForItem,
   lengthLabels,
   minimumVotes,
   pageSize,
@@ -37,6 +36,7 @@ import type {
   AttemptRecord,
   Choice,
   ListFilters,
+  LearningProgress,
   ReadingAttempt,
   ReadingItem,
   ReadingLanguage,
@@ -97,11 +97,11 @@ export function ReadingListScreen({
   onStart,
 }: ReadingListScreenProps) {
   const [page, setPage] = useState(1);
-  const latest = useMemo(() => latestAttempts(attempts), [attempts]);
   const filtered = useMemo(() => {
     const rows = items.filter((item) => {
-      const attempt = latest[item.id];
-      const learningStatus = attempt?.status ?? item.myLatestStatus ?? "unstarted";
+      const progress = learningProgressForItem(item, attempts);
+      const learningStatus =
+        progress.status === "passed" ? "correct" : progress.status;
       return (
         item.language === filters.language &&
         (filters.level === "all" || item.officialLevel === filters.level) &&
@@ -151,7 +151,7 @@ export function ReadingListScreen({
       );
     });
     return rows;
-  }, [authenticated, filters, items, latest, query]);
+  }, [attempts, authenticated, filters, items, query]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pages);
@@ -234,16 +234,18 @@ export function ReadingListScreen({
         {loading ? <LoadingBar label="목록을 불러오는 중입니다." /> : null}
         <div className="reading-list" aria-busy={loading}>
           {rows.map((item) => {
-            const attempt = latest[item.id];
-            const status = attempt?.status ?? item.myLatestStatus ?? "unstarted";
+            const progress = learningProgressForItem(item, attempts);
             return (
-              <button
+              <div
                 className="reading-row"
-                type="button"
                 key={item.id}
-                onClick={() => onStart(item)}
               >
-                <span>
+                <button
+                  className="reading-row-launch"
+                  type="button"
+                  aria-label={`${item.title} 문항 풀기`}
+                  onClick={() => onStart(item)}
+                >
                   <span className="row-title-line">
                     <span className="row-title">{item.title}</span>
                     {isNew(item) ? (
@@ -264,42 +266,16 @@ export function ReadingListScreen({
                     </span>
                     <span className="row-topic">{item.topic}</span>
                   </span>
-                </span>
+                </button>
                 <span className="row-state">
-                  <span className="row-status-line">
-                    {item.myFirstSubmissionTimedOut ? (
-                      <span
-                        className="row-timeout-indicator"
-                        role="img"
-                        aria-label="첫 제출 시간 초과"
-                        title="첫 제출 시간 초과"
-                      >
-                        <Icon icon={TimerOff} />
-                      </span>
-                    ) : null}
-                    <span
-                      className={
-                        status === "correct"
-                          ? "badge ok row-status"
-                          : status === "wrong"
-                            ? "badge danger row-status"
-                            : "badge row-status"
-                      }
-                    >
-                      {status === "correct"
-                        ? "정답"
-                        : status === "wrong"
-                          ? "오답"
-                          : "미풀이"}
-                    </span>
-                  </span>
+                  <LearningStatusBadge itemId={item.id} progress={progress} />
                   <time className="row-date">
                     등록 {formatDate(item.publishedAt ?? item.createdAt)} · 정답률{" "}
                     {item.itemAccuracy === null ? "-" : `${Math.round(item.itemAccuracy)}%`}
                   </time>
                 </span>
                 <Icon icon={ChevronRight} className="row-arrow" />
-              </button>
+              </div>
             );
           })}
         </div>
@@ -320,6 +296,70 @@ export function ReadingListScreen({
         )}
       </div>
     </section>
+  );
+}
+
+function scoreReasonLabel(reason: NonNullable<LearningProgress["reason"]>): string {
+  return {
+    first_submission_on_time: "첫 제출 시간 내 통과",
+    first_submission_timed_out: "첫 제출 시간 초과 통과",
+    retry_passed: "오답 후 재시도 통과",
+  }[reason];
+}
+
+function LearningStatusBadge({
+  itemId,
+  progress,
+}: {
+  itemId: string;
+  progress: LearningProgress;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  if (progress.status !== "passed" || progress.score === null || progress.reason === null) {
+    return (
+      <span
+        className={
+          progress.status === "wrong"
+            ? "badge danger row-status"
+            : "badge row-status"
+        }
+      >
+        {progress.status === "wrong" ? "오답" : "미풀이"}
+      </span>
+    );
+  }
+
+  const detail = scoreReasonLabel(progress.reason);
+  const tooltipId = `learning-score-${itemId}`;
+  return (
+    <span className={`row-status-popover${isOpen ? " is-open" : ""}`}>
+      <button
+        className={`badge ${progress.score === 100 ? "ok" : "warning"} row-status row-status-button`}
+        type="button"
+        aria-describedby={tooltipId}
+        aria-expanded={isOpen}
+        aria-label={`${progress.score}점, ${detail}. 상태 사유 보기`}
+        onClick={() => setIsOpen((open) => !open)}
+        onBlur={(event) => {
+          const target = event.currentTarget;
+          window.requestAnimationFrame(() => {
+            if (!target.parentElement?.contains(document.activeElement)) setIsOpen(false);
+          });
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            setIsOpen(false);
+            event.currentTarget.blur();
+          }
+        }}
+      >
+        <Icon icon={Check} />
+        {progress.score}
+      </button>
+      <span className="row-status-tooltip" id={tooltipId} role="tooltip">
+        {detail}
+      </span>
+    </span>
   );
 }
 

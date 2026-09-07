@@ -1,4 +1,11 @@
-import type { AttemptRecord, ReadingItem, ReadingStatus } from "../types";
+import type {
+  AttemptRecord,
+  LearningProgress,
+  LearningScore,
+  ReadingItem,
+  ReadingStatus,
+  ScoreReason,
+} from "../types";
 import {
   difficultyRank,
   displayTimeZone,
@@ -65,16 +72,54 @@ export function isNew(item: Pick<ReadingItem, "publishedAt">): boolean {
   );
 }
 
-export function latestAttempts(
+function progressForScore(
+  score: LearningScore,
+  reason: ScoreReason,
+): LearningProgress {
+  return { status: "passed", score, reason };
+}
+
+function fallbackScoreReason(item: ReadingItem, score: LearningScore): ScoreReason {
+  if (score === 100) return "first_submission_on_time";
+  return item.myFirstSubmissionTimedOut
+    ? "first_submission_timed_out"
+    : "retry_passed";
+}
+
+export function learningProgressForItem(
+  item: ReadingItem,
   attempts: AttemptRecord[],
-): Record<string, AttemptRecord> {
-  return attempts.reduce<Record<string, AttemptRecord>>((result, attempt) => {
-    if (
-      !result[attempt.itemId] ||
-      result[attempt.itemId].submittedAt < attempt.submittedAt
-    ) {
-      result[attempt.itemId] = attempt;
+): LearningProgress {
+  if (item.myScore !== null && item.myScore !== undefined) {
+    return progressForScore(
+      item.myScore,
+      item.myScoreReason ?? fallbackScoreReason(item, item.myScore),
+    );
+  }
+
+  const localAttempts = attempts
+    .filter((attempt) => attempt.itemId === item.id)
+    .sort((left, right) => left.submittedAt.localeCompare(right.submittedAt));
+  const firstCorrectIndex = localAttempts.findIndex((attempt) => attempt.isCorrect);
+  if (firstCorrectIndex >= 0) {
+    const firstCorrect = localAttempts[firstCorrectIndex];
+    const hasPriorSubmission = item.myLatestStatus !== null && item.myLatestStatus !== undefined;
+    if (hasPriorSubmission || firstCorrectIndex > 0) {
+      return progressForScore(80, "retry_passed");
     }
-    return result;
-  }, {});
+    return firstCorrect.elapsedSeconds > item.recommendedSeconds
+      ? progressForScore(80, "first_submission_timed_out")
+      : progressForScore(100, "first_submission_on_time");
+  }
+
+  if (localAttempts.length > 0 || item.myLatestStatus === "wrong") {
+    return { status: "wrong", score: null, reason: null };
+  }
+
+  if (item.myLatestStatus === "correct") {
+    const score = item.myFirstSubmissionTimedOut ? 80 : 100;
+    return progressForScore(score, fallbackScoreReason(item, score));
+  }
+
+  return { status: "unstarted", score: null, reason: null };
 }

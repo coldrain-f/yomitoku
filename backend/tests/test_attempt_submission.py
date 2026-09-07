@@ -200,6 +200,67 @@ async def test_list_keeps_first_submission_timeout_after_a_retry(
 
     assert page.items[0].my_first_submission_timed_out is True
     assert page.items[0].my_latest_status == "correct"
+    assert page.items[0].my_score == 80
+    assert page.items[0].my_score_reason == "retry_passed"
+
+
+@pytest.mark.asyncio
+async def test_list_keeps_a_first_submission_score_after_later_attempts(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    user, attempt_id, _ = await make_open_attempt(sessions)
+
+    async with sessions() as session:
+        first = await session.get(Attempt, attempt_id)
+        assert first is not None
+        first.is_correct = True
+        first.elapsed_seconds = 45
+        first.submitted_at = first.started_at + timedelta(seconds=45)
+        session.add(
+            Attempt(
+                user_id=user.id,
+                reading_item_id=first.reading_item_id,
+                is_correct=False,
+                started_at=first.submitted_at + timedelta(seconds=1),
+                submitted_at=first.submitted_at + timedelta(seconds=46),
+                elapsed_seconds=45,
+            )
+        )
+        await session.commit()
+
+        page = await list_published_reading_items(session=session, current_user=user)
+        passed_page = await list_published_reading_items(
+            session=session, current_user=user, attempt_status="correct"
+        )
+        wrong_page = await list_published_reading_items(
+            session=session, current_user=user, attempt_status="wrong"
+        )
+
+    assert page.items[0].my_latest_status == "wrong"
+    assert page.items[0].my_score == 100
+    assert page.items[0].my_score_reason == "first_submission_on_time"
+    assert passed_page.total_items == 1
+    assert wrong_page.total_items == 0
+
+
+@pytest.mark.asyncio
+async def test_list_scores_a_timed_out_first_submission_as_80(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    user, attempt_id, _ = await make_open_attempt(sessions)
+
+    async with sessions() as session:
+        first = await session.get(Attempt, attempt_id)
+        assert first is not None
+        first.is_correct = True
+        first.elapsed_seconds = 181
+        first.submitted_at = first.started_at + timedelta(seconds=181)
+        await session.commit()
+
+        page = await list_published_reading_items(session=session, current_user=user)
+
+    assert page.items[0].my_score == 80
+    assert page.items[0].my_score_reason == "first_submission_timed_out"
 
 
 @pytest.mark.asyncio

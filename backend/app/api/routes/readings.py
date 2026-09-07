@@ -34,13 +34,13 @@ from app.schemas import (
     LengthType,
     PassageHighlightCreateRequest,
     PassageHighlightResponse,
-    ReadingTranslationResponse,
     ReadingChoicePublic,
     ReadingItemDetail,
     ReadingItemPage,
     ReadingItemSummary,
     ReadingLanguage,
     ReadingLevel,
+    ReadingTranslationResponse,
     ReportRequest,
     StatisticGroup,
     StatisticsResponse,
@@ -130,6 +130,12 @@ def serialize_public_summary(
     metrics: ItemMetrics,
     my_latest_status: Literal["correct", "wrong"] | None,
     my_first_submission_timed_out: bool = False,
+    my_score: Literal[80, 100] | None = None,
+    my_score_reason: Literal[
+        "first_submission_on_time",
+        "first_submission_timed_out",
+        "retry_passed",
+    ] | None = None,
 ) -> ReadingItemSummary:
     perceived_level = metrics["perceived_level"]
     perceived_vote_count = int(metrics["perceived_vote_count"] or 0)
@@ -157,7 +163,59 @@ def serialize_public_summary(
         ),
         my_latest_status=my_latest_status,
         my_first_submission_timed_out=my_first_submission_timed_out,
+        my_score=my_score,
+        my_score_reason=my_score_reason,
     )
+
+
+def learner_progress_for_submissions(
+    submissions: list[Attempt], recommended_seconds: int
+) -> tuple[
+    Literal["correct", "wrong"] | None,
+    bool,
+    Literal[80, 100] | None,
+    Literal[
+        "first_submission_on_time",
+        "first_submission_timed_out",
+        "retry_passed",
+    ]
+    | None,
+]:
+    """Derive the permanent list score from a learner's submitted attempts."""
+    if not submissions:
+        return None, False, None, None
+
+    first = submissions[0]
+    first_submission_timed_out = bool(
+        first.elapsed_seconds is not None
+        and first.elapsed_seconds > recommended_seconds
+    )
+    latest_status: Literal["correct", "wrong"] = (
+        "correct" if first.is_correct else "wrong"
+    )
+    for attempt in submissions[1:]:
+        latest_status = "correct" if attempt.is_correct else "wrong"
+
+    for index, attempt in enumerate(submissions):
+        if not attempt.is_correct:
+            continue
+        if index == 0:
+            if first_submission_timed_out:
+                return (
+                    latest_status,
+                    first_submission_timed_out,
+                    80,
+                    "first_submission_timed_out",
+                )
+            return (
+                latest_status,
+                first_submission_timed_out,
+                100,
+                "first_submission_on_time",
+            )
+        return latest_status, first_submission_timed_out, 80, "retry_passed"
+
+    return latest_status, first_submission_timed_out, None, None
 
 
 def sort_public_items(
@@ -249,8 +307,17 @@ async def list_published_reading_items(
     metrics_by_item = await collect_item_metrics(session, [item.id for item in items])
     latest_statuses: dict[UUID, Literal["correct", "wrong"]] = {}
     first_submission_timed_out: dict[UUID, bool] = {}
+    scores: dict[UUID, Literal[80, 100]] = {}
+    score_reasons: dict[
+        UUID,
+        Literal[
+            "first_submission_on_time",
+            "first_submission_timed_out",
+            "retry_passed",
+        ],
+    ] = {}
+    submissions_by_item: dict[UUID, list[Attempt]] = {}
     if current_user and items:
-        items_by_id = {item.id: item for item in items}
         submissions = list(
             await session.scalars(
                 select(Attempt)
@@ -263,20 +330,29 @@ async def list_published_reading_items(
             )
         )
         for attempt in submissions:
-            latest_statuses[attempt.reading_item_id] = (
-                "correct" if attempt.is_correct else "wrong"
-            )
-            if attempt.reading_item_id not in first_submission_timed_out:
-                first_submission_timed_out[attempt.reading_item_id] = (
-                    attempt.elapsed_seconds is not None
-                    and attempt.elapsed_seconds
-                    > items_by_id[attempt.reading_item_id].recommended_seconds
+            submissions_by_item.setdefault(attempt.reading_item_id, []).append(attempt)
+        for item in items:
+            latest_status, timed_out, score, score_reason = (
+                learner_progress_for_submissions(
+                    submissions_by_item.get(item.id, []), item.recommended_seconds
                 )
+            )
+            if latest_status:
+                latest_statuses[item.id] = latest_status
+            if timed_out:
+                first_submission_timed_out[item.id] = True
+            if score is not None and score_reason is not None:
+                scores[item.id] = score
+                score_reasons[item.id] = score_reason
     if attempt_status == "unstarted":
-        items = [item for item in items if item.id not in latest_statuses]
-    elif attempt_status:
+        items = [item for item in items if item.id not in submissions_by_item]
+    elif attempt_status == "correct":
+        items = [item for item in items if item.id in scores]
+    elif attempt_status == "wrong":
         items = [
-            item for item in items if latest_statuses.get(item.id) == attempt_status
+            item
+            for item in items
+            if item.id in submissions_by_item and item.id not in scores
         ]
     items = sort_public_items(items, metrics_by_item, sort)
     total_items = len(items)
@@ -288,6 +364,8 @@ async def list_published_reading_items(
                 metrics_by_item[item.id],
                 latest_statuses.get(item.id),
                 first_submission_timed_out.get(item.id, False),
+                scores.get(item.id),
+                score_reasons.get(item.id),
             )
             for item in page_items
         ],
@@ -606,10 +684,28 @@ async def get_attempt_state(
         )
 
     metrics = await collect_item_metrics(session, [item.id])
-    latest_status: Literal["correct", "wrong"] | None = None
-    if attempt.submitted_at:
-        latest_status = "correct" if attempt.is_correct else "wrong"
-    item_summary = serialize_public_summary(item, metrics[item.id], latest_status)
+    submissions = list(
+        await session.scalars(
+            select(Attempt)
+            .where(
+                Attempt.user_id == current_user.id,
+                Attempt.reading_item_id == item.id,
+                Attempt.submitted_at.is_not(None),
+            )
+            .order_by(Attempt.submitted_at.asc(), Attempt.id.asc())
+        )
+    )
+    latest_status, timed_out, score, score_reason = (
+        learner_progress_for_submissions(submissions, item.recommended_seconds)
+    )
+    item_summary = serialize_public_summary(
+        item,
+        metrics[item.id],
+        latest_status,
+        timed_out,
+        score,
+        score_reason,
+    )
     submitted = attempt.submitted_at is not None
     return AttemptState(
         id=attempt.id,
