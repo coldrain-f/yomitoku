@@ -1086,6 +1086,18 @@ export default function App() {
         setAdminFilters(adminFilterDraftRef.current);
         closeDialog();
       },
+      onReset: () => {
+        const reset = {
+          ...adminFilterDraftRef.current,
+          level: "all" as const,
+          length: "all" as const,
+          topic: "all" as const,
+          status: "all" as const,
+          sort: "created-desc" as const,
+        };
+        adminFilterDraftRef.current = reset;
+        setAdminFilterDraft(reset);
+      },
     });
   };
 
