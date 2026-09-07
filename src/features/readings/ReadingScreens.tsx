@@ -10,6 +10,7 @@ import {
   RotateCcw,
   Search,
   SlidersHorizontal,
+  TimerOff,
   X,
 } from "lucide-react";
 import { Icon } from "../../components/ui/Icon";
@@ -268,7 +269,19 @@ export function ReadingListScreen({
                   </span>
                 </button>
                 <span className="row-state">
-                  <LearningStatusBadge itemId={item.id} progress={progress} />
+                  <span className="row-status-line">
+                    {item.myFirstSubmissionTimedOut ? (
+                      <span
+                        className="row-timeout-indicator"
+                        role="img"
+                        aria-label="첫 제출 시간 초과"
+                        title="첫 제출 시간 초과"
+                      >
+                        <Icon icon={TimerOff} />
+                      </span>
+                    ) : null}
+                    <LearningStatusBadge itemId={item.id} progress={progress} />
+                  </span>
                   <time className="row-date">
                     등록 {formatDate(item.publishedAt ?? item.createdAt)} · 정답률{" "}
                     {item.itemAccuracy === null ? "-" : `${Math.round(item.itemAccuracy)}%`}

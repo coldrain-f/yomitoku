@@ -1403,6 +1403,27 @@ fieldset.admin-edit-form {
   justify-content: center;
 }
 
+.row-status-line {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  min-height: 24px;
+}
+
+.row-timeout-indicator {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  color: var(--danger);
+}
+
+.row-timeout-indicator [data-lucide] {
+  width: 16px;
+  height: 16px;
+}
+
 .row-status-popover {
   position: relative;
   display: inline-flex;
