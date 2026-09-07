@@ -139,14 +139,16 @@ export function AppDialogContent({
         </div>
         {authenticated ? (
           <div className="dialog-filter-section">
-            <span className="form-label">풀이 상태</span>
+            <span className="form-label">결과</span>
             <OptionButtons
               value={filterDraft.status}
               options={[
                 { value: "all", label: "전체" },
                 { value: "unstarted", label: "미풀이" },
                 { value: "wrong", label: "오답" },
-                { value: "correct", label: "정답" },
+                { value: "score-100", label: "100점" },
+                { value: "score-90", label: "90점" },
+                { value: "score-80", label: "80점" },
               ]}
               onChange={(status) =>
                 setFilterDraft({
@@ -154,7 +156,7 @@ export function AppDialogContent({
                   status: status as ListFilters["status"],
                 })
               }
-              ariaLabel="풀이 상태 필터"
+              ariaLabel="결과 필터"
             />
           </div>
         ) : null}
@@ -176,6 +178,8 @@ export function AppDialogContent({
             <option value="level-desc">난이도 높은순</option>
             <option value="perceived-asc">체감 난이도 낮은순</option>
             <option value="perceived-desc">체감 난이도 높은순</option>
+            <option value="score-desc">점수 높은순</option>
+            <option value="score-asc">점수 낮은순</option>
           </select>
         </label>
       </div>

@@ -70,10 +70,19 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
         </h2>
         {dialog.description ? <p className="body-copy">{dialog.description}</p> : null}
         {children}
-        <div className="dialog-actions">
+        <div className={`dialog-actions${dialog.onReset ? " has-reset" : ""}`}>
           <button className="text-button" type="button" onClick={onClose}>
             {closeLabel}
           </button>
+          {dialog.onReset ? (
+            <button
+              className="text-button dialog-reset-button"
+              type="button"
+              onClick={dialog.onReset}
+            >
+              초기화
+            </button>
+          ) : null}
           {dialog.confirmLabel && dialog.onConfirm ? (
             <button
               className="primary-button"

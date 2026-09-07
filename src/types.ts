@@ -22,6 +22,13 @@ export type LearningProgress = {
   score: LearningScore | null;
   reason: ScoreReason | null;
 };
+export type LearningResultFilter =
+  | "all"
+  | "unstarted"
+  | "wrong"
+  | "score-100"
+  | "score-90"
+  | "score-80";
 export type Role = "admin" | "learner";
 export type Topic = (typeof readingTopics)[number];
 
@@ -124,14 +131,16 @@ export interface ListFilters {
   language: ReadingLanguage;
   level: DifficultyLevel | "all";
   length: LengthType | "all";
-  status: AttemptStatus | "all";
+  status: LearningResultFilter;
   sort:
     | "published-desc"
     | "published-asc"
     | "level-asc"
     | "level-desc"
     | "perceived-asc"
-    | "perceived-desc";
+    | "perceived-desc"
+    | "score-desc"
+    | "score-asc";
 }
 
 export interface AdminFilters {
@@ -196,6 +205,7 @@ export interface DialogConfig {
   description: string;
   confirmLabel?: string;
   onConfirm?: () => void;
+  onReset?: () => void;
 }
 
 export type Screen =

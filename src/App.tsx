@@ -97,6 +97,14 @@ function normalizeReadingLanguage(value: unknown): ReadingLanguage {
   return value === "ko" ? "ko" : defaultGenerationLanguage;
 }
 
+function normalizeLearningResultFilter(value: unknown): ListFilters["status"] {
+  return ["all", "unstarted", "wrong", "score-100", "score-90", "score-80"].includes(
+    value as string,
+  )
+    ? value as ListFilters["status"]
+    : "all";
+}
+
 function readStoredFilters<T extends object>(key: string, fallback: T): T {
   try {
     const stored = window.sessionStorage.getItem(key);
@@ -420,9 +428,9 @@ export default function App() {
       length:
         (searchParams.get("length") as ListFilters["length"] | null) ??
         storedListFilters.length,
-      status:
-        (searchParams.get("status") as ListFilters["status"] | null) ??
-        storedListFilters.status,
+      status: normalizeLearningResultFilter(
+        searchParams.get("status") ?? storedListFilters.status,
+      ),
       sort:
         (searchParams.get("sort") as ListFilters["sort"] | null) ??
         storedListFilters.sort,
@@ -1045,6 +1053,17 @@ export default function App() {
       onConfirm: () => {
         setListFilters(filterDraftRef.current);
         closeDialog();
+      },
+      onReset: () => {
+        const reset = {
+          ...filterDraftRef.current,
+          level: "all" as const,
+          length: "all" as const,
+          status: "all" as const,
+          sort: "published-desc" as const,
+        };
+        filterDraftRef.current = reset;
+        setFilterDraft(reset);
       },
     });
   };

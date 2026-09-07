@@ -87,6 +87,21 @@ interface ResultScreenProps {
   onHome: () => void;
 }
 
+function matchesLearningResultFilter(
+  progress: LearningProgress,
+  filter: ListFilters["status"],
+): boolean {
+  if (filter === "all") return true;
+  if (filter === "score-100") return progress.score === 100;
+  if (filter === "score-90") return progress.score === 90;
+  if (filter === "score-80") return progress.score === 80;
+  return progress.status === filter;
+}
+
+function unscoredResultRank(progress: LearningProgress): number {
+  return progress.status === "wrong" ? 0 : 1;
+}
+
 export function ReadingListScreen({
   items,
   loading,
@@ -104,15 +119,11 @@ export function ReadingListScreen({
   const filtered = useMemo(() => {
     const rows = items.filter((item) => {
       const progress = learningProgressForItem(item, attempts);
-      const learningStatus =
-        progress.status === "passed" ? "correct" : progress.status;
       return (
         item.language === filters.language &&
         (filters.level === "all" || item.officialLevel === filters.level) &&
         (filters.length === "all" || item.lengthType === filters.length) &&
-        (!authenticated ||
-          filters.status === "all" ||
-          learningStatus === filters.status) &&
+        (!authenticated || matchesLearningResultFilter(progress, filters.status)) &&
         item.title
           .toLocaleLowerCase()
           .includes(query.trim().toLocaleLowerCase())
@@ -141,6 +152,18 @@ export function ReadingListScreen({
           difficultyRank[right.officialLevel] -
           difficultyRank[left.officialLevel]
         );
+      }
+      if (filters.sort === "score-desc" || filters.sort === "score-asc") {
+        const leftProgress = learningProgressForItem(left, attempts);
+        const rightProgress = learningProgressForItem(right, attempts);
+        if (leftProgress.score === null && rightProgress.score !== null) return 1;
+        if (leftProgress.score !== null && rightProgress.score === null) return -1;
+        if (leftProgress.score !== null && rightProgress.score !== null) {
+          return filters.sort === "score-desc"
+            ? rightProgress.score - leftProgress.score
+            : leftProgress.score - rightProgress.score;
+        }
+        return unscoredResultRank(leftProgress) - unscoredResultRank(rightProgress);
       }
       if (filters.sort.startsWith("perceived")) {
         const a = perceived(left);
