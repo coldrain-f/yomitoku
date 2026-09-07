@@ -491,13 +491,11 @@ function PassageHighlighter({
   useEffect(() => {
     const dismiss = (event: PointerEvent) => {
       const target = event.target;
-      if (
-        target instanceof Node &&
-        (passageRef.current?.contains(target) || actionRef.current?.contains(target))
-      ) {
+      if (target instanceof Node && actionRef.current?.contains(target)) {
         return;
       }
       setPending(null);
+      setActiveHighlight(null);
     };
     const hideOnViewportChange = () => {
       setPending(null);
@@ -561,7 +559,7 @@ function PassageHighlighter({
         window.innerWidth - 72,
       );
       const actionHeight = 34;
-      const bottomActionTop = rectangle.bottom + 10;
+      const bottomActionTop = rectangle.bottom + 48;
       const shouldUseBottomAction =
         preferMobilePlacement && bottomActionTop + actionHeight > window.innerHeight - 16;
       setError("");

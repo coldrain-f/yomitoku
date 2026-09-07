@@ -316,15 +316,15 @@ textarea:focus-visible {
 }
 
 .score-guide-button {
-  min-height: 32px;
-  padding: 0 10px;
+  min-height: 26px;
+  padding: 0 7px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .score-guide-button [data-lucide] {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
 
 .admin-paper-head {
@@ -2739,8 +2739,16 @@ body.dialog-open {
     grid-template-columns: 1fr;
   }
 
+  .screen-home .paper-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+  }
+
   .list-head-actions {
     justify-content: space-between;
+    flex-wrap: nowrap;
+    gap: 8px;
   }
 
   .header-actions {
