@@ -189,7 +189,8 @@ export interface DialogConfig {
     | "report"
     | "feedback"
     | "google-login"
-    | "translation";
+    | "translation"
+    | "score-guide";
   kicker: string;
   title: string;
   description: string;

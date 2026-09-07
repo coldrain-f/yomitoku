@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Copy,
   Highlighter,
+  Info,
   Languages,
   MessageSquare,
   RotateCcw,
@@ -55,6 +56,7 @@ interface ReadingListScreenProps {
   query: string;
   setQuery: (query: string) => void;
   onOpenFilters: () => void;
+  onOpenScoreGuide: () => void;
   onStart: (item: ReadingItem) => void;
 }
 
@@ -95,6 +97,7 @@ export function ReadingListScreen({
   query,
   setQuery,
   onOpenFilters,
+  onOpenScoreGuide,
   onStart,
 }: ReadingListScreenProps) {
   const [page, setPage] = useState(1);
@@ -188,9 +191,19 @@ export function ReadingListScreen({
           <div>
             <h1 className="title-jp">読解一覧</h1>
           </div>
-          {active ? (
-            <p className="list-result-count">{filtered.length}개 결과</p>
-          ) : null}
+          <div className="list-head-actions">
+            <button
+              className="text-button score-guide-button"
+              type="button"
+              onClick={onOpenScoreGuide}
+            >
+              <Icon icon={Info} />
+              점수 안내
+            </button>
+            {active ? (
+              <p className="list-result-count">{filtered.length}개 결과</p>
+            ) : null}
+          </div>
         </div>
         <div className="list-toolbar">
           <div className="filter-search">

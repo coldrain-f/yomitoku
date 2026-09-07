@@ -305,6 +305,26 @@ textarea:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
+.list-head-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.score-guide-button {
+  min-height: 32px;
+  padding: 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.score-guide-button [data-lucide] {
+  width: 14px;
+  height: 14px;
+}
+
 .admin-paper-head {
   align-items: center;
 }
@@ -2648,6 +2668,39 @@ body.dialog-open {
   font-family: "Yu Gothic", YuGothic, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, "Malgun Gothic", Arial, sans-serif;
 }
 
+.score-guide-list {
+  display: grid;
+  margin: 20px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.score-guide-list > div {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.score-guide-list dt,
+.score-guide-list dd {
+  margin: 0;
+}
+
+.score-guide-list dd {
+  color: #373733;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.score-guide-note {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .dialog-actions {
   display: flex;
   justify-content: flex-end;
@@ -2664,6 +2717,10 @@ body.dialog-open {
   .paper-head,
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .list-head-actions {
+    justify-content: space-between;
   }
 
   .header-actions {

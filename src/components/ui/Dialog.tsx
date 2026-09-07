@@ -37,6 +37,10 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
   }, [dialog, onClose]);
 
   if (!dialog) return null;
+  const closeLabel =
+    dialog.type === "translation" || dialog.type === "score-guide"
+      ? "닫기"
+      : "취소";
 
   return (
     <div
@@ -68,7 +72,7 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
         {children}
         <div className="dialog-actions">
           <button className="text-button" type="button" onClick={onClose}>
-            {dialog.type === "translation" ? "닫기" : "취소"}
+            {closeLabel}
           </button>
           {dialog.confirmLabel && dialog.onConfirm ? (
             <button

@@ -73,6 +73,30 @@ export function AppDialogContent({
     );
   }
 
+  if (type === "score-guide") {
+    return (
+      <div className="score-guide-dialog">
+        <dl className="score-guide-list">
+          <div>
+            <dt className="badge ok">✓ 100</dt>
+            <dd>첫 제출을 권장 시간 내 통과</dd>
+          </div>
+          <div>
+            <dt className="badge warning">✓ 80</dt>
+            <dd>첫 제출 시간 초과 통과</dd>
+          </div>
+          <div>
+            <dt className="badge warning">✓ 80</dt>
+            <dd>오답 후 재시도 통과</dd>
+          </div>
+        </dl>
+        <p className="score-guide-note">
+          문항별 점수 배지를 탭하면 해당 점수의 사유를 확인할 수 있습니다.
+        </p>
+      </div>
+    );
+  }
+
   if (type === "list-filter") {
     return (
       <div className="dialog-filter-field">
