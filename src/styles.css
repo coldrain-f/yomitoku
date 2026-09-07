@@ -1972,6 +1972,18 @@ fieldset.admin-edit-form {
   overflow: hidden;
 }
 
+.passage-highlight-action-bottom {
+  left: max(12px, env(safe-area-inset-left));
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  transform: none;
+  box-shadow: 0 4px 16px rgba(32, 35, 33, 0.18);
+}
+
+.passage-highlight-action-bottom button {
+  width: 100%;
+}
+
 .passage-highlight-menu {
   position: fixed;
   z-index: 30;

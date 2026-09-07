@@ -436,6 +436,7 @@ interface PendingHighlight {
   selectedText: string;
   left: number;
   top: number;
+  placement: "above" | "below" | "bottom";
 }
 
 interface HighlightAction {
@@ -478,6 +479,7 @@ function PassageHighlighter({
 }) {
   const passageRef = useRef<HTMLDivElement>(null);
   const actionRef = useRef<HTMLDivElement>(null);
+  const lastTouchSelectionAtRef = useRef(0);
   const [pending, setPending] = useState<PendingHighlight | null>(null);
   const [activeHighlight, setActiveHighlight] = useState<HighlightAction | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -511,7 +513,12 @@ function PassageHighlighter({
     };
   }, []);
 
-  const captureSelection = () => {
+  const captureSelection = (preferMobilePlacement = false) => {
+    if (preferMobilePlacement) {
+      lastTouchSelectionAtRef.current = Date.now();
+    } else if (Date.now() - lastTouchSelectionAtRef.current < 800) {
+      return;
+    }
     window.setTimeout(() => {
       const root = passageRef.current;
       const selection = window.getSelection();
@@ -553,6 +560,10 @@ function PassageHighlighter({
         Math.max(rectangle.left + rectangle.width / 2, 72),
         window.innerWidth - 72,
       );
+      const actionHeight = 34;
+      const bottomActionTop = rectangle.bottom + 10;
+      const shouldUseBottomAction =
+        preferMobilePlacement && bottomActionTop + actionHeight > window.innerHeight - 16;
       setError("");
       setActiveHighlight(null);
       setPending({
@@ -560,7 +571,14 @@ function PassageHighlighter({
         endOffset,
         selectedText,
         left,
-        top: Math.max(8, rectangle.top - 42),
+        top: preferMobilePlacement
+          ? bottomActionTop
+          : Math.max(8, rectangle.top - 42),
+        placement: shouldUseBottomAction
+          ? "bottom"
+          : preferMobilePlacement
+            ? "below"
+            : "above",
       });
     }, 0);
   };
@@ -689,17 +707,23 @@ function PassageHighlighter({
       <div
         className="passage passage-highlightable"
         ref={passageRef}
-        onMouseUp={captureSelection}
-        onTouchEnd={captureSelection}
-        onKeyUp={captureSelection}
+        onMouseUp={() => captureSelection()}
+        onTouchEnd={() => captureSelection(true)}
+        onKeyUp={() => captureSelection()}
       >
         <p>{content}</p>
       </div>
       {pending ? (
         <div
-          className="passage-highlight-action"
+          className={`passage-highlight-action${
+            pending.placement === "bottom" ? " passage-highlight-action-bottom" : ""
+          }`}
           ref={actionRef}
-          style={{ left: pending.left, top: pending.top }}
+          style={
+            pending.placement === "bottom"
+              ? undefined
+              : { left: pending.left, top: pending.top }
+          }
         >
           <button type="button" onClick={() => void createHighlight()} disabled={isSaving}>
             <Icon icon={Highlighter} />
