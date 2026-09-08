@@ -88,9 +88,9 @@ interface AdminEditProps {
   onSuggestTopic?: () => void;
   isSuggestingTopic?: boolean;
   topicSuggestionError?: string;
-  onSuggestExplanation?: () => void;
-  isSuggestingExplanation?: boolean;
-  explanationSuggestionError?: string;
+  onSuggestExplanation?: (questionIndex: number) => void;
+  suggestingExplanationIndex?: number | null;
+  explanationSuggestionErrors?: Record<number, string>;
   onConfirmQuestionTruncation?: (
     removedQuestionCount: number,
     onConfirm: () => void,
@@ -691,12 +691,12 @@ export function AdminEdit({
   isSuggestingTopic = false,
   topicSuggestionError = "",
   onSuggestExplanation,
-  isSuggestingExplanation = false,
-  explanationSuggestionError = "",
+  suggestingExplanationIndex = null,
+  explanationSuggestionErrors = {},
   onConfirmQuestionTruncation,
 }: AdminEditProps) {
   const isWorking =
-    isSaving || isSuggestingTitle || isSuggestingTopic || isSuggestingExplanation;
+    isSaving || isSuggestingTitle || isSuggestingTopic || suggestingExplanationIndex !== null;
   const questionLimit =
     draft.lengthType === "short" ? 1 : draft.lengthType === "medium" ? 3 : 4;
   const canManageMultipleQuestions = manual || draft.contentSource === "manual";
@@ -1052,20 +1052,22 @@ export function AdminEdit({
                 <div className="admin-field admin-field-wide">
                   <div className="admin-field-label-row">
                     <span className="form-label">해설</span>
-                    {manual && questionIndex === 0 && onSuggestExplanation ? (
+                    {manual && onSuggestExplanation ? (
                       <button
                         className="text-button admin-ai-suggest"
                         type="button"
-                        onClick={onSuggestExplanation}
+                        onClick={() => onSuggestExplanation(questionIndex)}
                         disabled={
-                          isSuggestingExplanation ||
+                          suggestingExplanationIndex !== null ||
                           !draft.passage.trim() ||
                           !question.question.trim() ||
                           question.choices.some((choice) => !choice.text.trim())
                         }
                       >
                         <Icon icon={Sparkles} />
-                        {isSuggestingExplanation ? "해설 만드는 중" : "AI 해설 생성"}
+                        {suggestingExplanationIndex === questionIndex
+                          ? "해설 만드는 중"
+                          : "AI 해설 생성"}
                       </button>
                     ) : null}
                   </div>
@@ -1076,14 +1078,14 @@ export function AdminEdit({
                       updateQuestion(questionIndex, { explanation: event.target.value })
                     }
                   />
+                  {explanationSuggestionErrors[questionIndex] ? (
+                    <p className="editor-error" role="alert">
+                      {explanationSuggestionErrors[questionIndex]}
+                    </p>
+                  ) : null}
                 </div>
               </section>
             ))}
-            {explanationSuggestionError ? (
-              <p className="editor-error" role="alert">
-                {explanationSuggestionError}
-              </p>
-            ) : null}
           </section>
           {manual && error ? <p className="editor-error" role="alert">{error}</p> : null}
           {!manual ? <section className="admin-insights">
@@ -1199,8 +1201,10 @@ export function ManualCreateScreen({
   const [titleSuggestionError, setTitleSuggestionError] = useState("");
   const [isSuggestingTopic, setIsSuggestingTopic] = useState(false);
   const [topicSuggestionError, setTopicSuggestionError] = useState("");
-  const [isSuggestingExplanation, setIsSuggestingExplanation] = useState(false);
-  const [explanationSuggestionError, setExplanationSuggestionError] = useState("");
+  const [suggestingExplanationIndex, setSuggestingExplanationIndex] = useState<number | null>(null);
+  const [explanationSuggestionErrors, setExplanationSuggestionErrors] = useState<
+    Record<number, string>
+  >({});
   const suggestTitle = async () => {
     const passage = values.passage.trim();
     if (!passage) {
@@ -1247,38 +1251,47 @@ export function ManualCreateScreen({
       setIsSuggestingTopic(false);
     }
   };
-  const suggestExplanation = async () => {
+  const suggestExplanation = async (questionIndex: number) => {
     const passage = values.passage.trim();
-    const question = values.question.trim();
-    if (!passage || !question || values.choices.some((choice) => !choice.text.trim())) {
-      setExplanationSuggestionError("지문, 문제, 선택지 네 개를 모두 입력해 주세요.");
+    const question = values.questions[questionIndex];
+    if (
+      !passage ||
+      !question?.question.trim() ||
+      question.choices.some((choice) => !choice.text.trim())
+    ) {
+      setExplanationSuggestionErrors((current) => ({
+        ...current,
+        [questionIndex]: "지문, 문제, 선택지 네 개를 모두 입력해 주세요.",
+      }));
       return;
     }
-    setIsSuggestingExplanation(true);
-    setExplanationSuggestionError("");
+    setSuggestingExplanationIndex(questionIndex);
+    setExplanationSuggestionErrors((current) => ({ ...current, [questionIndex]: "" }));
     try {
       const explanation = await onSuggestExplanation(
         passage,
-        question,
-        values.choices,
+        question.question.trim(),
+        question.choices,
         values.language,
       );
       if (!explanation.trim()) throw new Error("AI가 해설을 만들지 못했습니다.");
       setValues((current) => ({
         ...current,
-        explanation: explanation.trim(),
+        ...(questionIndex === 0 ? { explanation: explanation.trim() } : {}),
         questions: current.questions.map((entry, index) =>
-          index === 0 ? { ...entry, explanation: explanation.trim() } : entry,
+          index === questionIndex ? { ...entry, explanation: explanation.trim() } : entry,
         ),
       }));
     } catch (suggestionError) {
-      setExplanationSuggestionError(
-        suggestionError instanceof Error
-          ? suggestionError.message
-          : "AI 해설 생성에 실패했습니다.",
-      );
+      setExplanationSuggestionErrors((current) => ({
+        ...current,
+        [questionIndex]:
+          suggestionError instanceof Error
+            ? suggestionError.message
+            : "AI 해설 생성에 실패했습니다.",
+      }));
     } finally {
-      setIsSuggestingExplanation(false);
+      setSuggestingExplanationIndex(null);
     }
   };
   const draft: ReadingItem = {
@@ -1344,9 +1357,9 @@ export function ManualCreateScreen({
       onSuggestTopic={() => void suggestTopic()}
       isSuggestingTopic={isSuggestingTopic}
       topicSuggestionError={topicSuggestionError}
-      onSuggestExplanation={() => void suggestExplanation()}
-      isSuggestingExplanation={isSuggestingExplanation}
-      explanationSuggestionError={explanationSuggestionError}
+      onSuggestExplanation={(questionIndex) => void suggestExplanation(questionIndex)}
+      suggestingExplanationIndex={suggestingExplanationIndex}
+      explanationSuggestionErrors={explanationSuggestionErrors}
       onConfirmQuestionTruncation={onConfirmQuestionTruncation}
     />
   );
