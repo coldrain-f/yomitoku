@@ -695,6 +695,7 @@ export function AdminEdit({
   explanationSuggestionErrors = {},
   onConfirmQuestionTruncation,
 }: AdminEditProps) {
+  const [expandedQuestionIndex, setExpandedQuestionIndex] = useState(0);
   const isWorking =
     isSaving || isSuggestingTitle || isSuggestingTopic || suggestingExplanationIndex !== null;
   const questionLimit =
@@ -702,6 +703,17 @@ export function AdminEdit({
   const canManageMultipleQuestions = manual || draft.contentSource === "manual";
   const recommendedSecondsForQuestions = (questionCount: number) =>
     recommendedSecondsByLength[draft.lengthType] + (questionCount - 1) * 60;
+  useEffect(() => {
+    setExpandedQuestionIndex((current) =>
+      Math.min(current, Math.max(0, draft.questions.length - 1)),
+    );
+  }, [draft.questions.length]);
+  useEffect(() => {
+    const errorIndex = Object.entries(explanationSuggestionErrors).find(
+      ([, error]) => Boolean(error),
+    )?.[0];
+    if (errorIndex !== undefined) setExpandedQuestionIndex(Number(errorIndex));
+  }, [explanationSuggestionErrors]);
   const updateQuestions = (questions: ReadingItem["questions"], autoTime = false) => {
     const firstQuestion = questions[0];
     setDraft({
@@ -755,10 +767,14 @@ export function AdminEdit({
       ],
       true,
     );
+    setExpandedQuestionIndex(draft.questions.length);
   };
   const removeQuestion = (questionIndex: number) => {
     if (questionIndex === 0 || draft.questions.length === 1) return;
     updateQuestions(draft.questions.filter((_, index) => index !== questionIndex), true);
+    setExpandedQuestionIndex((current) =>
+      current >= questionIndex ? Math.max(0, current - 1) : current,
+    );
   };
   const changeLengthType = (lengthType: LengthType) => {
     const maximum =
@@ -982,8 +998,42 @@ export function AdminEdit({
             </div>
             {draft.questions.map((question, questionIndex) => (
               <section className="admin-question-editor" key={question.id}>
-                <div className="admin-options-heading">
-                  <strong>문제 {String(questionIndex + 1).padStart(2, "0")}</strong>
+                <div className="admin-question-heading">
+                  <button
+                    className="admin-question-toggle"
+                    type="button"
+                    aria-expanded={expandedQuestionIndex === questionIndex}
+                    aria-controls={`question-editor-${question.id}`}
+                    onClick={() =>
+                      setExpandedQuestionIndex((current) =>
+                        current === questionIndex ? -1 : questionIndex,
+                      )
+                    }
+                  >
+                    <span className="admin-question-title">
+                      <strong>문제 {String(questionIndex + 1).padStart(2, "0")}</strong>
+                      <span className="admin-question-summary">
+                        {question.question.trim() || "문제를 입력해 주세요."}
+                      </span>
+                    </span>
+                    <span className="admin-question-toggle-meta">
+                      <span
+                        className={
+                          "admin-question-status" +
+                          (question.explanation.trim() ? " is-complete" : "")
+                        }
+                      >
+                        {question.explanation.trim() ? "해설 작성" : "해설 미작성"}
+                      </span>
+                      <Icon
+                        icon={
+                          expandedQuestionIndex === questionIndex
+                            ? ChevronUp
+                            : ChevronDown
+                        }
+                      />
+                    </span>
+                  </button>
                   {canManageMultipleQuestions && questionIndex > 0 ? (
                     <button
                       className="icon-button"
@@ -996,6 +1046,11 @@ export function AdminEdit({
                     </button>
                   ) : null}
                 </div>
+                {expandedQuestionIndex === questionIndex ? (
+                  <div
+                    className="admin-question-content"
+                    id={`question-editor-${question.id}`}
+                  >
                 <label className="admin-field admin-field-wide">
                   <span className="form-label">문제</span>
                   <textarea
@@ -1084,6 +1139,8 @@ export function AdminEdit({
                     </p>
                   ) : null}
                 </div>
+                  </div>
+                ) : null}
               </section>
             ))}
           </section>
