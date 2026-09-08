@@ -33,6 +33,7 @@ KoreanLevel = Literal[
 ]
 ReadingLevel = JapaneseLevel | KoreanLevel
 LengthType = Literal["short", "medium", "long"]
+ContentSource = Literal["manual", "ai"]
 ValidationStatus = Literal["passed", "warning", "failed"]
 DistractorType = Literal[
     "background_knowledge_trap",
@@ -221,6 +222,7 @@ class ReadingItemSummary(ApiModel):
     length_type: LengthType
     topic: str
     recommended_seconds: int
+    content_source: ContentSource = "manual"
     status: str
     published_at: datetime | None
     created_at: datetime
@@ -273,6 +275,23 @@ class ReadingChoicePublic(ApiModel):
     text: str
 
 
+class ReadingQuestionPublic(ApiModel):
+    id: UUID
+    question: str
+    choices: list[ReadingChoicePublic]
+
+
+class AttemptQuestion(ApiModel):
+    id: UUID
+    question: str
+    choices: list[ReadingChoicePublic]
+
+
+class AttemptQuestionAnswer(ApiModel):
+    question_id: UUID
+    selected_choice_id: UUID | None = None
+
+
 class ReadingItemDetail(ApiModel):
     id: UUID
     title: str
@@ -284,6 +303,7 @@ class ReadingItemDetail(ApiModel):
     passage: str
     question: str
     choices: list[ReadingChoicePublic]
+    questions: list[ReadingQuestionPublic] = Field(default_factory=list)
 
 
 class TranslationSegment(ApiModel):
@@ -299,6 +319,7 @@ class ReadingTranslationResponse(ApiModel):
     title: TranslationSegment
     passage: TranslationSegment
     question: TranslationSegment
+    questions: list[TranslationSegment] = Field(default_factory=list)
 
 
 class PassageHighlightResponse(ApiModel):
@@ -325,11 +346,28 @@ class AttemptStarted(ApiModel):
     item_id: UUID
     started_at: datetime
     choices: list[ReadingChoicePublic]
+    questions: list[AttemptQuestion] = Field(default_factory=list)
 
 
 class AttemptSubmitRequest(ApiModel):
-    selected_choice_id: UUID
+    selected_choice_id: UUID | None = None
+    answers: list[AttemptQuestionAnswer] | None = None
     client_elapsed_seconds: int = Field(ge=0, le=14_400)
+
+    @model_validator(mode="after")
+    def contains_an_answer(self) -> "AttemptSubmitRequest":
+        if self.answers is None and self.selected_choice_id is None:
+            raise ValueError("At least one answer is required.")
+        return self
+
+
+class AttemptQuestionResult(ApiModel):
+    question_id: UUID
+    is_correct: bool
+    selected_choice_id: UUID
+    correct_choice_id: UUID
+    explanation: str
+    selected_choice_wrong_explanation: str | None
 
 
 class AttemptResult(ApiModel):
@@ -344,12 +382,14 @@ class AttemptResult(ApiModel):
     recommended_seconds: int
     item_accuracy: float | None
     challenger_count: int
+    question_results: list[AttemptQuestionResult] = Field(default_factory=list)
 
 
 class AttemptItemDetail(ReadingItemSummary):
     passage: str
     question: str
     choices: list[ReadingChoicePublic]
+    questions: list[AttemptQuestion] = Field(default_factory=list)
 
 
 class AttemptState(ApiModel):
@@ -359,6 +399,7 @@ class AttemptState(ApiModel):
     started_at: datetime
     elapsed_seconds: int
     selected_choice_id: UUID | None
+    answers: list[AttemptQuestionAnswer] = Field(default_factory=list)
     submitted: bool
     result: AttemptResult | None
 
@@ -398,6 +439,13 @@ class ReadingChoiceInput(ApiModel):
     wrong_explanation: str | None = Field(default=None, max_length=4_000)
 
 
+class ReadingQuestionInput(ApiModel):
+    id: UUID | None = None
+    question: str = Field(min_length=1, max_length=4_000)
+    explanation: str = Field(default="", max_length=4_000)
+    choices: list[ReadingChoiceInput]
+
+
 class ItemReportDetail(ApiModel):
     id: UUID
     content: str
@@ -420,6 +468,7 @@ class AdminReadingItemDetail(ReadingItemSummary):
     question: str
     explanation: str
     choices: list[ReadingChoiceInput]
+    questions: list[ReadingQuestionInput] = Field(default_factory=list)
     quality_average: float | None
     report_count: int
     challenger_count: int
@@ -430,18 +479,23 @@ class AdminReadingItemDetail(ReadingItemSummary):
 class AdminReadingItemCreate(ApiModel):
     title: str = Field(min_length=1, max_length=255)
     passage: str = Field(min_length=1)
-    question: str = Field(min_length=1)
-    explanation: str = Field(default="")
+    question: str | None = Field(default=None, min_length=1)
+    explanation: str | None = Field(default=None)
     language: ReadingLanguage = "ja"
     official_level: ReadingLevel
     length_type: LengthType
     topic: str = Field(min_length=1, max_length=32)
     recommended_seconds: int = Field(ge=1, le=14_400)
-    choices: list[ReadingChoiceInput]
+    choices: list[ReadingChoiceInput] | None = None
+    questions: list[ReadingQuestionInput] | None = None
 
     @model_validator(mode="after")
     def validate_choices(self) -> "AdminReadingItemCreate":
-        validate_choice_inputs(self.choices)
+        validate_item_questions(
+            self.questions
+            if self.questions is not None
+            else legacy_question_inputs(self.question, self.explanation, self.choices)
+        )
         from app.services.reading_policy import is_level_for_language
 
         if not is_level_for_language(self.language, self.official_level):
@@ -494,10 +548,13 @@ class AdminReadingItemUpdate(ApiModel):
     topic: str | None = Field(default=None, min_length=1, max_length=32)
     recommended_seconds: int | None = Field(default=None, ge=1, le=14_400)
     choices: list[ReadingChoiceInput] | None = None
+    questions: list[ReadingQuestionInput] | None = None
 
     @model_validator(mode="after")
     def validate_choices(self) -> "AdminReadingItemUpdate":
-        if self.choices is not None:
+        if self.questions is not None:
+            validate_item_questions(self.questions)
+        elif self.choices is not None:
             validate_choice_inputs(self.choices)
         return self
 
@@ -510,6 +567,29 @@ def validate_choice_inputs(choices: list[ReadingChoiceInput]) -> None:
     normalized = [choice.text.strip() for choice in choices]
     if len(set(normalized)) != len(normalized):
         raise ValueError("Choice text must be unique.")
+
+
+def legacy_question_inputs(
+    question: str | None,
+    explanation: str | None,
+    choices: list[ReadingChoiceInput] | None,
+) -> list[ReadingQuestionInput]:
+    if question is None or choices is None:
+        raise ValueError("At least one question is required.")
+    return [
+        ReadingQuestionInput(
+            question=question,
+            explanation=explanation or "",
+            choices=choices,
+        )
+    ]
+
+
+def validate_item_questions(questions: list[ReadingQuestionInput]) -> None:
+    if not questions:
+        raise ValueError("At least one question is required.")
+    for question in questions:
+        validate_choice_inputs(question.choices)
 
 
 def _coerce_issue_codes(value: Any) -> list[str]:

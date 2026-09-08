@@ -13,6 +13,7 @@ from app.db.models import (
     ItemValidation,
     ReadingChoice,
     ReadingItem,
+    ReadingQuestion,
 )
 from app.schemas import GeneratedReading, GenerationConditions, ValidatorOutcome
 from app.services.generation_jobs import lock_job, require_active, tracked_call
@@ -375,10 +376,17 @@ def build_generation_graph(
                 length_type=conditions.length_type,
                 topic=conditions.topic,
                 recommended_seconds=RECOMMENDED_SECONDS[conditions.length_type],
+                content_source="ai",
                 status=item_status,
             )
-            reading_item.choices = [
+            question = ReadingQuestion(
+                question=item.question,
+                explanation=item.explanation,
+                canonical_order=1,
+            )
+            question.choices = [
                 ReadingChoice(
+                    reading_item=reading_item,
                     text=choice.text,
                     canonical_order=index,
                     is_correct=choice.is_correct,
@@ -386,6 +394,7 @@ def build_generation_graph(
                 )
                 for index, choice in enumerate(item.choices, start=1)
             ]
+            reading_item.questions.append(question)
             session.add(reading_item)
             await session.flush()
 

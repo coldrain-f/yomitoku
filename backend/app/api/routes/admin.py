@@ -17,6 +17,7 @@ from app.db.models import (
     ItemValidation,
     ReadingChoice,
     ReadingItem,
+    ReadingQuestion,
     User,
 )
 from app.db.session import get_session
@@ -45,6 +46,7 @@ from app.schemas import (
     ReadingItemSummary,
     ReadingLanguage,
     ReadingLevel,
+    ReadingQuestionInput,
 )
 from app.services.generation_jobs import ACTIVE_STATUSES
 from app.services.generation_provider import build_generation_provider
@@ -62,6 +64,39 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 ItemStatus = Literal["review", "held", "published"]
 PREFERRED_GENERATION_MODEL = "claude-fable-5-1"
+MAX_QUESTIONS_BY_LENGTH: dict[LengthType, int] = {
+    "short": 1,
+    "medium": 3,
+    "long": 4,
+}
+
+
+def validate_question_count(
+    questions: list[ReadingQuestionInput], length_type: LengthType, content_source: str
+) -> None:
+    if content_source == "ai" and len(questions) != 1:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="AI 생성 문항은 문제를 하나만 가질 수 있습니다.",
+        )
+    maximum = MAX_QUESTIONS_BY_LENGTH[length_type]
+    if not 1 <= len(questions) <= maximum:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"{length_type} 유형은 문제를 1~{maximum}개 등록할 수 있습니다.",
+        )
+
+
+def legacy_question(
+    question: str | None,
+    explanation: str | None,
+    choices: list[ReadingChoiceInput] | None,
+) -> ReadingQuestionInput:
+    return ReadingQuestionInput(
+        question=question or "",
+        explanation=explanation or "",
+        choices=choices or [],
+    )
 
 
 def serialize_generation_job(job: GenerationJob) -> GenerationJobResponse:
@@ -136,7 +171,10 @@ async def get_admin_item(session: AsyncSession, item_id: UUID) -> ReadingItem:
     item = await session.scalar(
         select(ReadingItem)
         .where(ReadingItem.id == item_id)
-        .options(selectinload(ReadingItem.choices))
+        .options(
+            selectinload(ReadingItem.choices),
+            selectinload(ReadingItem.questions).selectinload(ReadingQuestion.choices),
+        )
     )
     if not item:
         raise HTTPException(
@@ -159,6 +197,7 @@ def serialize_summary(
         length_type=item.length_type,
         topic=item.topic,
         recommended_seconds=item.recommended_seconds,
+        content_source=item.content_source,
         status=item.status,
         published_at=item.published_at,
         created_at=item.created_at,
@@ -207,6 +246,23 @@ async def serialize_detail(
                 wrong_explanation=choice.wrong_explanation,
             )
             for choice in item.choices
+        ],
+        questions=[
+            ReadingQuestionInput(
+                id=question.id,
+                question=question.question,
+                explanation=question.explanation,
+                choices=[
+                    ReadingChoiceInput(
+                        id=choice.id,
+                        text=choice.text,
+                        is_correct=choice.is_correct,
+                        wrong_explanation=choice.wrong_explanation,
+                    )
+                    for choice in question.choices
+                ],
+            )
+            for question in item.questions
         ],
         quality_average=(
             float(metrics["quality_average"])
@@ -586,29 +642,45 @@ async def create_admin_reading_item(
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Annotated[CurrentUser, Depends(require_admin)],
 ) -> AdminReadingItemDetail:
+    questions = request.questions or [
+        legacy_question(request.question, request.explanation, request.choices)
+    ]
+    validate_question_count(questions, request.length_type, "manual")
+    first_question = questions[0]
     item = ReadingItem(
         title=request.title.strip(),
         passage=request.passage.strip(),
-        question=request.question.strip(),
-        explanation=request.explanation.strip(),
+        question=first_question.question.strip(),
+        explanation=first_question.explanation.strip(),
         language=request.language,
         official_level=request.official_level,
         length_type=request.length_type,
         topic=request.topic.strip(),
         recommended_seconds=request.recommended_seconds,
+        content_source="manual",
         status="review",
     )
-    item.choices = [
-        ReadingChoice(
-            text=choice.text.strip(),
-            canonical_order=index,
-            is_correct=choice.is_correct,
-            wrong_explanation=(
-                choice.wrong_explanation.strip() if choice.wrong_explanation else None
-            ),
+    for question_index, question in enumerate(questions, start=1):
+        target_question = ReadingQuestion(
+            question=question.question.strip(),
+            explanation=question.explanation.strip(),
+            canonical_order=question_index,
         )
-        for index, choice in enumerate(request.choices, start=1)
-    ]
+        target_question.choices = [
+            ReadingChoice(
+                reading_item=item,
+                text=choice.text.strip(),
+                canonical_order=choice_index,
+                is_correct=choice.is_correct,
+                wrong_explanation=(
+                    choice.wrong_explanation.strip()
+                    if choice.wrong_explanation
+                    else None
+                ),
+            )
+            for choice_index, choice in enumerate(question.choices, start=1)
+        ]
+        item.questions.append(target_question)
     session.add(item)
     await session.commit()
     item = await get_admin_item(session, item.id)
@@ -635,7 +707,7 @@ async def update_admin_reading_item(
     current_user: Annotated[CurrentUser, Depends(require_admin)],
 ) -> AdminReadingItemDetail:
     item = await get_admin_item(session, item_id)
-    values = request.model_dump(exclude_none=True, exclude={"choices"})
+    values = request.model_dump(exclude_none=True, exclude={"choices", "questions"})
     for key, value in values.items():
         setattr(item, key, value.strip() if isinstance(value, str) else value)
 
@@ -645,7 +717,38 @@ async def update_admin_reading_item(
             detail="The selected level does not belong to the content language.",
         )
 
-    if request.choices is not None:
+    if request.questions is not None:
+        validate_question_count(request.questions, item.length_type, item.content_source)
+        existing_questions = {question.id: question for question in item.questions}
+        next_questions: list[ReadingQuestion] = []
+        for question_index, question in enumerate(request.questions, start=1):
+            target_question = (
+                existing_questions.get(question.id) if question.id else None
+            ) or ReadingQuestion()
+            target_question.question = question.question.strip()
+            target_question.explanation = question.explanation.strip()
+            target_question.canonical_order = question_index
+            existing_choices = {choice.id: choice for choice in target_question.choices}
+            next_choices: list[ReadingChoice] = []
+            for choice_index, choice in enumerate(question.choices, start=1):
+                target_choice = (
+                    existing_choices.get(choice.id) if choice.id else None
+                ) or ReadingChoice(reading_item=item)
+                target_choice.text = choice.text.strip()
+                target_choice.canonical_order = choice_index
+                target_choice.is_correct = choice.is_correct
+                target_choice.wrong_explanation = (
+                    choice.wrong_explanation.strip()
+                    if choice.wrong_explanation
+                    else None
+                )
+                next_choices.append(target_choice)
+            target_question.choices[:] = next_choices
+            next_questions.append(target_question)
+        item.questions[:] = next_questions
+        item.question = next_questions[0].question
+        item.explanation = next_questions[0].explanation
+    elif request.choices is not None:
         existing_choices = {choice.id: choice for choice in item.choices}
         next_choices: list[ReadingChoice] = []
         for index, choice in enumerate(request.choices, start=1):

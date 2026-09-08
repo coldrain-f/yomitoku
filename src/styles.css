@@ -760,6 +760,30 @@ fieldset.admin-edit-form {
   border-bottom: 1px solid var(--line);
 }
 
+.admin-questions-section {
+  display: grid;
+  gap: 16px;
+  padding-top: 22px;
+}
+
+.admin-question-editor {
+  display: grid;
+  gap: 16px;
+  padding: 18px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.admin-question-editor > .admin-options-heading strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.admin-add-question {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
 .admin-options-heading {
   display: flex;
   align-items: center;
@@ -2067,6 +2091,14 @@ fieldset.admin-edit-form {
   margin-top: 32px;
   padding-top: 28px;
   border-top: 1px solid var(--line);
+}
+
+.question-number {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
 }
 
 .question-block h3 {

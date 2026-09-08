@@ -65,7 +65,7 @@ interface ReadingScreenProps {
   item: ReadingItem;
   attempt: ReadingAttempt;
   result: ReadingResult | null;
-  onChoose: (choiceId: string) => void;
+  onChoose: (questionId: string, choiceId: string) => void;
   onSubmit: () => void;
   isSubmitting: boolean;
   onAbandon: () => void;
@@ -774,16 +774,7 @@ export function ReadingScreen({
   onDeleteHighlight,
 }: ReadingScreenProps) {
   const submitted = Boolean(attempt.submitted && result?.itemId === item.id);
-  const selected = attempt.choices.find(
-    (choice) => choice.id === attempt.selectedChoiceId,
-  );
-  const correctNumber = result
-    ? String(
-        attempt.choices.findIndex(
-          (choice) => choice.id === result.correctChoiceId,
-        ) + 1,
-      ).padStart(2, "0")
-    : "";
+  const questions = attempt.questions.length ? attempt.questions : item.questions;
   const explanationLanguage = item.language === "ja" ? "ko" : "ja";
   const wrongExplanationFallback =
     item.language === "ja"
@@ -831,53 +822,67 @@ export function ReadingScreen({
             onCreateHighlight={onCreateHighlight}
             onDeleteHighlight={onDeleteHighlight}
           />
-          <div className="question-block">
-            <h3>{item.question}</h3>
-            <div
-              className="answer-list"
-              role="radiogroup"
-              aria-label="정답 선택"
-            >
-              {attempt.choices.map((choice, index) => (
-                <button
-                  className={`answer-choice${choice.id === attempt.selectedChoiceId ? " is-selected" : ""}${submitted && choice.id === result?.correctChoiceId ? " correct" : ""}${submitted && choice.id === attempt.selectedChoiceId && choice.id !== result?.correctChoiceId ? " wrong" : ""}`}
-                  type="button"
-                  role="radio"
-                  aria-checked={choice.id === attempt.selectedChoiceId}
-                  disabled={submitted || isSubmitting}
-                  key={choice.id}
-                  onClick={() => onChoose(choice.id)}
-                >
-                  <span className="answer-number">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <span>{choice.text}</span>
-                </button>
-              ))}
-            </div>
-            {!submitted && attempt.message ? (
-              <p className="answer-feedback is-visible">{attempt.message}</p>
-            ) : null}
-            {submitted ? (
-              <div className="answer-explanation">
-                <strong>{correctNumber}가 정답인 이유</strong>
-                <span lang={explanationLanguage}>{result?.explanation}</span>
-                {result && !result.isCorrect && selected ? (
-                  <p className="answer-choice-reason">
-                    내가 고른{" "}
-                    {String(attempt.choices.indexOf(selected) + 1).padStart(
-                      2,
-                      "0",
-                    )}
-                    가 오답인 이유:{" "}
-                    <span lang={explanationLanguage}>
-                      {result.selectedChoiceWrongExplanation ?? wrongExplanationFallback}
-                    </span>
-                  </p>
+          {questions.map((question, questionIndex) => {
+            const selectedChoiceId = attempt.answers.find(
+              (answer) => answer.questionId === question.id,
+            )?.selectedChoiceId;
+            const questionResult = result?.questionResults.find(
+              (entry) => entry.questionId === question.id,
+            );
+            const selected = question.choices.find(
+              (choice) => choice.id === selectedChoiceId,
+            );
+            const correctNumber = questionResult
+              ? String(
+                  question.choices.findIndex(
+                    (choice) => choice.id === questionResult.correctChoiceId,
+                  ) + 1,
+                ).padStart(2, "0")
+              : "";
+            return (
+              <div className="question-block" key={question.id}>
+                {questions.length > 1 ? (
+                  <p className="question-number">문제 {questionIndex + 1}</p>
+                ) : null}
+                <h3>{question.question}</h3>
+                <div className="answer-list" role="radiogroup" aria-label={`문제 ${questionIndex + 1} 정답 선택`}>
+                  {question.choices.map((choice, index) => (
+                    <button
+                      className={`answer-choice${choice.id === selectedChoiceId ? " is-selected" : ""}${submitted && choice.id === questionResult?.correctChoiceId ? " correct" : ""}${submitted && choice.id === selectedChoiceId && choice.id !== questionResult?.correctChoiceId ? " wrong" : ""}`}
+                      type="button"
+                      role="radio"
+                      aria-checked={choice.id === selectedChoiceId}
+                      disabled={submitted || isSubmitting}
+                      key={choice.id}
+                      onClick={() => onChoose(question.id, choice.id)}
+                    >
+                      <span className="answer-number">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <span>{choice.text}</span>
+                    </button>
+                  ))}
+                </div>
+                {submitted && questionResult ? (
+                  <div className="answer-explanation">
+                    <strong>{correctNumber}가 정답인 이유</strong>
+                    <span lang={explanationLanguage}>{questionResult.explanation}</span>
+                    {!questionResult.isCorrect && selected ? (
+                      <p className="answer-choice-reason">
+                        내가 고른 {String(question.choices.indexOf(selected) + 1).padStart(2, "0")}가 오답인 이유: {" "}
+                        <span lang={explanationLanguage}>
+                          {questionResult.selectedChoiceWrongExplanation ?? wrongExplanationFallback}
+                        </span>
+                      </p>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
-            ) : null}
-          </div>
+            );
+          })}
+          {!submitted && attempt.message ? (
+            <p className="answer-feedback is-visible">{attempt.message}</p>
+          ) : null}
           <div className="footer-actions">
             <button className="link-button" type="button" onClick={onReport}>
               <Icon icon={MessageSquare} />
@@ -936,11 +941,9 @@ export function ResultScreen({
   onHome,
 }: ResultScreenProps) {
   if (!result) return null;
-  const { item, choices, selectedChoiceId, isCorrect, elapsedSeconds } = result;
-  const selected =
-    choices.findIndex((choice) => choice.id === selectedChoiceId) + 1;
-  const answer =
-    choices.findIndex((choice) => choice.id === result.correctChoiceId) + 1;
+  const { item, isCorrect, elapsedSeconds } = result;
+  const correctCount = result.questionResults.filter((entry) => entry.isCorrect).length;
+  const questionCount = result.questionResults.length || 1;
 
   return (
     <section
@@ -971,10 +974,7 @@ export function ResultScreen({
             </strong>
             <span className="result-answer-summary">
               <span>
-                내 답 <strong>{String(selected).padStart(2, "0")}</strong>
-              </span>
-              <span>
-                정답 <strong>{String(answer).padStart(2, "0")}</strong>
+                정답 <strong>{correctCount} / {questionCount}</strong>
               </span>
             </span>
           </div>

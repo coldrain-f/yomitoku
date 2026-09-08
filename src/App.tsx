@@ -52,6 +52,7 @@ import {
 import type {
   AdminFilters,
   AttemptRecord,
+  AttemptQuestionAnswer,
   DialogConfig,
   FeedbackValues,
   GenerationValues,
@@ -91,6 +92,7 @@ interface StoredReadingSession {
   attemptId: string;
   itemId: string;
   selectedChoiceId: string | null;
+  answers: AttemptQuestionAnswer[];
 }
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
 
@@ -146,12 +148,21 @@ function readStoredReadingSession(userId: string): StoredReadingSession | null {
     if (!stored) return null;
     const parsed: unknown = JSON.parse(stored);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
-    const { attemptId, itemId, selectedChoiceId } = parsed as Record<string, unknown>;
+    const { attemptId, itemId, selectedChoiceId, answers } = parsed as Record<string, unknown>;
     if (typeof attemptId !== "string" || typeof itemId !== "string") return null;
     return {
       attemptId,
       itemId,
       selectedChoiceId: typeof selectedChoiceId === "string" ? selectedChoiceId : null,
+      answers: Array.isArray(answers)
+        ? answers.flatMap((answer) => {
+            if (!answer || typeof answer !== "object" || Array.isArray(answer)) return [];
+            const { questionId, selectedChoiceId: choiceId } = answer as Record<string, unknown>;
+            return typeof questionId === "string"
+              ? [{ questionId, selectedChoiceId: typeof choiceId === "string" ? choiceId : null }]
+              : [];
+          })
+        : [],
     };
   } catch {
     return null;
@@ -199,6 +210,11 @@ function screenForPath(pathname: string): Screen {
 }
 
 function createManualReadingDraft(): ManualReadingDraft {
+  const choices = Array.from({ length: 4 }, (_, index) => ({
+    id: "manual-choice-1-" + (index + 1),
+    text: "",
+    isCorrect: index === 0,
+  }));
   return {
     title: "",
     language: defaultGenerationLanguage,
@@ -208,12 +224,16 @@ function createManualReadingDraft(): ManualReadingDraft {
     recommendedSeconds: recommendedSecondsByLength[defaultGenerationLength],
     passage: "",
     question: "",
-    choices: Array.from({ length: 4 }, (_, index) => ({
-      id: "manual-choice-" + (index + 1),
-      text: "",
-      isCorrect: index === 0,
-    })),
+    choices,
     explanation: "",
+    questions: [
+      {
+        id: "manual-question-1",
+        question: "",
+        choices,
+        explanation: "",
+      },
+    ],
   };
 }
 
@@ -221,13 +241,22 @@ function validateManualReadingDraft(values: ManualReadingDraft) {
   if (
     !values.title.trim() ||
     !values.passage.trim() ||
-    !values.question.trim()
+    values.questions.some((question) => !question.question.trim())
   ) {
     return "제목, 지문, 문제를 모두 입력해 주세요.";
   }
-  const choices = values.choices.map((choice) => choice.text.trim());
-  if (choices.some((choice) => !choice)) return "선택지 네 개를 모두 입력해 주세요.";
-  if (new Set(choices).size !== choices.length) return "선택지는 서로 다르게 입력해 주세요.";
+  const maximum =
+    values.lengthType === "short" ? 1 : values.lengthType === "medium" ? 3 : 4;
+  if (values.questions.length > maximum) return "유형별 문제 수 제한을 확인해 주세요.";
+  for (const question of values.questions) {
+    const choices = question.choices.map((choice) => choice.text.trim());
+    if (choices.some((choice) => !choice)) {
+      return "각 문제의 선택지 네 개를 모두 입력해 주세요.";
+    }
+    if (new Set(choices).size !== choices.length) {
+      return "각 문제의 선택지는 서로 다르게 입력해 주세요.";
+    }
+  }
   return null;
 }
 
@@ -271,7 +300,7 @@ function ReadingRoute({
   items: ReadingItem[];
   attempt: ReadingAttempt | null;
   result: ReadingResult | null;
-  onChoose: (choiceId: string) => void;
+  onChoose: (questionId: string, choiceId: string) => void;
   onSubmit: () => void;
   isSubmitting: boolean;
   onAbandon: () => void;
@@ -632,13 +661,26 @@ export default function App() {
     );
   const hydrateRestoredAttempt = (
     restored: RestoredAttempt,
-    storedSelectedChoiceId: string | null,
+    storedSession: StoredReadingSession | null,
   ) => {
     void loadPassageHighlights(restored.itemId).catch(() => undefined);
-    const choiceIds = new Set(restored.item.choices.map((choice) => choice.id));
-    const selectedChoiceId = [restored.selectedChoiceId, storedSelectedChoiceId].find(
-      (choiceId): choiceId is string => Boolean(choiceId && choiceIds.has(choiceId)),
-    ) ?? null;
+    const storedAnswers = new Map(
+      (storedSession?.answers ?? []).map((answer) => [answer.questionId, answer.selectedChoiceId]),
+    );
+    const answers = restored.item.questions.map((question, index) => {
+      const validChoiceIds = new Set(question.choices.map((choice) => choice.id));
+      const restoredChoice = restored.answers.find(
+        (answer) => answer.questionId === question.id,
+      )?.selectedChoiceId;
+      const storedChoice = storedAnswers.get(question.id) ?? (
+        index === 0 ? storedSession?.selectedChoiceId : null
+      );
+      const selectedChoiceId = [restoredChoice, storedChoice].find(
+        (choiceId): choiceId is string => Boolean(choiceId && validChoiceIds.has(choiceId)),
+      ) ?? null;
+      return { questionId: question.id, selectedChoiceId };
+    });
+    const selectedChoiceId = answers[0]?.selectedChoiceId ?? null;
     const nextAttempt: ReadingAttempt = {
       attemptId: restored.id,
       itemId: restored.itemId,
@@ -648,6 +690,8 @@ export default function App() {
       choices: restored.item.choices,
       submitted: restored.submitted,
       message: "",
+      questions: restored.item.questions,
+      answers,
     };
     setItems((current) =>
       current.some((item) => item.id === restored.item.id)
@@ -677,6 +721,7 @@ export default function App() {
         submitted.selectedChoiceWrongExplanation,
       itemAccuracy: submitted.itemAccuracy,
       challengerCount: submitted.challengerCount,
+      questionResults: submitted.questionResults,
     };
     setResult(nextResult);
     setAttempts((current) => [
@@ -726,6 +771,7 @@ export default function App() {
       attemptId: attempt.attemptId,
       itemId: attempt.itemId,
       selectedChoiceId: attempt.selectedChoiceId,
+      answers: attempt.answers,
     });
   }, [attempt?.attemptId, attempt?.itemId, attempt?.selectedChoiceId, authenticated, userId]);
 
@@ -749,7 +795,7 @@ export default function App() {
       .attempt(stored.attemptId)
       .then((restored) => {
         if (!active || restored.itemId !== stored.itemId) return;
-        hydrateRestoredAttempt(restored, stored.selectedChoiceId);
+        hydrateRestoredAttempt(restored, stored);
       })
       .catch(() => {
         clearReadingSession(userId);
@@ -906,6 +952,7 @@ export default function App() {
               passage: detail.passage,
               question: detail.question,
               choices: started.choices,
+              questions: started.questions,
             };
             setItems((current) =>
               current.map((currentItem) =>
@@ -924,6 +971,11 @@ export default function App() {
               choices: started.choices,
               submitted: false,
               message: "",
+              questions: started.questions,
+              answers: started.questions.map((question) => ({
+                questionId: question.id,
+                selectedChoiceId: null,
+              })),
             });
             navigate(`/readings/${item.id}`);
           } catch (error) {
@@ -969,11 +1021,11 @@ export default function App() {
 
   const submit = () => {
     if (!attempt || !activeItem || submittingRef.current) return;
-    if (!attempt.selectedChoiceId) {
-      setAttempt({ ...attempt, message: "선택지를 하나 고른 뒤 제출할 수 있습니다." });
+    if (attempt.answers.some((answer) => !answer.selectedChoiceId)) {
+      setAttempt({ ...attempt, message: "모든 문제의 선택지를 고른 뒤 제출할 수 있습니다." });
       return;
     }
-    const selectedChoiceId = attempt.selectedChoiceId;
+    const answers = attempt.answers;
     openDialog({
       kicker: "Submit answer",
       title: "답안을 제출할까요?",
@@ -988,7 +1040,7 @@ export default function App() {
           try {
             const submitted = await api.submitAttempt(
               attempt.attemptId,
-              selectedChoiceId,
+              answers,
               attempt.elapsedSeconds,
             );
             const nextResult: ReadingResult = {
@@ -1003,6 +1055,7 @@ export default function App() {
               selectedChoiceWrongExplanation: submitted.selectedChoiceWrongExplanation,
               itemAccuracy: submitted.itemAccuracy,
               challengerCount: submitted.challengerCount,
+              questionResults: submitted.questionResults,
             };
             setResult(nextResult);
             setAttempt({ ...attempt, submitted: true, elapsedSeconds: submitted.elapsedSeconds });
@@ -1464,7 +1517,7 @@ export default function App() {
             path="/"
             element={<ReadingListScreen items={items} loading={isListLoading} authenticated={authenticated} attempts={attempts} filters={filters} setFilters={setListFilters} query={query} setQuery={setListQuery} onOpenFilters={openListFilters} onOpenScoreGuide={openScoreGuide} onStart={start} />}
           />
-          <Route path="/readings/:itemId" element={<RequireAuth authenticated={authenticated}><ReadingRoute items={items} attempt={attempt} result={result} onChoose={(id) => setAttempt((current) => current ? { ...current, selectedChoiceId: id, message: "" } : current)} onSubmit={submit} isSubmitting={isSubmitting} onAbandon={goHome} onReport={openReport} onTranslate={openTranslation} onResult={() => result && navigate(`/results/${result.itemId}`)} highlights={attempt ? passageHighlights[attempt.itemId] ?? [] : []} onCreateHighlight={(startOffset, endOffset, selectedText) => attempt ? createPassageHighlight(attempt.itemId, startOffset, endOffset, selectedText) : Promise.reject(new Error("진행 중인 풀이가 없습니다."))} onDeleteHighlight={(highlightId) => attempt ? deletePassageHighlight(attempt.itemId, highlightId) : Promise.reject(new Error("진행 중인 풀이가 없습니다."))} /></RequireAuth>} />
+          <Route path="/readings/:itemId" element={<RequireAuth authenticated={authenticated}><ReadingRoute items={items} attempt={attempt} result={result} onChoose={(questionId, choiceId) => setAttempt((current) => current ? { ...current, selectedChoiceId: current.questions[0]?.id === questionId ? choiceId : current.selectedChoiceId, answers: current.answers.map((answer) => answer.questionId === questionId ? { ...answer, selectedChoiceId: choiceId } : answer), message: "" } : current)} onSubmit={submit} isSubmitting={isSubmitting} onAbandon={goHome} onReport={openReport} onTranslate={openTranslation} onResult={() => result && navigate(`/results/${result.itemId}`)} highlights={attempt ? passageHighlights[attempt.itemId] ?? [] : []} onCreateHighlight={(startOffset, endOffset, selectedText) => attempt ? createPassageHighlight(attempt.itemId, startOffset, endOffset, selectedText) : Promise.reject(new Error("진행 중인 풀이가 없습니다."))} onDeleteHighlight={(highlightId) => attempt ? deletePassageHighlight(attempt.itemId, highlightId) : Promise.reject(new Error("진행 중인 풀이가 없습니다."))} /></RequireAuth>} />
           <Route path="/results/:itemId" element={<RequireAuth authenticated={authenticated}><ResultRoute result={result} onFeedback={openFeedback} onContinue={continueReading} onHome={goHome} /></RequireAuth>} />
           <Route path="/statistics" element={<RequireAuth authenticated={authenticated}><StatsScreen statistics={statistics} /></RequireAuth>} />
           <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} filters={adminFilters} onLanguageChange={(language) => setAdminFilters((current) => ({ ...current, language, level: "all" }))} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => { void loadGenerationModels(); navigate("/admin/readings/new"); }} onManualCreate={() => { setManualDraft(createManualReadingDraft()); setManualError(""); navigate("/admin/readings/manual"); }} onHistory={() => { void loadGenerationHistory(); navigate("/admin/generation-history"); }} /></RequireAdmin>} />

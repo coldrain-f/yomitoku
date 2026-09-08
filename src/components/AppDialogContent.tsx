@@ -387,7 +387,12 @@ export function AppDialogContent({
       ? [
           { label: "제목", segment: translation.title },
           { label: "지문", segment: translation.passage },
-          { label: "문제", segment: translation.question },
+          ...(translation.questions.length
+            ? translation.questions.map((segment, index) => ({
+                label: `문제 ${index + 1}`,
+                segment,
+              }))
+            : [{ label: "문제", segment: translation.question }]),
         ]
       : [];
     return (

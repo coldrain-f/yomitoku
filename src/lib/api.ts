@@ -1,5 +1,6 @@
 import type {
   AttemptRecord,
+  AttemptQuestionAnswer,
   Choice,
   DifficultyLevel,
   GenerationValues,
@@ -9,7 +10,9 @@ import type {
   LengthType,
   ManualReadingDraft,
   PassageHighlight,
+  QuestionResult,
   ReadingItem,
+  ReadingQuestion,
   ReadingLanguage,
   ReadingStatus,
   Role,
@@ -39,6 +42,13 @@ interface ApiChoice {
   wrongExplanation?: string | null;
 }
 
+interface ApiReadingQuestion {
+  id: string;
+  question: string;
+  explanation?: string;
+  choices: ApiChoice[];
+}
+
 interface ApiReadingSummary {
   id: string;
   title: string;
@@ -47,6 +57,7 @@ interface ApiReadingSummary {
   lengthType: LengthType;
   topic: Topic;
   recommendedSeconds: number;
+  contentSource?: "manual" | "ai";
   status: ReadingStatus;
   publishedAt: string | null;
   createdAt: string;
@@ -66,6 +77,7 @@ interface ApiReadingDetail extends ApiReadingSummary {
   question: string;
   explanation?: string;
   choices: ApiChoice[];
+  questions?: ApiReadingQuestion[];
   qualityAverage?: number | null;
   reportCount?: number;
   challengerCount?: number;
@@ -84,6 +96,7 @@ interface ApiPublicReadingDetail {
   passage: string;
   question: string;
   choices: ApiChoice[];
+  questions?: ApiReadingQuestion[];
 }
 
 interface ApiPassageHighlight {
@@ -143,6 +156,7 @@ export interface StartedAttempt {
   itemId: string;
   startedAt: string;
   choices: Choice[];
+  questions: ReadingQuestion[];
 }
 
 export interface SubmittedAttempt {
@@ -157,6 +171,7 @@ export interface SubmittedAttempt {
   recommendedSeconds: number;
   itemAccuracy: number | null;
   challengerCount: number;
+  questionResults: QuestionResult[];
 }
 
 interface ApiAttemptState {
@@ -166,6 +181,7 @@ interface ApiAttemptState {
   startedAt: string;
   elapsedSeconds: number;
   selectedChoiceId: string | null;
+  answers?: AttemptQuestionAnswer[];
   submitted: boolean;
   result: SubmittedAttempt | null;
 }
@@ -177,6 +193,7 @@ export interface RestoredAttempt {
   startedAt: string;
   elapsedSeconds: number;
   selectedChoiceId: string | null;
+  answers: AttemptQuestionAnswer[];
   submitted: boolean;
   result: SubmittedAttempt | null;
 }
@@ -192,6 +209,7 @@ export interface ReadingTranslation {
   title: TranslationSegment;
   passage: TranslationSegment;
   question: TranslationSegment;
+  questions: TranslationSegment[];
 }
 
 export interface GenerationJob {
@@ -281,6 +299,17 @@ function toItem(summary: ApiReadingSummary, detail?: ApiReadingDetail): ReadingI
     isCorrect: choice.isCorrect,
     wrongExplanation: choice.wrongExplanation ?? undefined,
   })) ?? [];
+  const questions = detail?.questions?.map((question) => ({
+    id: question.id,
+    question: question.question,
+    explanation: question.explanation ?? "",
+    choices: question.choices.map((choice) => ({
+      id: choice.id,
+      text: choice.text,
+      isCorrect: choice.isCorrect,
+      wrongExplanation: choice.wrongExplanation ?? undefined,
+    })),
+  })) ?? [];
   return {
     id: summary.id,
     status: summary.status,
@@ -293,6 +322,7 @@ function toItem(summary: ApiReadingSummary, detail?: ApiReadingDetail): ReadingI
     lengthType: summary.lengthType,
     topic: summary.topic,
     recommendedSeconds: summary.recommendedSeconds,
+    contentSource: summary.contentSource ?? "manual",
     createdAt: summary.createdAt,
     updatedAt: summary.updatedAt,
     publishedAt: summary.publishedAt,
@@ -304,6 +334,7 @@ function toItem(summary: ApiReadingSummary, detail?: ApiReadingDetail): ReadingI
     question: detail?.question ?? "",
     choices,
     explanation: detail?.explanation ?? "",
+    questions,
     quality: detail?.qualityAverage ?? 0,
     reportCount: detail?.reportCount ?? 0,
     reports: detail?.reports?.map((report) => ({ ...report })) ?? [],
@@ -454,12 +485,32 @@ export const api = {
   reading: (itemId: string) =>
     request<ApiPublicReadingDetail>(`/reading-items/${itemId}`),
   async startAttempt(itemId: string): Promise<StartedAttempt> {
-    const response = await request<StartedAttempt>(`/reading-items/${itemId}/attempts`, {
+    const response = await request<{
+      id: string;
+      itemId: string;
+      startedAt: string;
+      choices: ApiChoice[];
+      questions?: ApiReadingQuestion[];
+    }>(`/reading-items/${itemId}/attempts`, {
       method: "POST",
     });
     return {
       ...response,
-      choices: response.choices.map((choice) => ({ ...choice })),
+      choices: response.choices.map((choice) => ({
+        id: choice.id,
+        text: choice.text,
+        isCorrect: choice.isCorrect,
+        wrongExplanation: choice.wrongExplanation ?? undefined,
+      })),
+      questions: response.questions?.map((question) => ({
+        id: question.id,
+        question: question.question,
+        explanation: "",
+        choices: question.choices.map((choice) => ({
+          id: choice.id,
+          text: choice.text,
+        })),
+      })) ?? [],
     };
   },
   async attempt(attemptId: string): Promise<RestoredAttempt> {
@@ -467,13 +518,18 @@ export const api = {
     return {
       ...response,
       item: toItem(response.item, response.item),
+      answers: response.answers ?? [],
       result: response.result ? { ...response.result } : null,
     };
   },
-  submitAttempt: (attemptId: string, selectedChoiceId: string, clientElapsedSeconds: number) =>
+  submitAttempt: (
+    attemptId: string,
+    answers: AttemptQuestionAnswer[],
+    clientElapsedSeconds: number,
+  ) =>
     request<SubmittedAttempt>(`/reading-items/attempts/${attemptId}/submit`, {
       method: "POST",
-      body: JSON.stringify({ selectedChoiceId, clientElapsedSeconds }),
+      body: JSON.stringify({ answers, clientElapsedSeconds }),
     }),
   translateReading: (itemId: string) =>
     request<ReadingTranslation>(`/reading-items/${itemId}/translation`, {
@@ -535,6 +591,17 @@ export const api = {
           isCorrect: Boolean(choice.isCorrect),
           wrongExplanation: choice.wrongExplanation ?? null,
         })),
+        questions: item.questions.map((question) => ({
+          id: question.id,
+          question: question.question,
+          explanation: question.explanation,
+          choices: question.choices.map((choice) => ({
+            id: choice.id,
+            text: choice.text,
+            isCorrect: Boolean(choice.isCorrect),
+            wrongExplanation: choice.wrongExplanation ?? null,
+          })),
+        })),
       }),
     });
     return toItem(response, response);
@@ -555,6 +622,14 @@ export const api = {
         choices: item.choices.map((choice) => ({
           text: choice.text,
           isCorrect: Boolean(choice.isCorrect),
+        })),
+        questions: item.questions.map((question) => ({
+          question: question.question,
+          explanation: question.explanation,
+          choices: question.choices.map((choice) => ({
+            text: choice.text,
+            isCorrect: Boolean(choice.isCorrect),
+          })),
         })),
       }),
     });

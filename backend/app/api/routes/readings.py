@@ -17,15 +17,20 @@ from app.core.security import (
 )
 from app.db.models import (
     Attempt,
+    AttemptAnswer,
     ItemFeedback,
     ItemReport,
     PassageHighlight,
     ReadingChoice,
     ReadingItem,
+    ReadingQuestion,
 )
 from app.db.session import get_session
 from app.schemas import (
     AttemptItemDetail,
+    AttemptQuestion,
+    AttemptQuestionAnswer,
+    AttemptQuestionResult,
     AttemptResult,
     AttemptStarted,
     AttemptState,
@@ -40,6 +45,7 @@ from app.schemas import (
     ReadingItemSummary,
     ReadingLanguage,
     ReadingLevel,
+    ReadingQuestionPublic,
     ReadingTranslationResponse,
     ReportRequest,
     StatisticGroup,
@@ -68,7 +74,10 @@ async def get_published_item(session: AsyncSession, item_id: UUID) -> ReadingIte
     item = await session.scalar(
         select(ReadingItem)
         .where(ReadingItem.id == item_id, ReadingItem.status == "published")
-        .options(selectinload(ReadingItem.choices))
+        .options(
+            selectinload(ReadingItem.choices),
+            selectinload(ReadingItem.questions).selectinload(ReadingQuestion.choices),
+        )
     )
     if not item:
         raise HTTPException(
@@ -81,15 +90,96 @@ def public_choices(choices: Iterable[ReadingChoice]) -> list[ReadingChoicePublic
     return [ReadingChoicePublic(id=choice.id, text=choice.text) for choice in choices]
 
 
-def choices_for_attempt(item: ReadingItem, attempt: Attempt) -> list[ReadingChoice]:
-    """Return the issued order, with a stable fallback for attempts created before it."""
-    by_id = {str(choice.id): choice for choice in item.choices}
-    choices: list[ReadingChoice] = []
-    for choice_id in attempt.choice_order:
+async def ensure_item_questions(
+    session: AsyncSession, item: ReadingItem
+) -> list[ReadingQuestion]:
+    """Materialize a single legacy question for pre-migration test fixtures."""
+    if item.questions:
+        return list(item.questions)
+    question = ReadingQuestion(
+        reading_item=item,
+        question=item.question,
+        explanation=item.explanation,
+        canonical_order=1,
+    )
+    for choice in item.choices:
+        choice.reading_question = question
+    session.add(question)
+    await session.flush()
+    return [question]
+
+
+async def ensure_attempt_answers(
+    session: AsyncSession, attempt: Attempt, questions: list[ReadingQuestion]
+) -> list[AttemptAnswer]:
+    await session.refresh(attempt, attribute_names=["answers"])
+    existing = {answer.reading_question_id: answer for answer in attempt.answers}
+    missing = [question for question in questions if question.id not in existing]
+    if not missing:
+        return list(attempt.answers)
+    fallback_order = attempt.choice_order
+    answers = [
+        AttemptAnswer(
+            attempt_id=attempt.id,
+            reading_question_id=question.id,
+            choice_order=(
+                fallback_order
+                if question is questions[0] and fallback_order
+                else [str(choice.id) for choice in question.choices]
+            ),
+        )
+        for question in missing
+    ]
+    session.add_all(answers)
+    await session.flush()
+    await session.refresh(attempt, attribute_names=["answers"])
+    return list(attempt.answers)
+
+
+def question_choices_for_attempt(
+    question: ReadingQuestion, answer: AttemptAnswer | None
+) -> list[ReadingChoice]:
+    by_id = {str(choice.id): choice for choice in question.choices}
+    ordered: list[ReadingChoice] = []
+    for choice_id in answer.choice_order if answer else []:
         choice = by_id.pop(choice_id, None)
         if choice:
-            choices.append(choice)
-    return [*choices, *by_id.values()]
+            ordered.append(choice)
+    return [*ordered, *by_id.values()]
+
+
+def public_questions(
+    questions: Iterable[ReadingQuestion], answers: dict[UUID, AttemptAnswer] | None = None
+) -> list[AttemptQuestion]:
+    answers = answers or {}
+    return [
+        AttemptQuestion(
+            id=question.id,
+            question=question.question,
+            choices=public_choices(
+                question_choices_for_attempt(question, answers.get(question.id))
+            ),
+        )
+        for question in questions
+    ]
+
+
+def choices_for_attempt(item: ReadingItem, attempt: Attempt) -> list[ReadingChoice]:
+    """Return the issued order, with a stable fallback for attempts created before it."""
+    first_question = item.questions[0] if item.questions else None
+    first_answer = next(iter(attempt.answers), None)
+    if first_question:
+        return question_choices_for_attempt(
+            first_question,
+            AttemptAnswer(choice_order=attempt.choice_order)
+            if attempt.choice_order
+            else first_answer,
+        )
+    by_id = {str(choice.id): choice for choice in item.choices}
+    return [
+        *[by_id.pop(choice_id) for choice_id in attempt.choice_order if choice_id in by_id],
+        *by_id.values(),
+    ]
 
 
 def normalized_passage_text(value: str) -> str:
@@ -147,6 +237,7 @@ def serialize_public_summary(
         length_type=item.length_type,
         topic=item.topic,
         recommended_seconds=item.recommended_seconds,
+        content_source=item.content_source,
         status=item.status,
         published_at=item.published_at,
         created_at=item.created_at,
@@ -383,6 +474,7 @@ async def get_reading_item(
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> ReadingItemDetail:
     item = await get_published_item(session, item_id)
+    questions = await ensure_item_questions(session, item)
     return ReadingItemDetail(
         id=item.id,
         title=item.title,
@@ -394,6 +486,14 @@ async def get_reading_item(
         passage=item.passage,
         question=item.question,
         choices=public_choices(item.choices),
+        questions=[
+            ReadingQuestionPublic(
+                id=question.id,
+                question=question.question,
+                choices=public_choices(question.choices),
+            )
+            for question in questions
+        ],
     )
 
 
@@ -407,9 +507,10 @@ async def translate_reading_item(
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> ReadingTranslationResponse:
     item = await get_published_item(session, item_id)
+    questions = await ensure_item_questions(session, item)
     try:
-        translated_title, translated_passage, translated_question = await translate_texts(
-            [item.title, item.passage, item.question],
+        translations = await translate_texts(
+            [item.title, item.passage, *(question.question for question in questions)],
             item.language,
         )
     except TranslationError as error:
@@ -422,19 +523,26 @@ async def translate_reading_item(
         source_language=item.language,
         target_language=target_language,
         source_text=item.passage,
-        translated_text=translated_passage,
+        translated_text=translations[1],
         title={
             "source_text": item.title,
-            "translated_text": translated_title,
+            "translated_text": translations[0],
         },
         passage={
             "source_text": item.passage,
-            "translated_text": translated_passage,
+            "translated_text": translations[1],
         },
         question={
-            "source_text": item.question,
-            "translated_text": translated_question,
+            "source_text": questions[0].question,
+            "translated_text": translations[2],
         },
+        questions=[
+            {
+                "source_text": question.question,
+                "translated_text": translations[index + 2],
+            }
+            for index, question in enumerate(questions)
+        ],
     )
 
 
@@ -556,21 +664,39 @@ async def start_attempt(
 ) -> AttemptStarted:
     item = await get_published_item(session, item_id)
     await ensure_user(session, current_user)
-    choices = random.SystemRandom().sample(item.choices, k=len(item.choices))
+    questions = await ensure_item_questions(session, item)
     attempt = Attempt(
         user_id=current_user.id,
         reading_item_id=item.id,
         started_at=datetime.now(UTC),
-        choice_order=[str(choice.id) for choice in choices],
     )
     session.add(attempt)
+    await session.flush()
+    answers: list[AttemptAnswer] = []
+    for question in questions:
+        choices = random.SystemRandom().sample(
+            question.choices, k=len(question.choices)
+        )
+        answers.append(
+            AttemptAnswer(
+                attempt_id=attempt.id,
+                reading_question_id=question.id,
+                choice_order=[str(choice.id) for choice in choices],
+            )
+        )
+    session.add_all(answers)
+    attempt.choice_order = answers[0].choice_order
+    await session.flush()
     await session.commit()
-    await session.refresh(attempt)
+    await session.refresh(attempt, attribute_names=["answers"])
+    answer_by_question = {answer.reading_question_id: answer for answer in answers}
+    started_questions = public_questions(questions, answer_by_question)
     return AttemptStarted(
         id=attempt.id,
         item_id=item.id,
         started_at=attempt.started_at,
-        choices=public_choices(choices),
+        choices=started_questions[0].choices,
+        questions=started_questions,
     )
 
 
@@ -636,29 +762,56 @@ def elapsed_seconds_since(started_at: datetime, completed_at: datetime) -> int:
 async def serialize_attempt_result(
     session: AsyncSession, attempt: Attempt, item: ReadingItem
 ) -> AttemptResult:
-    selected = next(
-        (choice for choice in item.choices if choice.id == attempt.selected_choice_id),
-        None,
-    )
-    correct = next(choice for choice in item.choices if choice.is_correct)
-    if not selected or attempt.is_correct is None or attempt.elapsed_seconds is None:
+    questions = await ensure_item_questions(session, item)
+    attempt_answers = await ensure_attempt_answers(session, attempt, questions)
+    answer_by_question = {answer.reading_question_id: answer for answer in attempt_answers}
+    question_results: list[AttemptQuestionResult] = []
+    for question in questions:
+        answer = answer_by_question.get(question.id)
+        selected = next(
+            (
+                choice
+                for choice in question.choices
+                if answer and choice.id == answer.selected_choice_id
+            ),
+            None,
+        )
+        correct = next((choice for choice in question.choices if choice.is_correct), None)
+        if not selected or not correct or answer is None or answer.is_correct is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This submitted attempt is incomplete.",
+            )
+        question_results.append(
+            AttemptQuestionResult(
+                question_id=question.id,
+                is_correct=answer.is_correct,
+                selected_choice_id=selected.id,
+                correct_choice_id=correct.id,
+                explanation=question.explanation,
+                selected_choice_wrong_explanation=selected.wrong_explanation,
+            )
+        )
+    if not question_results or attempt.is_correct is None or attempt.elapsed_seconds is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="This submitted attempt is incomplete.",
         )
+    first_result = question_results[0]
     accuracy, challenger_count = await item_outcomes(session, item.id)
     return AttemptResult(
         attempt_id=attempt.id,
         item_id=item.id,
         is_correct=attempt.is_correct,
-        selected_choice_id=selected.id,
-        correct_choice_id=correct.id,
-        explanation=item.explanation,
-        selected_choice_wrong_explanation=selected.wrong_explanation,
+        selected_choice_id=first_result.selected_choice_id,
+        correct_choice_id=first_result.correct_choice_id,
+        explanation=first_result.explanation,
+        selected_choice_wrong_explanation=first_result.selected_choice_wrong_explanation,
         elapsed_seconds=attempt.elapsed_seconds,
         recommended_seconds=item.recommended_seconds,
         item_accuracy=accuracy,
         challenger_count=challenger_count,
+        question_results=question_results,
     )
 
 
@@ -676,13 +829,19 @@ async def get_attempt_state(
     item = await session.scalar(
         select(ReadingItem)
         .where(ReadingItem.id == attempt.reading_item_id)
-        .options(selectinload(ReadingItem.choices))
+        .options(
+            selectinload(ReadingItem.choices),
+            selectinload(ReadingItem.questions).selectinload(ReadingQuestion.choices),
+        )
     )
     if not item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Item not found."
         )
 
+    questions = await ensure_item_questions(session, item)
+    attempt_answers = await ensure_attempt_answers(session, attempt, questions)
+    answer_by_question = {answer.reading_question_id: answer for answer in attempt_answers}
     metrics = await collect_item_metrics(session, [item.id])
     submissions = list(
         await session.scalars(
@@ -715,6 +874,7 @@ async def get_attempt_state(
             passage=item.passage,
             question=item.question,
             choices=public_choices(choices_for_attempt(item, attempt)),
+            questions=public_questions(questions, answer_by_question),
         ),
         started_at=attempt.started_at,
         elapsed_seconds=(
@@ -723,6 +883,13 @@ async def get_attempt_state(
             else elapsed_seconds_since(attempt.started_at, datetime.now(UTC))
         ),
         selected_choice_id=attempt.selected_choice_id,
+        answers=[
+            AttemptQuestionAnswer(
+                question_id=answer.reading_question_id,
+                selected_choice_id=answer.selected_choice_id,
+            )
+            for answer in attempt_answers
+        ],
         submitted=submitted,
         result=(
             await serialize_attempt_result(session, attempt, item)
@@ -747,20 +914,55 @@ async def submit_attempt(
         )
 
     item = await get_published_item(session, attempt.reading_item_id)
-    selected = next(
-        (choice for choice in item.choices if choice.id == request.selected_choice_id),
-        None,
+    questions = await ensure_item_questions(session, item)
+    attempt_answers = await ensure_attempt_answers(session, attempt, questions)
+    answer_by_question = {answer.reading_question_id: answer for answer in attempt_answers}
+    submitted_answers = (
+        request.answers
+        if request.answers is not None
+        else [
+            AttemptQuestionAnswer(
+                question_id=questions[0].id,
+                selected_choice_id=request.selected_choice_id,
+            )
+        ]
     )
-    correct = next(choice for choice in item.choices if choice.is_correct)
-    if not selected:
+    submitted_by_question = {answer.question_id: answer.selected_choice_id for answer in submitted_answers}
+    expected_question_ids = {question.id for question in questions}
+    if (
+        len(submitted_by_question) != len(submitted_answers)
+        or set(submitted_by_question) != expected_question_ids
+        or any(choice_id is None for choice_id in submitted_by_question.values())
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="The selected choice does not belong to this item.",
+            detail="Answer every question before submitting.",
         )
 
+    all_correct = True
+    first_selected_choice_id: UUID | None = None
+    for question in questions:
+        answer = answer_by_question.get(question.id)
+        selected_choice_id = submitted_by_question[question.id]
+        selected = next(
+            (choice for choice in question.choices if choice.id == selected_choice_id),
+            None,
+        )
+        correct = next((choice for choice in question.choices if choice.is_correct), None)
+        if not answer or not selected or not correct:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="The selected choice does not belong to this question.",
+            )
+        answer.selected_choice_id = selected.id
+        answer.is_correct = selected.id == correct.id
+        all_correct = all_correct and answer.is_correct
+        if first_selected_choice_id is None:
+            first_selected_choice_id = selected.id
+
     submitted_at = datetime.now(UTC)
-    attempt.selected_choice_id = selected.id
-    attempt.is_correct = selected.id == correct.id
+    attempt.selected_choice_id = first_selected_choice_id
+    attempt.is_correct = all_correct
     attempt.submitted_at = submitted_at
     attempt.elapsed_seconds = elapsed_seconds_since(attempt.started_at, submitted_at)
     await session.commit()

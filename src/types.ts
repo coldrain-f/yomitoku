@@ -77,6 +77,7 @@ export interface ReadingItem {
   lengthType: LengthType;
   topic: Topic;
   recommendedSeconds: number;
+  contentSource: "manual" | "ai";
   createdAt: string;
   updatedAt: string;
   publishedAt: string | null;
@@ -88,10 +89,32 @@ export interface ReadingItem {
   question: string;
   choices: Choice[];
   explanation: string;
+  questions: ReadingQuestion[];
   quality: number;
   reportCount: number;
   reports: ItemReport[];
   validations: ItemValidation[];
+}
+
+export interface ReadingQuestion {
+  id: string;
+  question: string;
+  choices: Choice[];
+  explanation: string;
+}
+
+export interface AttemptQuestionAnswer {
+  questionId: string;
+  selectedChoiceId: string | null;
+}
+
+export interface QuestionResult {
+  questionId: string;
+  isCorrect: boolean;
+  selectedChoiceId: string;
+  correctChoiceId: string;
+  explanation: string;
+  selectedChoiceWrongExplanation: string | null;
 }
 
 export interface AttemptRecord {
@@ -113,6 +136,8 @@ export interface ReadingAttempt {
   choices: Choice[];
   submitted: boolean;
   message: string;
+  questions: ReadingQuestion[];
+  answers: AttemptQuestionAnswer[];
 }
 
 export interface ReadingResult {
@@ -127,6 +152,7 @@ export interface ReadingResult {
   selectedChoiceWrongExplanation: string | null;
   itemAccuracy: number | null;
   challengerCount: number;
+  questionResults: QuestionResult[];
 }
 
 export interface ListFilters {
@@ -186,6 +212,7 @@ export interface ManualReadingDraft {
   question: string;
   choices: Choice[];
   explanation: string;
+  questions: ReadingQuestion[];
 }
 
 export interface FeedbackValues {

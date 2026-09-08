@@ -56,11 +56,40 @@ class ReadingItem(TimestampedModel, Base):
     length_type: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     topic: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     recommended_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    content_source: Mapped[str] = mapped_column(
+        String(16), default="manual", server_default="manual", nullable=False
+    )
     status: Mapped[str] = mapped_column(String(16), default="review", nullable=False, index=True)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     choices: Mapped[list[ReadingChoice]] = relationship(
         back_populates="reading_item",
+        cascade="all, delete-orphan",
+        order_by="ReadingChoice.canonical_order",
+        lazy="selectin",
+    )
+    questions: Mapped[list[ReadingQuestion]] = relationship(
+        back_populates="reading_item",
+        cascade="all, delete-orphan",
+        order_by="ReadingQuestion.canonical_order",
+        lazy="selectin",
+    )
+
+
+class ReadingQuestion(TimestampedModel, Base):
+    __tablename__ = "reading_questions"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    reading_item_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("reading_items.id", ondelete="CASCADE"), nullable=False
+    )
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    explanation: Mapped[str] = mapped_column(Text, nullable=False)
+    canonical_order: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    reading_item: Mapped[ReadingItem] = relationship(back_populates="questions")
+    choices: Mapped[list[ReadingChoice]] = relationship(
+        back_populates="reading_question",
         cascade="all, delete-orphan",
         order_by="ReadingChoice.canonical_order",
         lazy="selectin",
@@ -74,12 +103,18 @@ class ReadingChoice(Base):
     reading_item_id: Mapped[UUID] = mapped_column(
         Uuid, ForeignKey("reading_items.id", ondelete="CASCADE"), nullable=False
     )
+    reading_question_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("reading_questions.id", ondelete="CASCADE")
+    )
     text: Mapped[str] = mapped_column(Text, nullable=False)
     canonical_order: Mapped[int] = mapped_column(Integer, nullable=False)
     is_correct: Mapped[bool] = mapped_column(nullable=False)
     wrong_explanation: Mapped[str | None] = mapped_column(Text)
 
     reading_item: Mapped[ReadingItem] = relationship(back_populates="choices")
+    reading_question: Mapped[ReadingQuestion | None] = relationship(
+        back_populates="choices"
+    )
 
 
 class Attempt(TimestampedModel, Base):
@@ -100,6 +135,32 @@ class Attempt(TimestampedModel, Base):
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     abandoned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     elapsed_seconds: Mapped[int | None] = mapped_column(Integer)
+
+    answers: Mapped[list[AttemptAnswer]] = relationship(
+        back_populates="attempt",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
+
+class AttemptAnswer(Base):
+    __tablename__ = "attempt_answers"
+    __table_args__ = (
+        UniqueConstraint("attempt_id", "reading_question_id", name="uq_attempt_question"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    attempt_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("attempts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    reading_question_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("reading_questions.id", ondelete="CASCADE"), nullable=False
+    )
+    selected_choice_id: Mapped[UUID | None] = mapped_column(Uuid)
+    choice_order: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    is_correct: Mapped[bool | None] = mapped_column()
+
+    attempt: Mapped[Attempt] = relationship(back_populates="answers")
 
 
 class PassageHighlight(TimestampedModel, Base):

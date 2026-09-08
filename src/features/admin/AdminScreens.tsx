@@ -688,13 +688,69 @@ export function AdminEdit({
 }: AdminEditProps) {
   const isWorking =
     isSaving || isSuggestingTitle || isSuggestingTopic || isSuggestingExplanation;
-  const updateChoice = (index: number, text: string) =>
+  const questionLimit =
+    draft.lengthType === "short" ? 1 : draft.lengthType === "medium" ? 3 : 4;
+  const canManageMultipleQuestions = manual || draft.contentSource === "manual";
+  const recommendedSecondsForQuestions = (questionCount: number) =>
+    recommendedSecondsByLength[draft.lengthType] + (questionCount - 1) * 60;
+  const updateQuestions = (questions: ReadingItem["questions"], autoTime = false) => {
+    const firstQuestion = questions[0];
     setDraft({
       ...draft,
-      choices: draft.choices.map((choice, choiceIndex) =>
-        choiceIndex === index ? { ...choice, text } : choice,
-      ),
+      questions,
+      question: firstQuestion.question,
+      choices: firstQuestion.choices,
+      explanation: firstQuestion.explanation,
+      ...(autoTime ? { recommendedSeconds: recommendedSecondsForQuestions(questions.length) } : {}),
     });
+  };
+  const updateChoice = (questionIndex: number, choiceIndex: number, text: string) =>
+    updateQuestions(
+      draft.questions.map((question, currentQuestionIndex) =>
+        currentQuestionIndex === questionIndex
+          ? {
+              ...question,
+              choices: question.choices.map((choice, currentChoiceIndex) =>
+                currentChoiceIndex === choiceIndex ? { ...choice, text } : choice,
+              ),
+            }
+          : question,
+      ),
+    );
+  const updateQuestion = (
+    questionIndex: number,
+    values: Partial<ReadingItem["questions"][number]>,
+  ) =>
+    updateQuestions(
+      draft.questions.map((question, currentQuestionIndex) =>
+        currentQuestionIndex === questionIndex ? { ...question, ...values } : question,
+      ),
+    );
+  const addQuestion = () => {
+    if (draft.questions.length >= questionLimit) return;
+    const number = draft.questions.length + 1;
+    const choices = Array.from({ length: 4 }, (_, index) => ({
+      id: `question-${number}-choice-${index + 1}-${Date.now()}`,
+      text: "",
+      isCorrect: index === 0,
+    }));
+    updateQuestions(
+      [
+        ...draft.questions,
+        {
+          id: `question-${number}-${Date.now()}`,
+          question: "",
+          choices,
+          explanation: "",
+        },
+      ],
+      true,
+    );
+  };
+  const removeQuestion = (questionIndex: number) => {
+    if (questionIndex === 0 || draft.questions.length === 1) return;
+    updateQuestions(draft.questions.filter((_, index) => index !== questionIndex), true);
+  };
 
   return (
     <section
@@ -801,10 +857,27 @@ export function AdminEdit({
                 value={draft.lengthType}
                 onChange={(event) => {
                   const lengthType = event.target.value as LengthType;
+                  const maximum =
+                    lengthType === "short" ? 1 : lengthType === "medium" ? 3 : 4;
+                  if (
+                    draft.questions.length > maximum &&
+                    !window.confirm(
+                      `유형을 바꾸면 뒤의 ${draft.questions.length - maximum}개 문제는 삭제됩니다. 계속할까요?`,
+                    )
+                  ) {
+                    return;
+                  }
+                  const questions = draft.questions.slice(0, maximum);
+                  const firstQuestion = questions[0];
                   setDraft({
                     ...draft,
                     lengthType,
-                    recommendedSeconds: recommendedSecondsByLength[lengthType],
+                    questions,
+                    question: firstQuestion.question,
+                    choices: firstQuestion.choices,
+                    explanation: firstQuestion.explanation,
+                    recommendedSeconds:
+                      recommendedSecondsByLength[lengthType] + (questions.length - 1) * 60,
                   });
                 }}
               >
@@ -814,6 +887,22 @@ export function AdminEdit({
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="admin-field">
+              <span className="form-label">권장 시간(초)</span>
+              <input
+                className="input-field"
+                type="number"
+                min="1"
+                max="14400"
+                value={draft.recommendedSeconds}
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    recommendedSeconds: Math.max(1, Number(event.target.value) || 1),
+                  })
+                }
+              />
             </label>
             <div className="admin-field">
               <div className="admin-field-label-row">
@@ -865,91 +954,128 @@ export function AdminEdit({
               }
             />
           </label>
-          <label className="admin-field admin-field-wide">
-            <span className="form-label">문제</span>
-            <textarea
-              className="admin-textarea admin-question-textarea"
-              value={draft.question}
-              onChange={(event) =>
-                setDraft({ ...draft, question: event.target.value })
-              }
-            />
-          </label>
-          <section className="admin-options-section">
+          <section className="admin-questions-section">
             <div className="admin-options-heading">
-              <span className="form-label">선택지</span>
-              <label className="admin-answer-select">
-                정답{" "}
-                <select
-                  className="select-field"
-                  value={draft.choices.findIndex((choice) => choice.isCorrect)}
-                  onChange={(event) =>
-                    setDraft({
-                      ...draft,
-                      choices: draft.choices.map((choice, index) => ({
-                        ...choice,
-                        isCorrect: index === Number(event.target.value),
-                      })),
-                    })
-                  }
-                >
-                  {draft.choices.map((choice, index) => (
-                    <option value={index} key={choice.id}>
-                      {String(index + 1).padStart(2, "0")}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div className="admin-options-list">
-              {draft.choices.map((choice, index) => (
-                <label className="admin-option" key={choice.id}>
-                  <span className="answer-number">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <input
-                    className="input-field"
-                    type="text"
-                    value={choice.text}
-                    onChange={(event) => updateChoice(index, event.target.value)}
-                  />
-                </label>
-              ))}
-            </div>
-          </section>
-          <div className="admin-field admin-field-wide">
-            <div className="admin-field-label-row">
-              <span className="form-label">해설</span>
-              {manual && onSuggestExplanation ? (
+              <span className="form-label">
+                문제 {draft.questions.length} / {questionLimit}
+              </span>
+              {canManageMultipleQuestions ? (
                 <button
-                  className="text-button admin-ai-suggest"
+                  className="text-button admin-add-question"
                   type="button"
-                  onClick={onSuggestExplanation}
-                  disabled={
-                    isSuggestingExplanation ||
-                    !draft.passage.trim() ||
-                    !draft.question.trim() ||
-                    draft.choices.some((choice) => !choice.text.trim())
-                  }
+                  onClick={addQuestion}
+                  disabled={draft.questions.length >= questionLimit}
                 >
-                  <Icon icon={Sparkles} />
-                  {isSuggestingExplanation ? "해설 만드는 중" : "AI 해설 생성"}
+                  <Icon icon={Plus} />
+                  문제 추가
                 </button>
               ) : null}
             </div>
-            <textarea
-              className="admin-textarea admin-explanation-textarea"
-              value={draft.explanation}
-              onChange={(event) =>
-                setDraft({ ...draft, explanation: event.target.value })
-              }
-            />
+            {draft.questions.map((question, questionIndex) => (
+              <section className="admin-question-editor" key={question.id}>
+                <div className="admin-options-heading">
+                  <strong>문제 {String(questionIndex + 1).padStart(2, "0")}</strong>
+                  {canManageMultipleQuestions && questionIndex > 0 ? (
+                    <button
+                      className="icon-button"
+                      type="button"
+                      title={`문제 ${questionIndex + 1} 삭제`}
+                      aria-label={`문제 ${questionIndex + 1} 삭제`}
+                      onClick={() => removeQuestion(questionIndex)}
+                    >
+                      <Icon icon={Trash2} />
+                    </button>
+                  ) : null}
+                </div>
+                <label className="admin-field admin-field-wide">
+                  <span className="form-label">문제</span>
+                  <textarea
+                    className="admin-textarea admin-question-textarea"
+                    value={question.question}
+                    onChange={(event) =>
+                      updateQuestion(questionIndex, { question: event.target.value })
+                    }
+                  />
+                </label>
+                <section className="admin-options-section">
+                  <div className="admin-options-heading">
+                    <span className="form-label">선택지</span>
+                    <label className="admin-answer-select">
+                      정답{" "}
+                      <select
+                        className="select-field"
+                        value={question.choices.findIndex((choice) => choice.isCorrect)}
+                        onChange={(event) =>
+                          updateQuestion(questionIndex, {
+                            choices: question.choices.map((choice, index) => ({
+                              ...choice,
+                              isCorrect: index === Number(event.target.value),
+                            })),
+                          })
+                        }
+                      >
+                        {question.choices.map((choice, index) => (
+                          <option value={index} key={choice.id}>
+                            {String(index + 1).padStart(2, "0")}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="admin-options-list">
+                    {question.choices.map((choice, choiceIndex) => (
+                      <label className="admin-option" key={choice.id}>
+                        <span className="answer-number">
+                          {String(choiceIndex + 1).padStart(2, "0")}
+                        </span>
+                        <input
+                          className="input-field"
+                          type="text"
+                          value={choice.text}
+                          onChange={(event) =>
+                            updateChoice(questionIndex, choiceIndex, event.target.value)
+                          }
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </section>
+                <div className="admin-field admin-field-wide">
+                  <div className="admin-field-label-row">
+                    <span className="form-label">해설</span>
+                    {manual && questionIndex === 0 && onSuggestExplanation ? (
+                      <button
+                        className="text-button admin-ai-suggest"
+                        type="button"
+                        onClick={onSuggestExplanation}
+                        disabled={
+                          isSuggestingExplanation ||
+                          !draft.passage.trim() ||
+                          !question.question.trim() ||
+                          question.choices.some((choice) => !choice.text.trim())
+                        }
+                      >
+                        <Icon icon={Sparkles} />
+                        {isSuggestingExplanation ? "해설 만드는 중" : "AI 해설 생성"}
+                      </button>
+                    ) : null}
+                  </div>
+                  <textarea
+                    className="admin-textarea admin-explanation-textarea"
+                    value={question.explanation}
+                    onChange={(event) =>
+                      updateQuestion(questionIndex, { explanation: event.target.value })
+                    }
+                  />
+                </div>
+              </section>
+            ))}
             {explanationSuggestionError ? (
               <p className="editor-error" role="alert">
                 {explanationSuggestionError}
               </p>
             ) : null}
-          </div>
+          </section>
           {manual && error ? <p className="editor-error" role="alert">{error}</p> : null}
           {!manual ? <section className="admin-insights">
             <div className="admin-section-heading">
@@ -1128,7 +1254,13 @@ export function ManualCreateScreen({
         values.language,
       );
       if (!explanation.trim()) throw new Error("AI가 해설을 만들지 못했습니다.");
-      setValues((current) => ({ ...current, explanation: explanation.trim() }));
+      setValues((current) => ({
+        ...current,
+        explanation: explanation.trim(),
+        questions: current.questions.map((entry, index) =>
+          index === 0 ? { ...entry, explanation: explanation.trim() } : entry,
+        ),
+      }));
     } catch (suggestionError) {
       setExplanationSuggestionError(
         suggestionError instanceof Error
@@ -1151,6 +1283,7 @@ export function ManualCreateScreen({
     lengthType: values.lengthType,
     topic: values.topic,
     recommendedSeconds: values.recommendedSeconds,
+    contentSource: "manual",
     createdAt: "",
     updatedAt: "",
     publishedAt: null,
@@ -1161,6 +1294,7 @@ export function ManualCreateScreen({
     question: values.question,
     choices: values.choices,
     explanation: values.explanation,
+    questions: values.questions,
     quality: 0,
     reportCount: 0,
     reports: [],
@@ -1183,6 +1317,7 @@ export function ManualCreateScreen({
           question: next.question,
           choices: next.choices,
           explanation: next.explanation,
+          questions: next.questions,
         })
       }
       onSave={onSave}
@@ -1473,37 +1608,40 @@ export function PreviewScreen({
               <p key={`${index}-${paragraph.slice(0, 24)}`}>{paragraph}</p>
             ))}
           </div>
-          <div className="question-block">
-            <h3>{item.question}</h3>
-            <div className="preview-answer-list">
-              {item.choices.map((choice, index) => (
-                <div
-                  className={`preview-choice${choice.isCorrect ? " is-answer" : ""}`}
-                  key={choice.id}
-                >
-                  <span className="answer-number">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <span>{choice.text}</span>
-                  {choice.isCorrect ? (
-                    <span className="preview-answer-key">
-                      <Icon icon={Check} />
-                      정답
+          {item.questions.map((question, questionIndex) => (
+            <div className="question-block" key={question.id}>
+              {item.questions.length > 1 ? <p className="question-number">문제 {questionIndex + 1}</p> : null}
+              <h3>{question.question}</h3>
+              <div className="preview-answer-list">
+                {question.choices.map((choice, index) => (
+                  <div
+                    className={`preview-choice${choice.isCorrect ? " is-answer" : ""}`}
+                    key={choice.id}
+                  >
+                    <span className="answer-number">
+                      {String(index + 1).padStart(2, "0")}
                     </span>
-                  ) : null}
-                </div>
-              ))}
+                    <span>{choice.text}</span>
+                    {choice.isCorrect ? (
+                      <span className="preview-answer-key">
+                        <Icon icon={Check} />
+                        정답
+                      </span>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+              <div className="answer-explanation preview-explanation">
+                <strong>
+                  {String(
+                    question.choices.findIndex((choice) => choice.isCorrect) + 1,
+                  ).padStart(2, "0")}
+                  이 정답인 이유
+                </strong>
+                <span>{question.explanation}</span>
+              </div>
             </div>
-            <div className="answer-explanation preview-explanation">
-              <strong>
-                {String(
-                  item.choices.findIndex((choice) => choice.isCorrect) + 1,
-                ).padStart(2, "0")}
-                이 정답인 이유
-              </strong>
-              <span>{item.explanation}</span>
-            </div>
-          </div>
+          ))}
           {held ? <ValidationRecords validations={item.validations} held /> : null}
           <div className="footer-actions preview-actions">
             <div className="preview-actions-secondary">
