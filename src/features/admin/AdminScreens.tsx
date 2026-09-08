@@ -91,6 +91,10 @@ interface AdminEditProps {
   onSuggestExplanation?: () => void;
   isSuggestingExplanation?: boolean;
   explanationSuggestionError?: string;
+  onConfirmQuestionTruncation?: (
+    removedQuestionCount: number,
+    onConfirm: () => void,
+  ) => void;
 }
 
 interface GenerateScreenProps {
@@ -126,6 +130,10 @@ interface ManualCreateScreenProps {
     choices: ManualReadingDraft["choices"],
     language: ReadingLanguage,
   ) => Promise<string>;
+  onConfirmQuestionTruncation: (
+    removedQuestionCount: number,
+    onConfirm: () => void,
+  ) => void;
 }
 
 interface PreviewScreenProps {
@@ -685,6 +693,7 @@ export function AdminEdit({
   onSuggestExplanation,
   isSuggestingExplanation = false,
   explanationSuggestionError = "",
+  onConfirmQuestionTruncation,
 }: AdminEditProps) {
   const isWorking =
     isSaving || isSuggestingTitle || isSuggestingTopic || isSuggestingExplanation;
@@ -750,6 +759,30 @@ export function AdminEdit({
   const removeQuestion = (questionIndex: number) => {
     if (questionIndex === 0 || draft.questions.length === 1) return;
     updateQuestions(draft.questions.filter((_, index) => index !== questionIndex), true);
+  };
+  const changeLengthType = (lengthType: LengthType) => {
+    const maximum =
+      lengthType === "short" ? 1 : lengthType === "medium" ? 3 : 4;
+    const applyChange = () => {
+      const questions = draft.questions.slice(0, maximum);
+      const firstQuestion = questions[0];
+      setDraft({
+        ...draft,
+        lengthType,
+        questions,
+        question: firstQuestion.question,
+        choices: firstQuestion.choices,
+        explanation: firstQuestion.explanation,
+        recommendedSeconds:
+          recommendedSecondsByLength[lengthType] + (questions.length - 1) * 60,
+      });
+    };
+    const removedQuestionCount = draft.questions.length - maximum;
+    if (removedQuestionCount > 0) {
+      onConfirmQuestionTruncation?.(removedQuestionCount, applyChange);
+      return;
+    }
+    applyChange();
   };
 
   return (
@@ -855,31 +888,7 @@ export function AdminEdit({
               <select
                 className="select-field"
                 value={draft.lengthType}
-                onChange={(event) => {
-                  const lengthType = event.target.value as LengthType;
-                  const maximum =
-                    lengthType === "short" ? 1 : lengthType === "medium" ? 3 : 4;
-                  if (
-                    draft.questions.length > maximum &&
-                    !window.confirm(
-                      `유형을 바꾸면 뒤의 ${draft.questions.length - maximum}개 문제는 삭제됩니다. 계속할까요?`,
-                    )
-                  ) {
-                    return;
-                  }
-                  const questions = draft.questions.slice(0, maximum);
-                  const firstQuestion = questions[0];
-                  setDraft({
-                    ...draft,
-                    lengthType,
-                    questions,
-                    question: firstQuestion.question,
-                    choices: firstQuestion.choices,
-                    explanation: firstQuestion.explanation,
-                    recommendedSeconds:
-                      recommendedSecondsByLength[lengthType] + (questions.length - 1) * 60,
-                  });
-                }}
+                onChange={(event) => changeLengthType(event.target.value as LengthType)}
               >
                 {Object.entries(lengthLabels).map(([value, label]) => (
                   <option value={value} key={value}>
@@ -1184,6 +1193,7 @@ export function ManualCreateScreen({
   onSuggestTitle,
   onSuggestTopic,
   onSuggestExplanation,
+  onConfirmQuestionTruncation,
 }: ManualCreateScreenProps) {
   const [isSuggestingTitle, setIsSuggestingTitle] = useState(false);
   const [titleSuggestionError, setTitleSuggestionError] = useState("");
@@ -1337,6 +1347,7 @@ export function ManualCreateScreen({
       onSuggestExplanation={() => void suggestExplanation()}
       isSuggestingExplanation={isSuggestingExplanation}
       explanationSuggestionError={explanationSuggestionError}
+      onConfirmQuestionTruncation={onConfirmQuestionTruncation}
     />
   );
 }

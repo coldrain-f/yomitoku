@@ -370,6 +370,7 @@ function AdminEditRoute({
   onDelete,
   onBack,
   isSaving,
+  onConfirmQuestionTruncation,
 }: {
   items: ReadingItem[];
   draft: ReadingItem | null;
@@ -380,6 +381,10 @@ function AdminEditRoute({
   onDelete: (item: ReadingItem) => void;
   onBack: () => void;
   isSaving: boolean;
+  onConfirmQuestionTruncation: (
+    removedQuestionCount: number,
+    onConfirm: () => void,
+  ) => void;
 }) {
   const { itemId } = useParams();
   const item = items.find((entry) => entry.id === itemId);
@@ -401,6 +406,7 @@ function AdminEditRoute({
       onDelete={() => onDelete(item)}
       onBack={onBack}
       isSaving={isSaving}
+      onConfirmQuestionTruncation={onConfirmQuestionTruncation}
     />
   );
 }
@@ -889,6 +895,20 @@ export default function App() {
     setDialogError("");
     setDialog(value);
   };
+  const confirmQuestionTruncation = (
+    removedQuestionCount: number,
+    onConfirm: () => void,
+  ) =>
+    openDialog({
+      kicker: "Change type",
+      title: "문제를 삭제하고 유형을 바꿀까요?",
+      description: `유형을 바꾸면 뒤의 ${removedQuestionCount}개 문제는 삭제됩니다.`,
+      confirmLabel: "삭제하고 변경",
+      onConfirm: () => {
+        closeDialog();
+        onConfirm();
+      },
+    });
   const writeListParams = (
     next: ListFilters & { query: string },
     { replace = false }: { replace?: boolean } = {},
@@ -1522,9 +1542,9 @@ export default function App() {
           <Route path="/statistics" element={<RequireAuth authenticated={authenticated}><StatsScreen statistics={statistics} /></RequireAuth>} />
           <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} filters={adminFilters} onLanguageChange={(language) => setAdminFilters((current) => ({ ...current, language, level: "all" }))} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => { void loadGenerationModels(); navigate("/admin/readings/new"); }} onManualCreate={() => { setManualDraft(createManualReadingDraft()); setManualError(""); navigate("/admin/readings/manual"); }} onHistory={() => { void loadGenerationHistory(); navigate("/admin/generation-history"); }} /></RequireAdmin>} />
           <Route path="/admin/generation-history" element={<RequireAdmin authenticated={authenticated} role={role}><GenerationHistoryScreen items={generationHistory} loading={isGenerationHistoryLoading} error={generationHistoryError} page={generationHistoryPage} totalPages={generationHistoryTotalPages} totalItems={generationHistoryTotalItems} onPageChange={(page) => void loadGenerationHistory(page)} onRefresh={() => void loadGenerationHistory(generationHistoryPage)} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
-          <Route path="/admin/readings/manual" element={<RequireAdmin authenticated={authenticated} role={role}><ManualCreateScreen values={manualDraft} setValues={setManualDraft} isSaving={isManualSaving} error={manualError} onSave={() => void createManualReading()} onBack={leaveManualCreate} onSuggestTitle={async (passage, language) => (await api.suggestAdminTitle(passage, language)).title} onSuggestTopic={async (passage, language) => (await api.suggestAdminTopic(passage, language)).topic} onSuggestExplanation={async (passage, question, choices, language) => (await api.suggestAdminExplanation(passage, question, choices, language)).explanation} /></RequireAdmin>} />
+          <Route path="/admin/readings/manual" element={<RequireAdmin authenticated={authenticated} role={role}><ManualCreateScreen values={manualDraft} setValues={setManualDraft} isSaving={isManualSaving} error={manualError} onSave={() => void createManualReading()} onBack={leaveManualCreate} onSuggestTitle={async (passage, language) => (await api.suggestAdminTitle(passage, language)).title} onSuggestTopic={async (passage, language) => (await api.suggestAdminTopic(passage, language)).topic} onSuggestExplanation={async (passage, question, choices, language) => (await api.suggestAdminExplanation(passage, question, choices, language)).explanation} onConfirmQuestionTruncation={confirmQuestionTruncation} /></RequireAdmin>} />
           <Route path="/admin/readings/new" element={<RequireAdmin authenticated={authenticated} role={role}><GenerateScreen values={generation} setValues={setGeneration} modelOptions={generationModels} modelError={generationModelsError} isCreating={isGenerating} progressLabel={generationProgress} error={generationJob.error} onCreate={createDraft} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
-          <Route path="/admin/readings/:itemId/edit" element={<RequireAdmin authenticated={authenticated} role={role}><AdminEditRoute items={adminItems} draft={draft} setDraft={setDraft} onSave={() => draft && void updateAdminItem(draft)} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={leaveEditor} isSaving={isAdminSaving} /></RequireAdmin>} />
+          <Route path="/admin/readings/:itemId/edit" element={<RequireAdmin authenticated={authenticated} role={role}><AdminEditRoute items={adminItems} draft={draft} setDraft={setDraft} onSave={() => draft && void updateAdminItem(draft)} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={leaveEditor} isSaving={isAdminSaving} onConfirmQuestionTruncation={confirmQuestionTruncation} /></RequireAdmin>} />
           <Route path="/admin/readings/:itemId/preview" element={<RequireAdmin authenticated={authenticated} role={role}><PreviewRoute items={adminItems} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>}
