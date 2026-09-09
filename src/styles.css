@@ -1322,7 +1322,8 @@ fieldset.admin-edit-form {
 }
 
 .bookmark-filter-button {
-  min-width: 52px;
+  width: 52px;
+  flex: 0 0 52px;
   min-height: 34px;
   padding: 0 8px;
   font-size: 12px;
