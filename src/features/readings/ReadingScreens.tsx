@@ -192,22 +192,19 @@ export function ReadingListScreen({
               ariaLabel="독해 언어"
             />
           </div>
-          <button
-            className={`text-button bookmark-filter-button${filters.bookmarked ? " is-selected" : ""}`}
-            type="button"
-            aria-pressed={filters.bookmarked}
-            title={
-              authenticated
-                ? "북마크 문항만 보기"
-                : "로그인하면 북마크를 볼 수 있습니다"
-            }
-            disabled={!authenticated}
-            onClick={() =>
-              setFilters({ ...filters, bookmarked: !filters.bookmarked })
-            }
-          >
-            북마크
-          </button>
+          {authenticated ? (
+            <button
+              className={`text-button bookmark-filter-button${filters.bookmarked ? " is-selected" : ""}`}
+              type="button"
+              aria-pressed={filters.bookmarked}
+              title="북마크 문항만 보기"
+              onClick={() =>
+                setFilters({ ...filters, bookmarked: !filters.bookmarked })
+              }
+            >
+              북마크
+            </button>
+          ) : null}
           <button
             className={`icon-button list-filter-button${hasAdvancedFilters ? " is-active" : ""}`}
             type="button"
@@ -241,23 +238,19 @@ export function ReadingListScreen({
                     {isNew(item) ? (
                       <span className="badge row-new">신규</span>
                     ) : null}
-                    <button
-                      className={`row-bookmark-button${item.isBookmarked ? " is-bookmarked" : ""}`}
-                      type="button"
-                      aria-label={item.isBookmarked ? `${item.title} 북마크 해제` : `${item.title} 북마크`}
-                      aria-pressed={item.isBookmarked}
-                      title={
-                        authenticated
-                          ? item.isBookmarked
-                            ? "북마크 해제"
-                            : "북마크"
-                          : "로그인하면 북마크할 수 있습니다"
-                      }
-                      disabled={!authenticated || bookmarkingItemIds.has(item.id)}
-                      onClick={() => onToggleBookmark(item)}
-                    >
-                      <Icon icon={Star} fill={item.isBookmarked ? "currentColor" : "none"} />
-                    </button>
+                    {authenticated ? (
+                      <button
+                        className={`row-bookmark-button${item.isBookmarked ? " is-bookmarked" : ""}`}
+                        type="button"
+                        aria-label={item.isBookmarked ? `${item.title} 북마크 해제` : `${item.title} 북마크`}
+                        aria-pressed={item.isBookmarked}
+                        title={item.isBookmarked ? "북마크 해제" : "북마크"}
+                        disabled={bookmarkingItemIds.has(item.id)}
+                        onClick={() => onToggleBookmark(item)}
+                      >
+                        <Icon icon={Star} fill={item.isBookmarked ? "currentColor" : "none"} />
+                      </button>
+                    ) : null}
                   </span>
                   <span className="row-meta">
                     <span className="badge row-level">

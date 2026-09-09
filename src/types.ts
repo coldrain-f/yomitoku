@@ -234,6 +234,7 @@ export interface DialogConfig {
     | "score-guide";
   kicker: string;
   title: string;
+  context?: string;
   description: string;
   confirmLabel?: string;
   onConfirm?: () => void;

@@ -2715,6 +2715,16 @@ body.dialog-open {
   font-weight: 500;
 }
 
+.dialog-context {
+  margin: 0 0 12px;
+  padding-left: 10px;
+  border-left: 2px solid var(--line-strong);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
 .dialog-report-field {
   display: grid;
   gap: 8px;

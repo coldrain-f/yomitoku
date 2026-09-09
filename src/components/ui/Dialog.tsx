@@ -68,6 +68,7 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
         <h2 className="dialog-title" id="dialog-title">
           {dialog.title}
         </h2>
+        {dialog.context ? <p className="dialog-context">{dialog.context}</p> : null}
         {dialog.description ? <p className="body-copy">{dialog.description}</p> : null}
         {children}
         <div className={`dialog-actions${dialog.onReset ? " has-reset" : ""}`}>
