@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { Icon } from "../../components/ui/Icon";
 import { ListPagination } from "../../components/ui/ListPagination";
-import { LoadingBar } from "../../components/ui/LoadingBar";
+import { LoadingBar, LoadingOverlay } from "../../components/ui/LoadingBar";
 import { OptionButtons } from "../../components/ui/OptionButtons";
 import type {
   GenerationJobHistory,
@@ -372,7 +372,7 @@ export function AdminScreen({
             <Icon icon={SlidersHorizontal} />
           </button>
         </div>
-        {loading ? <LoadingBar label="관리 문항을 불러오는 중입니다." /> : null}
+        {loading ? <LoadingOverlay label="관리 문항을 불러오는 중입니다." /> : null}
         {error ? <p className="list-load-error" role="alert">{error}</p> : null}
         <div className="admin-list" aria-busy={loading}>
           {items.map((item) => (

@@ -14,3 +14,14 @@ export function LoadingBar({ label, className = "" }: LoadingBarProps) {
     </div>
   );
 }
+
+export function LoadingOverlay({ label }: Pick<LoadingBarProps, "label">) {
+  return (
+    <div className="loading-overlay" role="status" aria-live="polite">
+      <div className="loading-overlay-card">
+        <span className="loading-spinner loading-spinner-large" aria-hidden="true" />
+        <span>{label}</span>
+      </div>
+    </div>
+  );
+}
