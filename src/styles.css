@@ -1953,22 +1953,6 @@ fieldset.admin-edit-form {
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 24px;
-  background: rgb(246 247 242 / 68%);
-  backdrop-filter: blur(2px);
-}
-
-.loading-overlay-card {
-  display: inline-flex;
-  align-items: center;
-  gap: 13px;
-  min-width: min(100%, 260px);
-  padding: 20px 24px;
-  border: 1px solid var(--line);
-  background: var(--paper);
-  box-shadow: 0 14px 38px rgb(37 49 47 / 14%);
-  color: var(--ink);
-  font-size: 14px;
 }
 
 .loading-bar-track {
