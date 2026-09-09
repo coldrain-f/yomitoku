@@ -119,16 +119,16 @@ export function ReadingListScreen({
   bookmarkingItemIds,
   onToggleBookmark,
 }: ReadingListScreenProps) {
-  const hasAppliedFilters =
+  const hasAdvancedFilters =
     filters.level !== "all" ||
     filters.length !== "all" ||
-    filters.bookmarked ||
     filters.sort !== "published-desc" ||
     (authenticated &&
       (filters.status !== "all" || filters.firstSubmissionTime !== "all"));
   const active =
     query ||
-    hasAppliedFilters;
+    filters.bookmarked ||
+    hasAdvancedFilters;
   const reset = () => {
     setQuery("");
     setFilters({
@@ -209,10 +209,10 @@ export function ReadingListScreen({
             북마크
           </button>
           <button
-            className={`icon-button list-filter-button${hasAppliedFilters ? " is-active" : ""}`}
+            className={`icon-button list-filter-button${hasAdvancedFilters ? " is-active" : ""}`}
             type="button"
             aria-label="필터 및 정렬"
-            aria-pressed={hasAppliedFilters}
+            aria-pressed={hasAdvancedFilters}
             title="필터 및 정렬"
             onClick={onOpenFilters}
           >
