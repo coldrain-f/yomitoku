@@ -2716,13 +2716,31 @@ body.dialog-open {
 }
 
 .dialog-context {
-  margin: 0 0 12px;
-  padding-left: 10px;
-  border-left: 2px solid var(--line-strong);
+  margin: 0 0 16px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  background: #f8f8f4;
   color: var(--ink);
+}
+
+.dialog-context-title {
+  margin: 0;
   font-size: 14px;
   line-height: 1.55;
   overflow-wrap: anywhere;
+}
+
+.dialog-context-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.dialog-context-meta .badge {
+  min-height: 24px;
+  padding: 0 8px;
+  background: var(--paper-solid);
 }
 
 .dialog-report-field {

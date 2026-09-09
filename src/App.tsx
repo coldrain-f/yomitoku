@@ -47,6 +47,7 @@ import {
   defaultGenerationLength,
   defaultGenerationLevelByLanguage,
   languageLabels,
+  lengthLabels,
   listPageSize,
   readingTopics,
   recommendedSecondsByLength,
@@ -1080,6 +1081,7 @@ export default function App() {
             ? "문항을 다시 풀까요?"
             : "독해를 시작할까요?",
       context: item.title,
+      contextMeta: [item.officialLevel, lengthLabels[item.lengthType], item.topic],
       description: hasPreviousSubmission
         ? "새 답안과 풀이 시간을 기록합니다."
         : "문제를 열면 풀이 시간이 시작됩니다.",
@@ -1426,7 +1428,7 @@ export default function App() {
       title: "Google 계정으로 로그인",
       description: "로그인하면 풀이 결과와 학습 통계를 기록할 수 있습니다.",
     });
-  const toggleBookmark = async (item: ReadingItem) => {
+  const saveBookmark = async (item: ReadingItem) => {
     if (!authenticated) {
       openLogin();
       return;
@@ -1455,6 +1457,29 @@ export default function App() {
         return next;
       });
     }
+  };
+  const toggleBookmark = (item: ReadingItem) => {
+    if (!authenticated) {
+      openLogin();
+      return;
+    }
+    if (bookmarkingItemIds.has(item.id)) return;
+
+    const willBookmark = !item.isBookmarked;
+    openDialog({
+      kicker: "Bookmark reading",
+      title: willBookmark ? "이 문항을 북마크할까요?" : "북마크를 해제할까요?",
+      context: item.title,
+      contextMeta: [item.officialLevel, lengthLabels[item.lengthType], item.topic],
+      description: willBookmark
+        ? "북마크 목록에서 이 문항을 다시 찾을 수 있습니다."
+        : "북마크 목록에서 이 문항이 제거됩니다.",
+      confirmLabel: willBookmark ? "북마크하기" : "해제하기",
+      onConfirm: () => {
+        closeDialog();
+        void saveBookmark(item);
+      },
+    });
   };
   const logout = () => {
     void api.logout().catch(() => undefined);

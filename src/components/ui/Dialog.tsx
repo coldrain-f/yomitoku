@@ -68,7 +68,18 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
         <h2 className="dialog-title" id="dialog-title">
           {dialog.title}
         </h2>
-        {dialog.context ? <p className="dialog-context">{dialog.context}</p> : null}
+        {dialog.context || dialog.contextMeta?.length ? (
+          <div className="dialog-context">
+            {dialog.context ? <p className="dialog-context-title">{dialog.context}</p> : null}
+            {dialog.contextMeta?.length ? (
+              <div className="dialog-context-meta" aria-label="문항 정보">
+                {dialog.contextMeta.map((value) => (
+                  <span className="badge" key={value}>{value}</span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {dialog.description ? <p className="body-copy">{dialog.description}</p> : null}
         {children}
         <div className={`dialog-actions${dialog.onReset ? " has-reset" : ""}`}>

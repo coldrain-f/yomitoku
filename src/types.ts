@@ -235,6 +235,7 @@ export interface DialogConfig {
   kicker: string;
   title: string;
   context?: string;
+  contextMeta?: string[];
   description: string;
   confirmLabel?: string;
   onConfirm?: () => void;
