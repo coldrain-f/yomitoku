@@ -562,7 +562,8 @@ textarea:focus-visible {
 }
 
 .generation-history-failure,
-.generation-history-error {
+.generation-history-error,
+.list-load-error {
   margin: 0;
   padding: 14px 30px;
   border-bottom: 1px solid var(--line);
@@ -1923,6 +1924,23 @@ fieldset.admin-edit-form {
   border-bottom: 1px solid var(--line);
 }
 
+.loading-bar-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.loading-spinner {
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  border: 2px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: loading-spinner-rotate .72s linear infinite;
+}
+
 .loading-bar-track {
   display: block;
   height: 2px;
@@ -2014,10 +2032,20 @@ fieldset.admin-edit-form {
   }
 }
 
+@keyframes loading-spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .loading-bar-track span {
     animation: none;
     transform: translateX(95%);
+  }
+
+  .loading-spinner {
+    animation: none;
   }
 }
 

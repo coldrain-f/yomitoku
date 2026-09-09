@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -51,12 +51,16 @@ from app.schemas import (
 from app.services.generation_jobs import ACTIVE_STATUSES
 from app.services.generation_provider import build_generation_provider
 from app.services.generation_topics import resolve_generation_topic
-from app.services.item_metrics import ItemMetrics, collect_item_metrics
+from app.services.item_metrics import (
+    ItemMetrics,
+    collect_item_metrics,
+    perceived_feedback_summary_query,
+)
 from app.services.reading_policy import (
     GENERATION_TOPICS,
+    LEVELS_BY_LANGUAGE,
     MINIMUM_PERCEIVED_LEVEL_VOTES,
     is_level_for_language,
-    level_sort_key,
 )
 from app.services.users import ensure_user
 
@@ -295,44 +299,40 @@ async def serialize_detail(
     )
 
 
-def sort_items(
-    items: list[ReadingItem],
-    metrics_by_item: dict[UUID, ItemMetrics],
-    sort: str,
-) -> list[ReadingItem]:
-    reverse = sort.endswith("_desc")
+def admin_level_order_expression():
+    ranks = {
+        level: rank
+        for levels in LEVELS_BY_LANGUAGE.values()
+        for rank, level in enumerate(levels, start=1)
+    }
+    return case(ranks, value=ReadingItem.official_level, else_=0)
+
+
+def admin_sort_clauses(sort: str, feedback_summary):
     if sort.startswith("perceived_level"):
-
-        def perceived_rank(item: ReadingItem) -> tuple[bool, tuple[int, int]]:
-            level = metrics_by_item[item.id]["perceived_level"]
-            return level is None, level_sort_key(item.language, str(level))
-
-        if reverse:
-            return sorted(
-                items,
-                key=lambda item: (
-                    perceived_rank(item)[0],
-                    -perceived_rank(item)[1][0],
-                    -perceived_rank(item)[1][1],
-                ),
-            )
-        return sorted(
-            items,
-            key=perceived_rank,
+        visible_rank = case(
+            (
+                feedback_summary.c.perceived_vote_count
+                >= MINIMUM_PERCEIVED_LEVEL_VOTES,
+                feedback_summary.c.perceived_rank,
+            ),
+            else_=None,
+        )
+        return (
+            (visible_rank.is_(None), visible_rank.desc())
+            if sort.endswith("desc")
+            else (visible_rank.is_(None), visible_rank.asc())
         )
     if sort.startswith("level"):
-        return sorted(
-            items,
-            key=lambda item: level_sort_key(item.language, item.official_level),
-            reverse=reverse,
-        )
+        level_order = admin_level_order_expression()
+        return (level_order.desc(),) if sort.endswith("desc") else (level_order.asc(),)
     if sort.startswith("created"):
-        return sorted(items, key=lambda item: item.created_at, reverse=reverse)
+        return (ReadingItem.created_at.desc(),) if sort.endswith("desc") else (ReadingItem.created_at.asc(),)
     if sort.startswith("title"):
-        return sorted(items, key=lambda item: item.title, reverse=reverse)
+        return (ReadingItem.title.asc(),)
     if sort.startswith("status"):
-        return sorted(items, key=lambda item: item.status, reverse=reverse)
-    return sorted(items, key=lambda item: item.updated_at, reverse=reverse)
+        return (ReadingItem.status.asc(),)
+    return (ReadingItem.updated_at.desc(),) if sort.endswith("desc") else (ReadingItem.updated_at.asc(),)
 
 
 @router.post(
@@ -614,25 +614,42 @@ async def list_admin_reading_items(
         filters.append(ReadingItem.topic == topic)
     if item_status:
         filters.append(ReadingItem.status == item_status)
+    feedback_summary = (
+        perceived_feedback_summary_query()
+        if sort.startswith("perceived_level")
+        else None
+    )
+    total_items = int(
+        await session.scalar(
+            select(func.count()).select_from(ReadingItem).where(*filters)
+        )
+        or 0
+    )
+    total_pages = max(1, math.ceil(total_items / page_size))
+    page = min(page, total_pages)
+    statement = select(ReadingItem).where(*filters)
+    if feedback_summary is not None:
+        statement = statement.outerjoin(
+            feedback_summary,
+            feedback_summary.c.reading_item_id == ReadingItem.id,
+        )
     items = list(
         await session.scalars(
-            select(ReadingItem)
-            .where(*filters)
-            .options(selectinload(ReadingItem.choices))
+            statement.options(selectinload(ReadingItem.choices))
+            .order_by(*admin_sort_clauses(sort, feedback_summary))
+            .offset((page - 1) * page_size)
+            .limit(page_size)
         )
     )
     metrics_by_item = await collect_item_metrics(session, [item.id for item in items])
-    items = sort_items(items, metrics_by_item, sort)
-    total_items = len(items)
-    page_items = items[(page - 1) * page_size : page * page_size]
     return ReadingItemPage(
         items=[
-            serialize_summary(item, metrics_by_item[item.id]) for item in page_items
+            serialize_summary(item, metrics_by_item[item.id]) for item in items
         ],
         page=page,
         page_size=page_size,
         total_items=total_items,
-        total_pages=max(1, math.ceil(total_items / page_size)),
+        total_pages=total_pages,
     )
 
 

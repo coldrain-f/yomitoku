@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -55,13 +55,14 @@ from app.services.item_metrics import (
     ItemMetrics,
     collect_item_metrics,
     first_submissions_by_user_item,
+    perceived_feedback_summary_query,
+    perceived_level_rank,
 )
 from app.services.reading_policy import (
     LENGTH_TYPES,
     LEVELS_BY_LANGUAGE,
     MINIMUM_PERCEIVED_LEVEL_VOTES,
     is_level_for_language,
-    level_sort_key,
 )
 from app.services.translation import TranslationError, translate_texts
 from app.services.users import ensure_user
@@ -309,37 +310,106 @@ def learner_progress_for_submissions(
     return latest_status, first_submission_timed_out, None, None
 
 
-def sort_public_items(
-    items: list[ReadingItem],
-    metrics_by_item: dict[UUID, ItemMetrics],
-    sort: str,
-) -> list[ReadingItem]:
-    if sort.startswith("perceived_level"):
-        def perceived_rank(item: ReadingItem) -> tuple[bool, tuple[int, int]]:
-            level = metrics_by_item[item.id]["perceived_level"]
-            return level is None, level_sort_key(item.language, str(level))
-
-        if sort.endswith("desc"):
-            return sorted(
-                items,
-                key=lambda item: (
-                    perceived_rank(item)[0],
-                    -perceived_rank(item)[1][0],
-                    -perceived_rank(item)[1][1],
-                ),
+def learner_progress_query(user_id: UUID):
+    """Return first/latest submission facts for one learner, grouped by item."""
+    ranked = (
+        select(
+            Attempt.reading_item_id.label("reading_item_id"),
+            Attempt.is_correct.label("is_correct"),
+            Attempt.elapsed_seconds.label("elapsed_seconds"),
+            func.row_number()
+            .over(
+                partition_by=Attempt.reading_item_id,
+                order_by=(Attempt.submitted_at.asc(), Attempt.id.asc()),
             )
-        return sorted(items, key=perceived_rank)
-    if sort.startswith("level"):
-        return sorted(
-            items,
-            key=lambda item: level_sort_key(item.language, item.official_level),
-            reverse=sort.endswith("desc"),
+            .label("first_position"),
         )
-    return sorted(
-        items,
-        key=lambda item: item.published_at or item.created_at,
-        reverse=sort.endswith("desc"),
+        .where(
+            Attempt.user_id == user_id,
+            Attempt.submitted_at.is_not(None),
+        )
+        .subquery()
     )
+    return (
+        select(
+            ranked.c.reading_item_id,
+            func.max(
+                case(
+                    (
+                        ranked.c.first_position == 1,
+                        case((ranked.c.is_correct.is_(True), 1), else_=0),
+                    ),
+                    else_=0,
+                )
+            ).label("first_correct"),
+            func.max(
+                case(
+                    (ranked.c.first_position == 1, ranked.c.elapsed_seconds),
+                    else_=None,
+                )
+            ).label("first_elapsed_seconds"),
+            func.max(
+                case((ranked.c.is_correct.is_(True), 1), else_=0)
+            ).label("has_correct"),
+        )
+        .group_by(ranked.c.reading_item_id)
+        .subquery()
+    )
+
+
+def learner_score_expression(progress, item: ReadingItem):
+    return case(
+        (
+            progress.c.first_correct == 1,
+            case(
+                (progress.c.first_elapsed_seconds > item.recommended_seconds, 90),
+                else_=100,
+            ),
+        ),
+        (progress.c.has_correct == 1, 80),
+        else_=None,
+    )
+
+
+def public_level_order_expression():
+    ranks = {
+        level: rank
+        for levels in LEVELS_BY_LANGUAGE.values()
+        for rank, level in enumerate(levels, start=1)
+    }
+    return case(ranks, value=ReadingItem.official_level, else_=0)
+
+
+def public_sort_clauses(sort: str, feedback_summary, progress):
+    if sort.startswith("perceived_level"):
+        visible_rank = case(
+            (
+                feedback_summary.c.perceived_vote_count
+                >= MINIMUM_PERCEIVED_LEVEL_VOTES,
+                feedback_summary.c.perceived_rank,
+            ),
+            else_=None,
+        )
+        return (
+            (visible_rank.is_(None), visible_rank.desc())
+            if sort.endswith("desc")
+            else (visible_rank.is_(None), visible_rank.asc())
+        )
+    if sort.startswith("level"):
+        level_order = public_level_order_expression()
+        return (level_order.desc(),) if sort.endswith("desc") else (level_order.asc(),)
+    if sort.startswith("score") and progress is not None:
+        score = learner_score_expression(progress, ReadingItem)
+        unscored_rank = case(
+            (progress.c.reading_item_id.is_not(None), 0), else_=1
+        )
+        return (
+            score.is_(None),
+            score.desc() if sort.endswith("desc") else score.asc(),
+            unscored_rank.asc(),
+        )
+    publication = func.coalesce(ReadingItem.published_at, ReadingItem.created_at)
+    return (publication.asc(),) if sort.endswith("asc") else (publication.desc(),)
 
 
 @router.get("", response_model=ReadingItemPage)
@@ -350,8 +420,20 @@ async def list_published_reading_items(
     level: ReadingLevel | None = None,
     length: LengthType | None = None,
     attempt_status: Annotated[
-        Literal["correct", "wrong", "unstarted"] | None,
+        Literal[
+            "correct",
+            "wrong",
+            "unstarted",
+            "score-100",
+            "score-90",
+            "score-80",
+        ]
+        | None,
         Query(alias="status"),
+    ] = None,
+    first_submission_time: Annotated[
+        Literal["on-time", "timed-out"] | None,
+        Query(alias="time"),
     ] = None,
     sort: Annotated[
         Literal[
@@ -361,6 +443,8 @@ async def list_published_reading_items(
             "level_desc",
             "perceived_level_asc",
             "perceived_level_desc",
+            "score_asc",
+            "score_desc",
         ],
         Query(),
     ] = "published_desc",
@@ -368,7 +452,7 @@ async def list_published_reading_items(
     page_size: Annotated[int, Query(ge=1, le=50)] = 10,
     current_user: Annotated[CurrentUser | None, Depends(get_optional_current_user)] = None,
 ) -> ReadingItemPage:
-    if attempt_status and current_user is None:
+    if (attempt_status or first_submission_time) and current_user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Sign in to filter by learning status.",
@@ -388,11 +472,52 @@ async def list_published_reading_items(
     if length:
         filters.append(ReadingItem.length_type == length)
 
+    progress = learner_progress_query(current_user.id) if current_user else None
+    feedback_summary = (
+        perceived_feedback_summary_query()
+        if sort.startswith("perceived_level")
+        else None
+    )
+    score = learner_score_expression(progress, ReadingItem) if progress is not None else None
+    if progress is not None:
+        if attempt_status == "unstarted":
+            filters.append(progress.c.reading_item_id.is_(None))
+        elif attempt_status == "wrong":
+            filters.extend(
+                [progress.c.reading_item_id.is_not(None), progress.c.has_correct == 0]
+            )
+        elif attempt_status == "correct":
+            filters.append(score.is_not(None))
+        elif attempt_status and attempt_status.startswith("score-"):
+            filters.append(score == int(attempt_status.removeprefix("score-")))
+        if first_submission_time == "on-time":
+            filters.append(progress.c.first_elapsed_seconds <= ReadingItem.recommended_seconds)
+        elif first_submission_time == "timed-out":
+            filters.append(progress.c.first_elapsed_seconds > ReadingItem.recommended_seconds)
+
+    count_statement = select(func.count()).select_from(ReadingItem)
+    item_statement = select(ReadingItem).where(*filters)
+    if progress is not None:
+        count_statement = count_statement.outerjoin(
+            progress, progress.c.reading_item_id == ReadingItem.id
+        )
+        item_statement = item_statement.outerjoin(
+            progress, progress.c.reading_item_id == ReadingItem.id
+        )
+    if feedback_summary is not None:
+        item_statement = item_statement.outerjoin(
+            feedback_summary,
+            feedback_summary.c.reading_item_id == ReadingItem.id,
+        )
+    total_items = int(await session.scalar(count_statement.where(*filters)) or 0)
+    total_pages = max(1, math.ceil(total_items / page_size))
+    page = min(page, total_pages)
     items = list(
         await session.scalars(
-            select(ReadingItem)
-            .where(*filters)
-            .options(selectinload(ReadingItem.choices))
+            item_statement.options(selectinload(ReadingItem.choices))
+            .order_by(*public_sort_clauses(sort, feedback_summary, progress))
+            .offset((page - 1) * page_size)
+            .limit(page_size)
         )
     )
     metrics_by_item = await collect_item_metrics(session, [item.id for item in items])
@@ -435,19 +560,6 @@ async def list_published_reading_items(
             if score is not None and score_reason is not None:
                 scores[item.id] = score
                 score_reasons[item.id] = score_reason
-    if attempt_status == "unstarted":
-        items = [item for item in items if item.id not in submissions_by_item]
-    elif attempt_status == "correct":
-        items = [item for item in items if item.id in scores]
-    elif attempt_status == "wrong":
-        items = [
-            item
-            for item in items
-            if item.id in submissions_by_item and item.id not in scores
-        ]
-    items = sort_public_items(items, metrics_by_item, sort)
-    total_items = len(items)
-    page_items = items[(page - 1) * page_size : page * page_size]
     return ReadingItemPage(
         items=[
             serialize_public_summary(
@@ -458,12 +570,12 @@ async def list_published_reading_items(
                 scores.get(item.id),
                 score_reasons.get(item.id),
             )
-            for item in page_items
+            for item in items
         ],
         page=page,
         page_size=page_size,
         total_items=total_items,
-        total_pages=max(1, math.ceil(total_items / page_size)),
+        total_pages=total_pages,
     )
 
 

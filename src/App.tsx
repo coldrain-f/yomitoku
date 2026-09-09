@@ -36,15 +36,18 @@ import {
   type GenerationJob,
   type GenerationJobHistory,
   type GenerationModelOptions,
+  type ReadingListRequest,
   type ReadingTranslation,
   type RestoredAttempt,
   type Statistics,
+  type AdminReadingListRequest,
 } from "./lib/api";
 import {
   defaultGenerationLanguage,
   defaultGenerationLength,
   defaultGenerationLevelByLanguage,
   languageLabels,
+  listPageSize,
   readingTopics,
   recommendedSecondsByLength,
   recommendedTopic,
@@ -114,6 +117,38 @@ function normalizeFirstSubmissionTimeFilter(
   return ["all", "on-time", "timed-out"].includes(value as string)
     ? value as ListFilters["firstSubmissionTime"]
     : "all";
+}
+
+function publicSortParameter(
+  sort: ListFilters["sort"],
+): NonNullable<ReadingListRequest["sort"]> {
+  return ({
+    "published-desc": "published_desc",
+    "published-asc": "published_asc",
+    "level-asc": "level_asc",
+    "level-desc": "level_desc",
+    "perceived-asc": "perceived_level_asc",
+    "perceived-desc": "perceived_level_desc",
+    "score-asc": "score_asc",
+    "score-desc": "score_desc",
+  } as const)[sort];
+}
+
+function adminSortParameter(
+  sort: AdminFilters["sort"],
+): NonNullable<AdminReadingListRequest["sort"]> {
+  return ({
+    "updated-desc": "updated_desc",
+    "updated-asc": "updated_asc",
+    "created-desc": "created_desc",
+    "created-asc": "created_asc",
+    "title-asc": "title_asc",
+    "level-asc": "level_asc",
+    "level-desc": "level_desc",
+    "perceived-asc": "perceived_level_asc",
+    "perceived-desc": "perceived_level_desc",
+    "status-asc": "status_asc",
+  } as const)[sort];
 }
 
 function readStoredFilters<T extends object>(key: string, fallback: T): T {
@@ -449,6 +484,14 @@ export default function App() {
   const [role, setRole] = useState<Role>("learner");
   const [items, setItems] = useState<ReadingItem[]>([]);
   const [adminItems, setAdminItems] = useState<ReadingItem[]>([]);
+  const [listPage, setListPage] = useState(1);
+  const [listTotalPages, setListTotalPages] = useState(1);
+  const [listTotalItems, setListTotalItems] = useState(0);
+  const [listError, setListError] = useState("");
+  const [adminPage, setAdminPage] = useState(1);
+  const [adminTotalPages, setAdminTotalPages] = useState(1);
+  const [adminTotalItems, setAdminTotalItems] = useState(0);
+  const [adminListError, setAdminListError] = useState("");
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [attempts, setAttempts] = useState<AttemptRecord[]>([]);
   const [passageHighlights, setPassageHighlights] = useState<
@@ -485,6 +528,7 @@ export default function App() {
     [searchParams, storedListFilters],
   );
   const query = searchParams.get("q") ?? "";
+  const [adminQuery, setAdminQuery] = useState("");
   const [adminFilters, setAdminFilters] = useState<AdminFilters>(() => {
     const stored = readStoredFilters(adminFiltersStorageKey, defaultAdminFilters);
     return {
@@ -514,6 +558,8 @@ export default function App() {
   const adminSavingRef = useRef(false);
   const submittingRef = useRef(false);
   const restoredAttemptKeyRef = useRef<string | null>(null);
+  const listRequestRef = useRef(0);
+  const adminListRequestRef = useRef(0);
   const [manualError, setManualError] = useState("");
   const [generation, setGeneration] = useState<GenerationValues>({
     language: defaultGenerationLanguage,
@@ -555,10 +601,30 @@ export default function App() {
   const totalGenerated =
     languageStatistics?.totalCount ?? statistics?.totalGeneratedCount ?? 0;
 
-  const loadPublicItems = async () => {
+  const loadPublicItems = async (page = listPage) => {
+    const requestId = ++listRequestRef.current;
     setIsListLoading(true);
+    setListError("");
     try {
-      const response = await api.listAllReadings();
+      const response = await api.listReadings({
+        q: query.trim() || undefined,
+        language: filters.language,
+        level: filters.level === "all" ? undefined : filters.level,
+        length: filters.length === "all" ? undefined : filters.length,
+        status:
+          !authenticated || filters.status === "all" ? undefined : filters.status,
+        time:
+          !authenticated || filters.firstSubmissionTime === "all"
+            ? undefined
+            : filters.firstSubmissionTime,
+        sort:
+          !authenticated && filters.sort.startsWith("score")
+            ? "published_desc"
+            : publicSortParameter(filters.sort),
+        page,
+        pageSize: listPageSize,
+      });
+      if (requestId !== listRequestRef.current) return;
       setItems((current) =>
         response.items.map((item) => {
           const loaded = current.find((entry) => entry.id === item.id);
@@ -573,8 +639,15 @@ export default function App() {
             : item;
         }),
       );
+      setListPage(response.page);
+      setListTotalPages(response.totalPages);
+      setListTotalItems(response.totalItems);
+    } catch (error) {
+      if (requestId === listRequestRef.current) {
+        setListError(error instanceof Error ? error.message : "목록을 불러오지 못했습니다.");
+      }
     } finally {
-      setIsListLoading(false);
+      if (requestId === listRequestRef.current) setIsListLoading(false);
     }
   };
   const loadStatistics = async () => setStatistics(await api.statistics());
@@ -649,14 +722,36 @@ export default function App() {
       setIsGenerationHistoryLoading(false);
     }
   };
-  const loadAdminItems = async () => {
+  const loadAdminItems = async (page = adminPage) => {
+    const requestId = ++adminListRequestRef.current;
     setIsAdminListLoading(true);
+    setAdminListError("");
     try {
-      const response = await api.listAllAdminReadings();
+      const response = await api.listAdminReadings({
+        q: adminQuery.trim() || undefined,
+        language: adminFilters.language,
+        level: adminFilters.level === "all" ? undefined : adminFilters.level,
+        length: adminFilters.length === "all" ? undefined : adminFilters.length,
+        topic: adminFilters.topic === "all" ? undefined : adminFilters.topic,
+        status: adminFilters.status === "all" ? undefined : adminFilters.status,
+        sort: adminSortParameter(adminFilters.sort),
+        page,
+        pageSize: listPageSize,
+      });
+      if (requestId !== adminListRequestRef.current) return;
       setAdminItems(response.items);
+      setAdminPage(response.page);
+      setAdminTotalPages(response.totalPages);
+      setAdminTotalItems(response.totalItems);
       setAdminLoaded(true);
+    } catch (error) {
+      if (requestId === adminListRequestRef.current) {
+        setAdminListError(
+          error instanceof Error ? error.message : "관리 목록을 불러오지 못했습니다.",
+        );
+      }
     } finally {
-      setIsAdminListLoading(false);
+      if (requestId === adminListRequestRef.current) setIsAdminListLoading(false);
     }
   };
   const replaceAdminItem = (next: ReadingItem) =>
@@ -745,11 +840,6 @@ export default function App() {
         setAuthenticated(true);
         setUserId(user.id);
         setRole(user.role);
-        const requests: Promise<unknown>[] = [loadPublicItems(), loadStatistics()];
-        if (user.role === "admin") {
-          requests.push(loadAdminItems(), loadGenerationModels());
-        }
-        await Promise.all(requests);
       } catch (error) {
         if (!active) return;
         if (error instanceof ApiError && error.status === 401) {
@@ -757,9 +847,7 @@ export default function App() {
           setUserId(null);
           setRole("learner");
         }
-        try {
-          await loadPublicItems();
-        } catch {
+        if (!(error instanceof ApiError && error.status === 401)) {
           setToast(error instanceof Error ? error.message : "서버에 연결할 수 없습니다.");
         }
       } finally {
@@ -770,6 +858,28 @@ export default function App() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (authLoading) return;
+    void loadPublicItems();
+  }, [authLoading, authenticated, filters, listPage, query]);
+
+  useEffect(() => {
+    if (!authenticated) return;
+    void loadStatistics().catch((error: unknown) =>
+      setToast(error instanceof Error ? error.message : "통계를 불러오지 못했습니다."),
+    );
+  }, [authenticated]);
+
+  useEffect(() => {
+    if (!authenticated || role !== "admin") return;
+    void loadAdminItems();
+  }, [adminFilters, adminPage, adminQuery, authenticated, role]);
+
+  useEffect(() => {
+    if (!authenticated || role !== "admin") return;
+    void loadGenerationModels();
+  }, [authenticated, role]);
 
   useEffect(() => {
     if (!authenticated || !userId || !attempt) return;
@@ -933,9 +1043,20 @@ export default function App() {
     if (next.sort !== "published-desc") params.set("sort", next.sort);
     setSearchParams(params, { replace });
   };
-  const setListFilters = (next: ListFilters) => writeListParams({ ...next, query });
-  const setListQuery = (nextQuery: string) =>
+  const setListFilters = (next: ListFilters) => {
+    setListPage(1);
+    writeListParams({ ...next, query });
+  };
+  const setListQuery = (nextQuery: string) => {
+    setListPage(1);
     writeListParams({ ...filters, query: nextQuery }, { replace: true });
+  };
+  const updateAdminFilters = (
+    next: AdminFilters | ((current: AdminFilters) => AdminFilters),
+  ) => {
+    setAdminPage(1);
+    setAdminFilters(next);
+  };
 
   const openStartDialog = (item: ReadingItem) => {
     const hasScore = item.myScore !== null;
@@ -1173,7 +1294,7 @@ export default function App() {
       description: "조건을 선택한 뒤 적용해 주세요.",
       confirmLabel: "적용하기",
       onConfirm: () => {
-        setAdminFilters(adminFilterDraftRef.current);
+        updateAdminFilters(adminFilterDraftRef.current);
         closeDialog();
       },
       onReset: () => {
@@ -1535,12 +1656,12 @@ export default function App() {
         {authLoading ? <p role="status">불러오는 중입니다.</p> : <Routes>
           <Route
             path="/"
-            element={<ReadingListScreen items={items} loading={isListLoading} authenticated={authenticated} attempts={attempts} filters={filters} setFilters={setListFilters} query={query} setQuery={setListQuery} onOpenFilters={openListFilters} onOpenScoreGuide={openScoreGuide} onStart={start} />}
+            element={<ReadingListScreen items={items} loading={isListLoading} error={listError} page={listPage} totalPages={listTotalPages} totalItems={listTotalItems} onPageChange={setListPage} authenticated={authenticated} filters={filters} setFilters={setListFilters} query={query} setQuery={setListQuery} onOpenFilters={openListFilters} onOpenScoreGuide={openScoreGuide} onStart={start} />}
           />
           <Route path="/readings/:itemId" element={<RequireAuth authenticated={authenticated}><ReadingRoute items={items} attempt={attempt} result={result} onChoose={(questionId, choiceId) => setAttempt((current) => current ? { ...current, selectedChoiceId: current.questions[0]?.id === questionId ? choiceId : current.selectedChoiceId, answers: current.answers.map((answer) => answer.questionId === questionId ? { ...answer, selectedChoiceId: choiceId } : answer), message: "" } : current)} onSubmit={submit} isSubmitting={isSubmitting} onAbandon={goHome} onReport={openReport} onTranslate={openTranslation} onResult={() => result && navigate(`/results/${result.itemId}`)} highlights={attempt ? passageHighlights[attempt.itemId] ?? [] : []} onCreateHighlight={(startOffset, endOffset, selectedText) => attempt ? createPassageHighlight(attempt.itemId, startOffset, endOffset, selectedText) : Promise.reject(new Error("진행 중인 풀이가 없습니다."))} onDeleteHighlight={(highlightId) => attempt ? deletePassageHighlight(attempt.itemId, highlightId) : Promise.reject(new Error("진행 중인 풀이가 없습니다."))} /></RequireAuth>} />
           <Route path="/results/:itemId" element={<RequireAuth authenticated={authenticated}><ResultRoute result={result} onFeedback={openFeedback} onContinue={continueReading} onHome={goHome} /></RequireAuth>} />
           <Route path="/statistics" element={<RequireAuth authenticated={authenticated}><StatsScreen statistics={statistics} /></RequireAuth>} />
-          <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} filters={adminFilters} onLanguageChange={(language) => setAdminFilters((current) => ({ ...current, language, level: "all" }))} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => { void loadGenerationModels(); navigate("/admin/readings/new"); }} onManualCreate={() => { setManualDraft(createManualReadingDraft()); setManualError(""); navigate("/admin/readings/manual"); }} onHistory={() => { void loadGenerationHistory(); navigate("/admin/generation-history"); }} /></RequireAdmin>} />
+          <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} error={adminListError} page={adminPage} totalPages={adminTotalPages} totalItems={adminTotalItems} onPageChange={setAdminPage} filters={adminFilters} query={adminQuery} setQuery={(nextQuery) => { setAdminPage(1); setAdminQuery(nextQuery); }} onLanguageChange={(language) => updateAdminFilters((current) => ({ ...current, language, level: "all" }))} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => { void loadGenerationModels(); navigate("/admin/readings/new"); }} onManualCreate={() => { setManualDraft(createManualReadingDraft()); setManualError(""); navigate("/admin/readings/manual"); }} onHistory={() => { void loadGenerationHistory(); navigate("/admin/generation-history"); }} /></RequireAdmin>} />
           <Route path="/admin/generation-history" element={<RequireAdmin authenticated={authenticated} role={role}><GenerationHistoryScreen items={generationHistory} loading={isGenerationHistoryLoading} error={generationHistoryError} page={generationHistoryPage} totalPages={generationHistoryTotalPages} totalItems={generationHistoryTotalItems} onPageChange={(page) => void loadGenerationHistory(page)} onRefresh={() => void loadGenerationHistory(generationHistoryPage)} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
           <Route path="/admin/readings/manual" element={<RequireAdmin authenticated={authenticated} role={role}><ManualCreateScreen values={manualDraft} setValues={setManualDraft} isSaving={isManualSaving} error={manualError} onSave={() => void createManualReading()} onBack={leaveManualCreate} onSuggestTitle={async (passage, language) => (await api.suggestAdminTitle(passage, language)).title} onSuggestTopic={async (passage, language) => (await api.suggestAdminTopic(passage, language)).topic} onSuggestExplanation={async (passage, question, choices, language) => (await api.suggestAdminExplanation(passage, question, choices, language)).explanation} onConfirmQuestionTruncation={confirmQuestionTruncation} /></RequireAdmin>} />
           <Route path="/admin/readings/new" element={<RequireAdmin authenticated={authenticated} role={role}><GenerateScreen values={generation} setValues={setGeneration} modelOptions={generationModels} modelError={generationModelsError} isCreating={isGenerating} progressLabel={generationProgress} error={generationJob.error} onCreate={createDraft} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />

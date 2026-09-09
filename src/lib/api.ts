@@ -114,24 +114,41 @@ interface ApiPage<T> {
   totalPages: number;
 }
 
-interface ReadingListRequest {
+export interface ReadingListRequest {
   q?: string;
   language?: ReadingLanguage;
   level?: DifficultyLevel;
   length?: LengthType;
-  status?: "correct" | "wrong" | "unstarted";
-  sort?: string;
+  status?: "correct" | "wrong" | "unstarted" | "score-100" | "score-90" | "score-80";
+  time?: "on-time" | "timed-out";
+  sort?:
+    | "published_desc"
+    | "published_asc"
+    | "level_asc"
+    | "level_desc"
+    | "perceived_level_asc"
+    | "perceived_level_desc"
+    | "score_asc"
+    | "score_desc";
   page?: number;
   pageSize?: number;
 }
 
-interface AdminReadingListRequest extends Omit<ReadingListRequest, "status"> {
+export interface AdminReadingListRequest extends Omit<ReadingListRequest, "status" | "sort"> {
   topic?: Topic;
   status?: ReadingStatus;
+  sort?:
+    | "updated_desc"
+    | "updated_asc"
+    | "created_desc"
+    | "created_asc"
+    | "title_asc"
+    | "level_asc"
+    | "level_desc"
+    | "perceived_level_asc"
+    | "perceived_level_desc"
+    | "status_asc";
 }
-
-const apiMaximumPageSize = 50;
-const concurrentPageRequests = 4;
 
 interface ApiStatisticGroup {
   key: string;
@@ -408,32 +425,6 @@ async function request<T>(
   return response.json() as Promise<T>;
 }
 
-async function collectAllPages<T>(
-  loadPage: (page: number) => Promise<ApiPage<T>>,
-): Promise<ApiPage<T>> {
-  const firstPage = await loadPage(1);
-  if (firstPage.totalPages <= 1) return firstPage;
-
-  const pageNumbers = Array.from(
-    { length: firstPage.totalPages - 1 },
-    (_, index) => index + 2,
-  );
-  const remainingPages: ApiPage<T>[] = [];
-  for (let index = 0; index < pageNumbers.length; index += concurrentPageRequests) {
-    remainingPages.push(
-      ...(await Promise.all(
-        pageNumbers
-          .slice(index, index + concurrentPageRequests)
-          .map((page) => loadPage(page)),
-      )),
-    );
-  }
-  return {
-    ...firstPage,
-    items: [firstPage, ...remainingPages].flatMap((page) => page.items),
-  };
-}
-
 async function listReadings(filters: ReadingListRequest = {}) {
   const { pageSize, ...query } = filters;
   const response = await request<ApiPage<ApiReadingSummary>>(
@@ -442,26 +433,12 @@ async function listReadings(filters: ReadingListRequest = {}) {
   return { ...response, items: response.items.map((item) => toItem(item)) };
 }
 
-async function listAllReadings(filters: Omit<ReadingListRequest, "page" | "pageSize"> = {}) {
-  return collectAllPages((page) =>
-    listReadings({ ...filters, page, pageSize: apiMaximumPageSize }),
-  );
-}
-
 async function listAdminReadings(filters: AdminReadingListRequest = {}) {
   const { pageSize, ...query } = filters;
   const response = await request<ApiPage<ApiReadingSummary>>(
     `/admin/reading-items${queryString({ ...query, page_size: pageSize })}`,
   );
   return { ...response, items: response.items.map((item) => toItem(item)) };
-}
-
-async function listAllAdminReadings(
-  filters: Omit<AdminReadingListRequest, "page" | "pageSize"> = {},
-) {
-  return collectAllPages((page) =>
-    listAdminReadings({ ...filters, page, pageSize: apiMaximumPageSize }),
-  );
 }
 
 export const api = {
@@ -481,7 +458,6 @@ export const api = {
   me: () => request<CurrentUser>("/me"),
   logout: () => request<void>("/auth/logout", { method: "POST" }),
   listReadings,
-  listAllReadings,
   reading: (itemId: string) =>
     request<ApiPublicReadingDetail>(`/reading-items/${itemId}`),
   async startAttempt(itemId: string): Promise<StartedAttempt> {
@@ -567,7 +543,6 @@ export const api = {
       body: JSON.stringify({ content }),
     }),
   listAdminReadings,
-  listAllAdminReadings,
   async adminReading(itemId: string) {
     const response = await request<ApiReadingDetail>(`/admin/reading-items/${itemId}`);
     return toItem(response, response);

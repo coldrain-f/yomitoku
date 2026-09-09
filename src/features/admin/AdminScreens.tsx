@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   Check,
@@ -26,11 +26,9 @@ import type {
   GenerationModelOptions,
 } from "../../lib/api";
 import {
-  difficultyRank,
   formatDate,
   lengthLabels,
   minimumVotes,
-  pageSize,
   perceivedLabel,
   statusClass,
   statusLabel,
@@ -61,7 +59,14 @@ import type {
 interface AdminScreenProps {
   items: ReadingItem[];
   loading: boolean;
+  error: string;
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  onPageChange: (page: number) => void;
   filters: AdminFilters;
+  query: string;
+  setQuery: (query: string) => void;
   onLanguageChange: (language: ReadingLanguage) => void;
   onFilters: () => void;
   onEdit: (item: ReadingItem) => void;
@@ -299,7 +304,14 @@ function formatHistoryDate(value: string): string {
 export function AdminScreen({
   items,
   loading,
+  error,
+  page,
+  totalPages,
+  totalItems,
+  onPageChange,
   filters,
+  query,
+  setQuery,
   onLanguageChange,
   onFilters,
   onEdit,
@@ -307,93 +319,12 @@ export function AdminScreen({
   onManualCreate,
   onHistory,
 }: AdminScreenProps) {
-  const [query, setQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const rows = useMemo(
-    () =>
-      items
-        .filter(
-          (item) =>
-            (filters.level === "all" || filters.level === item.officialLevel) &&
-            filters.language === item.language &&
-            (filters.length === "all" || filters.length === item.lengthType) &&
-            (filters.topic === "all" || filters.topic === item.topic) &&
-            (filters.status === "all" || filters.status === item.status) &&
-            item.title.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
-        )
-        .sort((left, right) => {
-          if (filters.sort === "created-desc") {
-            return (
-              new Date(right.createdAt).getTime() -
-              new Date(left.createdAt).getTime()
-            );
-          }
-          if (filters.sort === "created-asc") {
-            return (
-              new Date(left.createdAt).getTime() -
-              new Date(right.createdAt).getTime()
-            );
-          }
-          if (filters.sort === "updated-asc") {
-            return (
-              new Date(left.updatedAt).getTime() -
-              new Date(right.updatedAt).getTime()
-            );
-          }
-          if (filters.sort === "title-asc") {
-            return left.title.localeCompare(right.title, "ja");
-          }
-          if (filters.sort === "level-asc") {
-            return (
-              difficultyRank[left.officialLevel] -
-              difficultyRank[right.officialLevel]
-            );
-          }
-          if (filters.sort === "level-desc") {
-            return (
-              difficultyRank[right.officialLevel] -
-              difficultyRank[left.officialLevel]
-            );
-          }
-          if (filters.sort === "perceived-asc") {
-            return (
-              difficultyRank[left.perceivedLevel] -
-              difficultyRank[right.perceivedLevel]
-            );
-          }
-          if (filters.sort === "perceived-desc") {
-            return (
-              difficultyRank[right.perceivedLevel] -
-              difficultyRank[left.perceivedLevel]
-            );
-          }
-          if (filters.sort === "status-asc") {
-            return (
-              ["review", "held", "published"].indexOf(left.status) -
-              ["review", "held", "published"].indexOf(right.status)
-            );
-          }
-          return (
-            new Date(right.updatedAt).getTime() -
-            new Date(left.updatedAt).getTime()
-          );
-        }),
-    [filters, items, query],
-  );
-  const pages = Math.max(1, Math.ceil(rows.length / pageSize));
-  const currentPage = Math.min(page, pages);
-  const pageRows = rows.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize,
-  );
   const hasAppliedFilters =
     filters.level !== "all" ||
     filters.length !== "all" ||
     filters.topic !== "all" ||
     filters.status !== "all" ||
     filters.sort !== "created-desc";
-
-  useEffect(() => setPage(1), [filters, query]);
 
   return (
     <section className="screen screen-admin" aria-label="관리자 문항 관리">
@@ -403,6 +334,7 @@ export function AdminScreen({
             <p className="kicker">Administrator</p>
             <h1 className="screen-title">문항 관리</h1>
           </div>
+          <p className="list-result-count">{totalItems}개 문항</p>
         </div>
         <div className="admin-toolbar">
           <div className="filter-search">
@@ -441,8 +373,9 @@ export function AdminScreen({
           </button>
         </div>
         {loading ? <LoadingBar label="관리 문항을 불러오는 중입니다." /> : null}
+        {error ? <p className="list-load-error" role="alert">{error}</p> : null}
         <div className="admin-list" aria-busy={loading}>
-          {pageRows.map((item) => (
+          {items.map((item) => (
             <button
               className="admin-row"
               type="button"
@@ -473,15 +406,15 @@ export function AdminScreen({
             </button>
           ))}
         </div>
-        {!loading && rows.length === 0 ? (
+        {!loading && items.length === 0 ? (
           <div className="reading-list-empty">
             <p>조건에 맞는 문항이 없습니다.</p>
           </div>
         ) : (
           <ListPagination
-            page={currentPage}
-            totalPages={pages}
-            onChange={setPage}
+            page={page}
+            totalPages={totalPages}
+            onChange={onPageChange}
             ariaLabel="관리 문항 목록 페이지"
           />
         )}

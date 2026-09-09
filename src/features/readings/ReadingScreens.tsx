@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowRight,
   Check,
@@ -19,15 +19,11 @@ import { ListPagination } from "../../components/ui/ListPagination";
 import { LoadingBar } from "../../components/ui/LoadingBar";
 import { OptionButtons } from "../../components/ui/OptionButtons";
 import {
-  difficultyRank,
-  firstSubmissionTimingForItem,
   formatDate,
   formatTime,
   isNew,
-  learningProgressForItem,
   lengthLabels,
   minimumVotes,
-  pageSize,
   perceivedLabel,
 } from "../../lib/reading";
 import {
@@ -36,7 +32,6 @@ import {
   readingLanguages,
 } from "../../lib/readingPolicy";
 import type {
-  AttemptRecord,
   Choice,
   ListFilters,
   LearningProgress,
@@ -50,8 +45,12 @@ import type {
 interface ReadingListScreenProps {
   items: ReadingItem[];
   loading: boolean;
+  error: string;
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  onPageChange: (page: number) => void;
   authenticated: boolean;
-  attempts: AttemptRecord[];
   filters: ListFilters;
   setFilters: (filters: ListFilters) => void;
   query: string;
@@ -88,33 +87,25 @@ interface ResultScreenProps {
   onHome: () => void;
 }
 
-function matchesLearningResultFilter(
-  progress: LearningProgress,
-  filter: ListFilters["status"],
-): boolean {
-  if (filter === "all") return true;
-  if (filter === "score-100") return progress.score === 100;
-  if (filter === "score-90") return progress.score === 90;
-  if (filter === "score-80") return progress.score === 80;
-  return progress.status === filter;
-}
-
-function unscoredResultRank(progress: LearningProgress): number {
-  return progress.status === "wrong" ? 0 : 1;
-}
-
-function matchesFirstSubmissionTimeFilter(
-  timing: ReturnType<typeof firstSubmissionTimingForItem>,
-  filter: ListFilters["firstSubmissionTime"],
-): boolean {
-  return filter === "all" || timing === filter;
+function progressForListItem(item: ReadingItem): LearningProgress {
+  if (item.myScore !== null && item.myScoreReason !== null) {
+    return { status: "passed", score: item.myScore, reason: item.myScoreReason };
+  }
+  if (item.myLatestStatus === "wrong") {
+    return { status: "wrong", score: null, reason: null };
+  }
+  return { status: "unstarted", score: null, reason: null };
 }
 
 export function ReadingListScreen({
   items,
   loading,
+  error,
+  page,
+  totalPages,
+  totalItems,
+  onPageChange,
   authenticated,
-  attempts,
   filters,
   setFilters,
   query,
@@ -123,83 +114,6 @@ export function ReadingListScreen({
   onOpenScoreGuide,
   onStart,
 }: ReadingListScreenProps) {
-  const [page, setPage] = useState(1);
-  const filtered = useMemo(() => {
-    const rows = items.filter((item) => {
-      const progress = learningProgressForItem(item, attempts);
-      const firstSubmissionTiming = firstSubmissionTimingForItem(item, attempts);
-      return (
-        item.language === filters.language &&
-        (filters.level === "all" || item.officialLevel === filters.level) &&
-        (filters.length === "all" || item.lengthType === filters.length) &&
-        (!authenticated ||
-          (matchesLearningResultFilter(progress, filters.status) &&
-            matchesFirstSubmissionTimeFilter(
-              firstSubmissionTiming,
-              filters.firstSubmissionTime,
-            ))) &&
-        item.title
-          .toLocaleLowerCase()
-          .includes(query.trim().toLocaleLowerCase())
-      );
-    });
-    const perceived = (item: ReadingItem): number | undefined =>
-      item.perceivedVotes >= minimumVotes
-        ? difficultyRank[item.perceivedLevel]
-        : undefined;
-
-    rows.sort((left, right) => {
-      if (filters.sort === "published-asc") {
-        return (
-          new Date(left.publishedAt ?? left.createdAt).getTime() -
-          new Date(right.publishedAt ?? right.createdAt).getTime()
-        );
-      }
-      if (filters.sort === "level-asc") {
-        return (
-          difficultyRank[left.officialLevel] -
-          difficultyRank[right.officialLevel]
-        );
-      }
-      if (filters.sort === "level-desc") {
-        return (
-          difficultyRank[right.officialLevel] -
-          difficultyRank[left.officialLevel]
-        );
-      }
-      if (filters.sort === "score-desc" || filters.sort === "score-asc") {
-        const leftProgress = learningProgressForItem(left, attempts);
-        const rightProgress = learningProgressForItem(right, attempts);
-        if (leftProgress.score === null && rightProgress.score !== null) return 1;
-        if (leftProgress.score !== null && rightProgress.score === null) return -1;
-        if (leftProgress.score !== null && rightProgress.score !== null) {
-          return filters.sort === "score-desc"
-            ? rightProgress.score - leftProgress.score
-            : leftProgress.score - rightProgress.score;
-        }
-        return unscoredResultRank(leftProgress) - unscoredResultRank(rightProgress);
-      }
-      if (filters.sort.startsWith("perceived")) {
-        const a = perceived(left);
-        const b = perceived(right);
-        if (a === undefined) return 1;
-        if (b === undefined) return -1;
-        return filters.sort.endsWith("asc") ? a - b : b - a;
-      }
-      return (
-        new Date(right.publishedAt ?? right.createdAt).getTime() -
-        new Date(left.publishedAt ?? left.createdAt).getTime()
-      );
-    });
-    return rows;
-  }, [attempts, authenticated, filters, items, query]);
-
-  const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const currentPage = Math.min(page, pages);
-  const rows = filtered.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize,
-  );
   const hasAppliedFilters =
     filters.level !== "all" ||
     filters.length !== "all" ||
@@ -221,8 +135,6 @@ export function ReadingListScreen({
     });
   };
 
-  useEffect(() => setPage(1), [filters, query]);
-
   return (
     <section className="screen screen-home" aria-label="홈">
       <div className="paper flush">
@@ -240,7 +152,7 @@ export function ReadingListScreen({
               점수 안내
             </button>
             {active ? (
-              <p className="list-result-count">{filtered.length}개 결과</p>
+              <p className="list-result-count">{totalItems}개 결과</p>
             ) : null}
           </div>
         </div>
@@ -285,9 +197,10 @@ export function ReadingListScreen({
           </button>
         </div>
         {loading ? <LoadingBar label="목록을 불러오는 중입니다." /> : null}
+        {error ? <p className="list-load-error" role="alert">{error}</p> : null}
         <div className="reading-list" aria-busy={loading}>
-          {rows.map((item) => {
-            const progress = learningProgressForItem(item, attempts);
+          {items.map((item) => {
+            const progress = progressForListItem(item);
             return (
               <div
                 className="reading-row"
@@ -345,7 +258,7 @@ export function ReadingListScreen({
             );
           })}
         </div>
-        {!loading && filtered.length === 0 ? (
+        {!loading && items.length === 0 ? (
           <div className="reading-list-empty">
             <p>조건에 맞는 지문이 없습니다.</p>
             <button className="text-button" type="button" onClick={reset}>
@@ -355,9 +268,9 @@ export function ReadingListScreen({
           </div>
         ) : (
           <ListPagination
-            page={currentPage}
-            totalPages={pages}
-            onChange={setPage}
+            page={page}
+            totalPages={totalPages}
+            onChange={onPageChange}
           />
         )}
       </div>

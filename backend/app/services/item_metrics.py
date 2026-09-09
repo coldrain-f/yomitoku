@@ -2,7 +2,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Attempt, ItemFeedback, ItemReport, ReadingItem
@@ -13,6 +13,59 @@ from app.services.reading_policy import (
 )
 
 ItemMetrics = dict[str, float | int | str | None]
+
+
+def perceived_level_rank(value: object):
+    """Return a database expression that orders every supported perceived level."""
+    ranks = {
+        level: rank
+        for levels in LEVELS_BY_LANGUAGE.values()
+        for rank, level in enumerate(levels, start=1)
+    }
+    return case(ranks, value=value, else_=0)
+
+
+def perceived_feedback_summary_query():
+    """Aggregate feedback once per item for database-side perceived-level sorting.
+
+    The product defines the perceived level as the upper median: for an even
+    number of votes, choose the higher of the two middle values.  Window
+    functions preserve that rule without loading every item's feedback into
+    application memory.
+    """
+    level_rank = perceived_level_rank(ItemFeedback.perceived_level)
+    ranked = (
+        select(
+            ItemFeedback.reading_item_id.label("reading_item_id"),
+            level_rank.label("perceived_rank"),
+            func.row_number()
+            .over(
+                partition_by=ItemFeedback.reading_item_id,
+                order_by=(level_rank.asc(), ItemFeedback.id.asc()),
+            )
+            .label("position"),
+            func.count()
+            .over(partition_by=ItemFeedback.reading_item_id)
+            .label("vote_count"),
+        )
+        .where(level_rank > 0)
+        .subquery()
+    )
+    median_position = (ranked.c.vote_count / 2) + 1
+    return (
+        select(
+            ranked.c.reading_item_id,
+            func.max(
+                case(
+                    (ranked.c.position == median_position, ranked.c.perceived_rank),
+                    else_=0,
+                )
+            ).label("perceived_rank"),
+            func.max(ranked.c.vote_count).label("perceived_vote_count"),
+        )
+        .group_by(ranked.c.reading_item_id)
+        .subquery()
+    )
 
 
 def first_submissions_by_user_item(
