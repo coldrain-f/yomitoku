@@ -315,11 +315,12 @@ textarea:focus-visible {
   flex-wrap: wrap;
 }
 
-.score-guide-button {
-  min-height: 26px;
-  padding: 0 7px;
+.list-head-actions .score-guide-button {
+  min-height: 30px;
+  padding: 0 9px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
+  gap: 5px;
 }
 
 .score-guide-button [data-lucide] {
