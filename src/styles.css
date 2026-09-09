@@ -1321,7 +1321,7 @@ fieldset.admin-edit-form {
   font-size: 12px;
 }
 
-.bookmark-filter-button {
+.list-toolbar .bookmark-filter-button {
   width: 52px;
   flex: 0 0 52px;
   min-height: 34px;
