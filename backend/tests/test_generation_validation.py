@@ -234,7 +234,10 @@ async def test_anthropic_manual_topic_and_explanation_suggestions_are_structured
         EXPLANATION_SUGGESTION_MAX_TOKENS,
     ]
     assert "allowed list" in messages.calls[0]["messages"][0]["content"]
-    assert "correct choice is number 2" in messages.calls[1]["messages"][0]["content"]
+    explanation_prompt = messages.calls[1]["messages"][0]["content"]
+    assert "<correct_choice>理由を確かめること。</correct_choice>" in explanation_prompt
+    assert "correct choice is number" not in explanation_prompt
+    assert "never refer to a choice position or label" in explanation_prompt
 
 
 @pytest.mark.asyncio
@@ -519,6 +522,25 @@ def test_deterministic_validation_requires_distinct_distractor_types() -> None:
     issues = validate_generated_reading(item, "short")
 
     assert "duplicate_distractor_type" in issues
+
+
+@pytest.mark.parametrize(
+    "explanation",
+    [
+        "따라서 3번이 정답입니다.",
+        "したがって3番が正解です。",
+        "Choice 3 is correct because it matches the passage.",
+        "Option B is correct because it matches the passage.",
+    ],
+)
+def test_deterministic_validation_rejects_choice_position_in_explanations(
+    explanation: str,
+) -> None:
+    item = _sample_generated_reading().model_copy(update={"explanation": explanation})
+
+    assert "explanation_references_choice_position" in validate_generated_reading(
+        item, "short"
+    )
 
 
 def test_deterministic_validation_allows_paragraph_breaks_and_regular_parentheses() -> None:

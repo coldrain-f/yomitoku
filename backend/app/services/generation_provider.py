@@ -59,6 +59,9 @@ Use three different distractor types, one for each incorrect choice:
 - textual_contradiction: directly contradict an explicit passage statement while retaining a plausible detail.
 Choose only types that fit the passage; do not force an unnatural reversal. The three types must be distinct.
 The wrongExplanation for each distractor must identify the relevant passage idea and the exact mismatch.
+Choices are shuffled when learners take the item. In explanation and wrongExplanation, never refer to a
+choice position or label, such as "2번", "3番", "choice 2", or "option B". State the relevant answer
+wording and passage evidence directly instead.
 
 Return title, passage, question, explanation, and exactly four choices. Each choice must include text,
 isCorrect, wrongExplanation, and distractorType. Set distractorType to null for the one correct choice and
@@ -73,7 +76,9 @@ subject, not a minor example or incidental word. Return only the requested topic
 
 EXPLANATION_SYSTEM_PROMPT: Final = """You write concise, accurate reading-comprehension explanations.
 Explain why the supplied correct choice is supported by the passage. Use only the supplied passage and do
-not invent context, evaluate the other choices, or reveal hidden reasoning. Return only the requested explanation."""
+not invent context, evaluate the other choices, or reveal hidden reasoning. Choices are shuffled for learners,
+so never refer to a choice's position or label, such as "2번", "3番", "choice 2", or "option B". Refer to
+the answer wording and passage evidence directly. Return only the requested explanation."""
 
 ANSWER_VALIDATOR_SYSTEM_PROMPT: Final = """Independently solve each supplied reading question.
 Use only passage evidence. Identify the best answer, then check whether another choice is also defensible,
@@ -319,7 +324,7 @@ class StubGenerationProvider:
                         distractor_type="scope_or_degree_distortion",
                     ),
                 ],
-                explanation="本文は、目に見える結果だけで判断せず、その背景にある理由を確かめる姿勢が大切だと述べています。したがって3番が正解です。",
+                explanation="本文は、目に見える結果だけで判断せず、その背景にある理由を確かめる姿勢が大切だと述べています。この内容は、理由を確かめることの大切さを示しています。",
             )
             return self._result(item, model)
         item = GeneratedReading(
@@ -350,7 +355,7 @@ class StubGenerationProvider:
                     distractor_type="scope_or_degree_distortion",
                 ),
             ],
-            explanation="글은 눈에 보이는 결과만으로 판단하지 말고 그 배경에 있는 이유를 확인하는 태도가 중요하다고 말합니다. 따라서 3번이 정답입니다.",
+            explanation="글은 눈에 보이는 결과만으로 판단하지 말고 그 배경에 있는 이유를 확인하는 태도가 중요하다고 말합니다. 이는 이유를 확인하는 태도가 중요하다는 내용과 일치합니다.",
         )
         return self._result(item, model)
 
@@ -435,23 +440,16 @@ categories even when the passage is Japanese.
     ) -> ProviderResult[GeneratedExplanation]:
         language_name = "Japanese" if request.language == "ja" else "Korean"
         explanation_language = "Korean" if request.language == "ja" else "Japanese"
-        correct_choice_index = next(
-            index
-            for index, choice in enumerate(request.choices, start=1)
-            if choice.is_correct
-        )
-        choices = "\n".join(
-            f"{index}. {escape(choice.text, quote=False)}"
-            for index, choice in enumerate(request.choices, start=1)
-        )
+        correct_choice = next(choice for choice in request.choices if choice.is_correct)
         prompt = f"""<explanation_suggestion>
 The reading item is written in {language_name}. Write one concise, natural explanation in
-{explanation_language}. The correct choice is number {correct_choice_index}. Cite the relevant
-passage idea, and explain only why that choice is correct. Do not add facts, discuss distractors,
-or mix languages mid-sentence.
+{explanation_language}. The selected correct answer is the text inside <correct_choice>. Cite the relevant
+passage idea, and explain only why that answer is correct. Do not add facts, discuss distractors, or mix
+languages mid-sentence. Choices are shuffled for learners, so never refer to a choice position or label,
+such as "2번", "3番", "choice 2", or "option B".
 <passage>{escape(request.passage, quote=False)}</passage>
 <question>{escape(request.question, quote=False)}</question>
-<choices>{choices}</choices>
+<correct_choice>{escape(correct_choice.text, quote=False)}</correct_choice>
 </explanation_suggestion>"""
         return await self._structured_response(
             model,
@@ -493,6 +491,9 @@ Write the title, passage, question, and choices naturally in {language_name}.
 Write the explanation and every wrongExplanation naturally in {explanation_language}.
 Keep each explanation entirely in {explanation_language}, except for short source quotations or proper nouns;
 do not mix it with {language_name} mid-sentence.
+Choices are shuffled for learners. Never refer to any choice position or label in explanation or
+wrongExplanation, such as "2번", "3番", "choice 2", or "option B"; state the answer wording and passage
+evidence directly instead.
 Requested {level_name} level: {conditions.official_level}
 Requested length: {conditions.length_type}
 Topic: {topic}

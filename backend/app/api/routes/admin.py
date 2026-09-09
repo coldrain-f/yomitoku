@@ -63,6 +63,7 @@ from app.services.reading_policy import (
     is_level_for_language,
 )
 from app.services.users import ensure_user
+from app.services.validation import has_choice_position_reference
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -88,6 +89,27 @@ def validate_question_count(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"{length_type} 유형은 문제를 1~{maximum}개 등록할 수 있습니다.",
+        )
+
+
+def validate_explanation_choice_references(
+    questions: list[ReadingQuestionInput],
+) -> None:
+    explanations = (
+        explanation
+        for question in questions
+        for explanation in (
+            question.explanation,
+            *(choice.wrong_explanation for choice in question.choices),
+        )
+    )
+    if any(has_choice_position_reference(explanation) for explanation in explanations):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                "해설에는 선택지 번호를 쓸 수 없습니다. 정답 문장과 지문의 근거를 "
+                "직접 설명해 주세요."
+            ),
         )
 
 
@@ -509,6 +531,11 @@ async def suggest_admin_reading_explanation(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="AI가 해설을 만들지 못했습니다. 다시 시도해 주세요.",
         )
+    if has_choice_position_reference(explanation):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI 해설에 선택지 번호가 포함되어 다시 생성해 주세요.",
+        )
     return AdminExplanationSuggestionResponse(explanation=explanation)
 
 
@@ -663,6 +690,7 @@ async def create_admin_reading_item(
         legacy_question(request.question, request.explanation, request.choices)
     ]
     validate_question_count(questions, request.length_type, "manual")
+    validate_explanation_choice_references(questions)
     first_question = questions[0]
     item = ReadingItem(
         title=request.title.strip(),
@@ -736,6 +764,7 @@ async def update_admin_reading_item(
 
     if request.questions is not None:
         validate_question_count(request.questions, item.length_type, item.content_source)
+        validate_explanation_choice_references(request.questions)
         existing_questions = {question.id: question for question in item.questions}
         next_questions: list[ReadingQuestion] = []
         for question_index, question in enumerate(request.questions, start=1):
@@ -766,6 +795,19 @@ async def update_admin_reading_item(
         item.question = next_questions[0].question
         item.explanation = next_questions[0].explanation
     elif request.choices is not None:
+        validate_explanation_choice_references(
+            [
+                ReadingQuestionInput(
+                    question=item.question,
+                    explanation=(
+                        request.explanation
+                        if request.explanation is not None
+                        else item.explanation
+                    ),
+                    choices=request.choices,
+                )
+            ]
+        )
         existing_choices = {choice.id: choice for choice in item.choices}
         next_choices: list[ReadingChoice] = []
         for index, choice in enumerate(request.choices, start=1):
@@ -779,6 +821,23 @@ async def update_admin_reading_item(
             )
             next_choices.append(target)
         item.choices[:] = next_choices
+    elif request.explanation is not None:
+        validate_explanation_choice_references(
+            [
+                ReadingQuestionInput(
+                    question=item.question,
+                    explanation=request.explanation,
+                    choices=[
+                        ReadingChoiceInput(
+                            text=choice.text,
+                            is_correct=choice.is_correct,
+                            wrong_explanation=choice.wrong_explanation,
+                        )
+                        for choice in item.choices
+                    ],
+                )
+            ]
+        )
 
     await session.commit()
     item = await get_admin_item(session, item.id)

@@ -4,6 +4,44 @@ from app.schemas import GeneratedReading, LengthType, ReadingLanguage
 from app.services.reading_policy import PASSAGE_CHARACTER_LIMITS
 
 
+# Choices are shuffled for every attempt, so explanations must describe the answer
+# by its wording and passage evidence rather than its canonical position.
+CHOICE_POSITION_REFERENCE_PATTERNS = (
+    re.compile(
+        r"(?:선택지|보기)\s*\d+\s*(?:번)?\s*(?:이|가|은|는)?\s*(?:정답|답)"
+    ),
+    re.compile(
+        r"(?:정답|답)\s*(?:은|는|이|가)?\s*(?:선택지|보기)?\s*\d+\s*(?:번)?"
+    ),
+    re.compile(
+        r"\d+\s*번\s*(?:선택지|보기)?\s*(?:이|가|은|는)?\s*(?:정답|답)"
+    ),
+    re.compile(
+        r"(?:選択肢|正解|答え)\s*(?:は|が|:)?\s*(?:第\s*)?\d+\s*(?:番|つ目)"
+    ),
+    re.compile(
+        r"(?:第\s*)?\d+\s*(?:番|つ目)\s*(?:の選択肢)?\s*(?:が|は)?\s*(?:正解|答え)"
+    ),
+    re.compile(
+        r"(?:choice|option|answer)\s*(?:number\s*)?(?:\d+|[A-D])\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?:the\s+)?(?:\d+(?:st|nd|rd|th)?|[A-D])\s+"
+        r"(?:choice|option|answer)\b",
+        re.IGNORECASE,
+    ),
+)
+
+
+def has_choice_position_reference(text: str | None) -> bool:
+    """Return whether an explanation depends on a choice's displayed position."""
+    return bool(
+        text
+        and any(pattern.search(text) for pattern in CHOICE_POSITION_REFERENCE_PATTERNS)
+    )
+
+
 def validate_generated_reading(
     item: GeneratedReading,
     length_type: LengthType,
@@ -31,6 +69,14 @@ def validate_generated_reading(
         if not choice.is_correct
     ):
         issues.append("missing_wrong_explanation")
+    if any(
+        has_choice_position_reference(explanation)
+        for explanation in (
+            item.explanation,
+            *(choice.wrong_explanation for choice in item.choices),
+        )
+    ):
+        issues.append("explanation_references_choice_position")
     correct_choice = next(choice for choice in item.choices if choice.is_correct)
     if correct_choice.distractor_type is not None:
         issues.append("correct_choice_has_distractor_type")
