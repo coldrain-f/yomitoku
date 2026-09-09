@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowRight,
-  Bookmark,
+  Star,
   Check,
   ChevronRight,
   Copy,
@@ -206,7 +206,7 @@ export function ReadingListScreen({
               setFilters({ ...filters, bookmarked: !filters.bookmarked })
             }
           >
-            <Icon icon={Bookmark} fill={filters.bookmarked ? "currentColor" : "none"} />
+            <Icon icon={Star} fill={filters.bookmarked ? "currentColor" : "none"} />
             북마크
           </button>
           <button
@@ -242,6 +242,23 @@ export function ReadingListScreen({
                     {isNew(item) ? (
                       <span className="badge row-new">신규</span>
                     ) : null}
+                    <button
+                      className={`row-bookmark-button${item.isBookmarked ? " is-bookmarked" : ""}`}
+                      type="button"
+                      aria-label={item.isBookmarked ? `${item.title} 북마크 해제` : `${item.title} 북마크`}
+                      aria-pressed={item.isBookmarked}
+                      title={
+                        authenticated
+                          ? item.isBookmarked
+                            ? "북마크 해제"
+                            : "북마크"
+                          : "로그인하면 북마크할 수 있습니다"
+                      }
+                      disabled={!authenticated || bookmarkingItemIds.has(item.id)}
+                      onClick={() => onToggleBookmark(item)}
+                    >
+                      <Icon icon={Star} fill={item.isBookmarked ? "currentColor" : "none"} />
+                    </button>
                   </span>
                   <span className="row-meta">
                     <span className="badge row-level">
@@ -277,23 +294,6 @@ export function ReadingListScreen({
                     {item.itemAccuracy === null ? "-" : `${Math.round(item.itemAccuracy)}%`}
                   </time>
                 </span>
-                <button
-                  className={`row-bookmark-button${item.isBookmarked ? " is-bookmarked" : ""}`}
-                  type="button"
-                  aria-label={item.isBookmarked ? `${item.title} 북마크 해제` : `${item.title} 북마크`}
-                  aria-pressed={item.isBookmarked}
-                  title={
-                    authenticated
-                      ? item.isBookmarked
-                        ? "북마크 해제"
-                        : "북마크"
-                      : "로그인하면 북마크할 수 있습니다"
-                  }
-                  disabled={!authenticated || bookmarkingItemIds.has(item.id)}
-                  onClick={() => onToggleBookmark(item)}
-                >
-                  <Icon icon={Bookmark} fill={item.isBookmarked ? "currentColor" : "none"} />
-                </button>
                 <Icon icon={ChevronRight} className="row-arrow" />
               </div>
             );

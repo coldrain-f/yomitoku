@@ -1323,17 +1323,17 @@ fieldset.admin-edit-form {
 
 .bookmark-filter-button {
   min-height: 34px;
-  border: 1px solid #d7b978;
-  border-radius: 999px;
-  background: #fffaf0;
-  color: #8a641d;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
   padding: 0 11px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -1345,9 +1345,9 @@ fieldset.admin-edit-form {
 .bookmark-filter-button:hover,
 .bookmark-filter-button:focus-visible,
 .bookmark-filter-button.is-active {
-  border-color: #af7b1e;
-  background: #f5dfad;
-  color: #6f4b0b;
+  border-color: var(--line);
+  background: var(--paper);
+  color: var(--ink);
 }
 
 .bookmark-filter-button:disabled {
@@ -1454,7 +1454,7 @@ fieldset.admin-edit-form {
   color: var(--ink);
   padding: 14px 30px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto 34px 20px;
+  grid-template-columns: minmax(0, 1fr) auto 20px;
   gap: 12px;
   align-items: center;
   position: relative;
@@ -1483,33 +1483,29 @@ fieldset.admin-edit-form {
   padding: 0;
 }
 
-.reading-row > .row-bookmark-button {
+.row-bookmark-button {
   position: relative;
   z-index: 2;
   pointer-events: auto;
-}
-
-.row-bookmark-button {
-  width: 30px;
-  height: 32px;
-  border: 1px solid #e1d2b2;
-  border-radius: 5px;
-  background: #fffefa;
-  color: #9b751f;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
   display: inline-grid;
   place-items: center;
+  flex: 0 0 auto;
 }
 
 .row-bookmark-button:hover:not(:disabled),
 .row-bookmark-button:focus-visible:not(:disabled) {
-  border-color: #af7b1e;
-  background: #fff7e7;
+  background: #eeefe9;
+  color: var(--ink);
 }
 
 .row-bookmark-button.is-bookmarked {
-  border-color: #b98220;
-  background: #f4dcaa;
-  color: #754d08;
+  color: var(--ink);
 }
 
 .row-bookmark-button:disabled {
@@ -3157,7 +3153,7 @@ body.dialog-open {
   }
 
   .reading-row {
-    grid-template-columns: minmax(0, 1fr) auto 34px;
+    grid-template-columns: minmax(0, 1fr) auto;
     padding: 14px 18px;
   }
 
@@ -3179,10 +3175,6 @@ body.dialog-open {
   .reading-row > .row-state {
     grid-column: 2;
     justify-self: start;
-  }
-
-  .reading-row > .row-bookmark-button {
-    grid-column: 3;
   }
 
   .list-pagination {
