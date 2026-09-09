@@ -1942,9 +1942,9 @@ fieldset.admin-edit-form {
 }
 
 .loading-spinner-large {
-  width: 30px;
-  height: 30px;
-  border-width: 3px;
+  width: 56px;
+  height: 56px;
+  border-width: 5px;
 }
 
 .loading-overlay {
