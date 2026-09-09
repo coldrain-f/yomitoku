@@ -1322,37 +1322,10 @@ fieldset.admin-edit-form {
 }
 
 .bookmark-filter-button {
+  min-width: 52px;
   min-height: 34px;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--muted);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 0 11px;
+  padding: 0 8px;
   font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.bookmark-filter-button [data-lucide] {
-  width: 15px;
-  height: 15px;
-}
-
-.bookmark-filter-button:hover,
-.bookmark-filter-button:focus-visible,
-.bookmark-filter-button.is-active {
-  border-color: var(--line);
-  background: var(--paper);
-  color: var(--ink);
-}
-
-.bookmark-filter-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.46;
 }
 
 .filter-search {

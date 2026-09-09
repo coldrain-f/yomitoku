@@ -193,7 +193,7 @@ export function ReadingListScreen({
             />
           </div>
           <button
-            className={`bookmark-filter-button${filters.bookmarked ? " is-active" : ""}`}
+            className={`text-button bookmark-filter-button${filters.bookmarked ? " is-selected" : ""}`}
             type="button"
             aria-pressed={filters.bookmarked}
             title={
@@ -206,7 +206,6 @@ export function ReadingListScreen({
               setFilters({ ...filters, bookmarked: !filters.bookmarked })
             }
           >
-            <Icon icon={Star} fill={filters.bookmarked ? "currentColor" : "none"} />
             북마크
           </button>
           <button
