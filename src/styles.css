@@ -624,6 +624,7 @@ textarea:focus-visible {
 
 .admin-edit-form {
   display: grid;
+  min-width: 0;
   gap: 20px;
   margin-top: 26px;
 }
@@ -755,6 +756,7 @@ fieldset.admin-edit-form {
 
 .admin-options-section {
   display: grid;
+  min-width: 0;
   gap: 12px;
   padding: 18px 0;
   border-top: 1px solid var(--line);
@@ -763,24 +765,29 @@ fieldset.admin-edit-form {
 
 .admin-questions-section {
   display: grid;
+  min-width: 0;
   gap: 16px;
   padding-top: 22px;
 }
 
 .admin-question-editor {
   display: grid;
+  min-width: 0;
   padding: 18px 0 0;
   border-top: 1px solid var(--line);
 }
 
 .admin-question-heading {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 8px;
 }
 
 .admin-question-toggle {
   display: flex;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   flex: 1;
   align-items: center;
@@ -812,7 +819,13 @@ fieldset.admin-edit-form {
   white-space: nowrap;
 }
 
+.admin-question-title {
+  flex: 1 1 auto;
+}
+
 .admin-question-summary {
+  min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   color: var(--muted);
   font-size: 13px;
@@ -842,6 +855,7 @@ fieldset.admin-edit-form {
 
 .admin-question-content {
   display: grid;
+  min-width: 0;
   gap: 16px;
   padding-top: 18px;
 }
