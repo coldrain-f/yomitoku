@@ -85,6 +85,7 @@ export interface ReadingItem {
   myFirstSubmissionTimedOut: boolean;
   myScore: LearningScore | null;
   myScoreReason: ScoreReason | null;
+  isBookmarked: boolean;
   passage: string;
   question: string;
   choices: Choice[];
@@ -157,6 +158,7 @@ export interface ReadingResult {
 
 export interface ListFilters {
   language: ReadingLanguage;
+  bookmarked: boolean;
   level: DifficultyLevel | "all";
   length: LengthType | "all";
   status: LearningResultFilter;

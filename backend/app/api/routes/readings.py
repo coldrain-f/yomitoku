@@ -18,6 +18,7 @@ from app.core.security import (
 from app.db.models import (
     Attempt,
     AttemptAnswer,
+    ItemBookmark,
     ItemFeedback,
     ItemReport,
     PassageHighlight,
@@ -39,6 +40,7 @@ from app.schemas import (
     LengthType,
     PassageHighlightCreateRequest,
     PassageHighlightResponse,
+    ReadingBookmarkResponse,
     ReadingChoicePublic,
     ReadingItemDetail,
     ReadingItemPage,
@@ -227,6 +229,7 @@ def serialize_public_summary(
         "first_submission_timed_out",
         "retry_passed",
     ] | None = None,
+    is_bookmarked: bool = False,
 ) -> ReadingItemSummary:
     perceived_level = metrics["perceived_level"]
     perceived_vote_count = int(metrics["perceived_vote_count"] or 0)
@@ -257,6 +260,7 @@ def serialize_public_summary(
         my_first_submission_timed_out=my_first_submission_timed_out,
         my_score=my_score,
         my_score_reason=my_score_reason,
+        is_bookmarked=is_bookmarked,
     )
 
 
@@ -435,6 +439,7 @@ async def list_published_reading_items(
         Literal["on-time", "timed-out"] | None,
         Query(alias="time"),
     ] = None,
+    bookmarked: bool = False,
     sort: Annotated[
         Literal[
             "published_desc",
@@ -452,7 +457,7 @@ async def list_published_reading_items(
     page_size: Annotated[int, Query(ge=1, le=50)] = 10,
     current_user: Annotated[CurrentUser | None, Depends(get_optional_current_user)] = None,
 ) -> ReadingItemPage:
-    if (attempt_status or first_submission_time) and current_user is None:
+    if (attempt_status or first_submission_time or bookmarked) and current_user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Sign in to filter by learning status.",
@@ -471,6 +476,15 @@ async def list_published_reading_items(
         filters.append(ReadingItem.language == language)
     if length:
         filters.append(ReadingItem.length_type == length)
+    if bookmarked and current_user is not None:
+        filters.append(
+            select(ItemBookmark.id)
+            .where(
+                ItemBookmark.user_id == current_user.id,
+                ItemBookmark.reading_item_id == ReadingItem.id,
+            )
+            .exists()
+        )
 
     progress = learner_progress_query(current_user.id) if current_user else None
     feedback_summary = (
@@ -533,7 +547,15 @@ async def list_published_reading_items(
         ],
     ] = {}
     submissions_by_item: dict[UUID, list[Attempt]] = {}
+    bookmarked_item_ids: set[UUID] = set()
     if current_user and items:
+        bookmark_item_ids = await session.scalars(
+            select(ItemBookmark.reading_item_id).where(
+                ItemBookmark.user_id == current_user.id,
+                ItemBookmark.reading_item_id.in_([item.id for item in items]),
+            )
+        )
+        bookmarked_item_ids = set(bookmark_item_ids.all())
         submissions = list(
             await session.scalars(
                 select(Attempt)
@@ -569,6 +591,7 @@ async def list_published_reading_items(
                 first_submission_timed_out.get(item.id, False),
                 scores.get(item.id),
                 score_reasons.get(item.id),
+                item.id in bookmarked_item_ids,
             )
             for item in items
         ],
@@ -607,6 +630,45 @@ async def get_reading_item(
             for question in questions
         ],
     )
+
+
+@router.put("/{item_id}/bookmark", response_model=ReadingBookmarkResponse)
+async def bookmark_reading_item(
+    item_id: UUID,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> ReadingBookmarkResponse:
+    await get_published_item(session, item_id)
+    await ensure_user(session, current_user)
+    bookmark = await session.scalar(
+        select(ItemBookmark).where(
+            ItemBookmark.user_id == current_user.id,
+            ItemBookmark.reading_item_id == item_id,
+        )
+    )
+    if bookmark is None:
+        session.add(ItemBookmark(user_id=current_user.id, reading_item_id=item_id))
+        await session.commit()
+    return ReadingBookmarkResponse(reading_item_id=item_id, is_bookmarked=True)
+
+
+@router.delete("/{item_id}/bookmark", response_model=ReadingBookmarkResponse)
+async def delete_reading_bookmark(
+    item_id: UUID,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> ReadingBookmarkResponse:
+    await get_published_item(session, item_id)
+    bookmark = await session.scalar(
+        select(ItemBookmark).where(
+            ItemBookmark.user_id == current_user.id,
+            ItemBookmark.reading_item_id == item_id,
+        )
+    )
+    if bookmark is not None:
+        await session.delete(bookmark)
+        await session.commit()
+    return ReadingBookmarkResponse(reading_item_id=item_id, is_bookmarked=False)
 
 
 @router.post(

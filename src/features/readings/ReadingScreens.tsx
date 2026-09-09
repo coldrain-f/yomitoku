@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowRight,
+  Bookmark,
   Check,
   ChevronRight,
   Copy,
@@ -58,6 +59,8 @@ interface ReadingListScreenProps {
   onOpenFilters: () => void;
   onOpenScoreGuide: () => void;
   onStart: (item: ReadingItem) => void;
+  bookmarkingItemIds: Set<string>;
+  onToggleBookmark: (item: ReadingItem) => void;
 }
 
 interface ReadingScreenProps {
@@ -113,10 +116,13 @@ export function ReadingListScreen({
   onOpenFilters,
   onOpenScoreGuide,
   onStart,
+  bookmarkingItemIds,
+  onToggleBookmark,
 }: ReadingListScreenProps) {
   const hasAppliedFilters =
     filters.level !== "all" ||
     filters.length !== "all" ||
+    filters.bookmarked ||
     filters.sort !== "published-desc" ||
     (authenticated &&
       (filters.status !== "all" || filters.firstSubmissionTime !== "all"));
@@ -127,6 +133,7 @@ export function ReadingListScreen({
     setQuery("");
     setFilters({
       language: defaultGenerationLanguage,
+      bookmarked: false,
       level: "all",
       length: "all",
       status: "all",
@@ -185,6 +192,23 @@ export function ReadingListScreen({
               ariaLabel="독해 언어"
             />
           </div>
+          <button
+            className={`bookmark-filter-button${filters.bookmarked ? " is-active" : ""}`}
+            type="button"
+            aria-pressed={filters.bookmarked}
+            title={
+              authenticated
+                ? "북마크 문항만 보기"
+                : "로그인하면 북마크를 볼 수 있습니다"
+            }
+            disabled={!authenticated}
+            onClick={() =>
+              setFilters({ ...filters, bookmarked: !filters.bookmarked })
+            }
+          >
+            <Icon icon={Bookmark} fill={filters.bookmarked ? "currentColor" : "none"} />
+            북마크
+          </button>
           <button
             className={`icon-button list-filter-button${hasAppliedFilters ? " is-active" : ""}`}
             type="button"
@@ -253,6 +277,23 @@ export function ReadingListScreen({
                     {item.itemAccuracy === null ? "-" : `${Math.round(item.itemAccuracy)}%`}
                   </time>
                 </span>
+                <button
+                  className={`row-bookmark-button${item.isBookmarked ? " is-bookmarked" : ""}`}
+                  type="button"
+                  aria-label={item.isBookmarked ? `${item.title} 북마크 해제` : `${item.title} 북마크`}
+                  aria-pressed={item.isBookmarked}
+                  title={
+                    authenticated
+                      ? item.isBookmarked
+                        ? "북마크 해제"
+                        : "북마크"
+                      : "로그인하면 북마크할 수 있습니다"
+                  }
+                  disabled={!authenticated || bookmarkingItemIds.has(item.id)}
+                  onClick={() => onToggleBookmark(item)}
+                >
+                  <Icon icon={Bookmark} fill={item.isBookmarked ? "currentColor" : "none"} />
+                </button>
                 <Icon icon={ChevronRight} className="row-arrow" />
               </div>
             );

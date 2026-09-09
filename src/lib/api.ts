@@ -70,6 +70,7 @@ interface ApiReadingSummary {
   myFirstSubmissionTimedOut: boolean;
   myScore: LearningScore | null;
   myScoreReason: ScoreReason | null;
+  isBookmarked: boolean;
 }
 
 interface ApiReadingDetail extends ApiReadingSummary {
@@ -106,6 +107,11 @@ interface ApiPassageHighlight {
   selectedText: string;
 }
 
+interface ApiBookmarkState {
+  readingItemId: string;
+  isBookmarked: boolean;
+}
+
 interface ApiPage<T> {
   items: T[];
   page: number;
@@ -121,6 +127,7 @@ export interface ReadingListRequest {
   length?: LengthType;
   status?: "correct" | "wrong" | "unstarted" | "score-100" | "score-90" | "score-80";
   time?: "on-time" | "timed-out";
+  bookmarked?: boolean;
   sort?:
     | "published_desc"
     | "published_asc"
@@ -347,6 +354,7 @@ function toItem(summary: ApiReadingSummary, detail?: ApiReadingDetail): ReadingI
     myFirstSubmissionTimedOut: summary.myFirstSubmissionTimedOut ?? false,
     myScore: summary.myScore ?? null,
     myScoreReason: summary.myScoreReason ?? null,
+    isBookmarked: summary.isBookmarked ?? false,
     passage: detail?.passage ?? "",
     question: detail?.question ?? "",
     choices,
@@ -359,7 +367,7 @@ function toItem(summary: ApiReadingSummary, detail?: ApiReadingDetail): ReadingI
   };
 }
 
-function queryString(values: Record<string, string | number | undefined>) {
+function queryString(values: Record<string, string | number | boolean | undefined>) {
   const query = new URLSearchParams();
   Object.entries(values).forEach(([key, value]) => {
     if (value !== undefined && value !== "") query.set(key, String(value));
@@ -529,6 +537,10 @@ export const api = {
     request<void>(`/reading-items/${itemId}/highlights/${highlightId}`, {
       method: "DELETE",
     }),
+  setBookmark: (itemId: string, bookmarked: boolean) =>
+    request<ApiBookmarkState>(`/reading-items/${itemId}/bookmark`, {
+      method: bookmarked ? "PUT" : "DELETE",
+    }).then((state) => state.isBookmarked),
   abandonAttempt: (attemptId: string) =>
     request<void>(`/reading-items/attempts/${attemptId}/abandon`, { method: "POST" }),
   statistics: () => request<Statistics>("/me/statistics"),

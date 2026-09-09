@@ -239,6 +239,7 @@ class ReadingItemSummary(ApiModel):
         "first_submission_timed_out",
         "retry_passed",
     ] | None = None
+    is_bookmarked: bool = False
 
 
 class ReadingItemPage(ApiModel):
@@ -327,6 +328,11 @@ class PassageHighlightResponse(ApiModel):
     start_offset: int
     end_offset: int
     selected_text: str
+
+
+class ReadingBookmarkResponse(ApiModel):
+    reading_item_id: UUID
+    is_bookmarked: bool
 
 
 class PassageHighlightCreateRequest(ApiModel):

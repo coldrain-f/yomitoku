@@ -73,6 +73,7 @@ import type {
 
 const defaultListFilters: ListFilters = {
   language: defaultGenerationLanguage,
+  bookmarked: false,
   level: "all",
   length: "all",
   status: "all",
@@ -499,6 +500,9 @@ export default function App() {
   >({});
   const [adminLoaded, setAdminLoaded] = useState(false);
   const [isListLoading, setIsListLoading] = useState(true);
+  const [bookmarkingItemIds, setBookmarkingItemIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [isAdminListLoading, setIsAdminListLoading] = useState(false);
   const storedListFilters = useMemo(
     () => readStoredFilters(listFiltersStorageKey, defaultListFilters),
@@ -509,6 +513,9 @@ export default function App() {
       language: normalizeReadingLanguage(
         searchParams.get("language") ?? storedListFilters.language,
       ),
+      bookmarked: searchParams.has("bookmarked")
+        ? searchParams.get("bookmarked") === "true"
+        : Boolean(storedListFilters.bookmarked),
       level:
         (searchParams.get("level") as ListFilters["level"] | null) ??
         storedListFilters.level,
@@ -617,6 +624,7 @@ export default function App() {
           !authenticated || filters.firstSubmissionTime === "all"
             ? undefined
             : filters.firstSubmissionTime,
+        bookmarked: authenticated && filters.bookmarked ? true : undefined,
         sort:
           !authenticated && filters.sort.startsWith("score")
             ? "published_desc"
@@ -1025,6 +1033,7 @@ export default function App() {
   ) => {
     storeFilters(listFiltersStorageKey, {
       language: next.language,
+      bookmarked: next.bookmarked,
       level: next.level,
       length: next.length,
       status: next.status,
@@ -1034,6 +1043,7 @@ export default function App() {
     const params = new URLSearchParams();
     if (next.query) params.set("q", next.query);
     params.set("language", next.language);
+    if (next.bookmarked) params.set("bookmarked", "true");
     if (next.level !== "all") params.set("level", next.level);
     if (next.length !== "all") params.set("length", next.length);
     if (next.status !== "all") params.set("status", next.status);
@@ -1415,6 +1425,36 @@ export default function App() {
       title: "Google 계정으로 로그인",
       description: "로그인하면 풀이 결과와 학습 통계를 기록할 수 있습니다.",
     });
+  const toggleBookmark = async (item: ReadingItem) => {
+    if (!authenticated) {
+      openLogin();
+      return;
+    }
+    if (bookmarkingItemIds.has(item.id)) return;
+
+    const nextBookmarked = !item.isBookmarked;
+    setBookmarkingItemIds((current) => new Set(current).add(item.id));
+    try {
+      const isBookmarked = await api.setBookmark(item.id, nextBookmarked);
+      setItems((current) =>
+        current.map((entry) =>
+          entry.id === item.id ? { ...entry, isBookmarked } : entry,
+        ),
+      );
+      if (filters.bookmarked && !isBookmarked) {
+        await loadPublicItems();
+      }
+      setToast(isBookmarked ? "북마크에 저장했습니다." : "북마크를 해제했습니다.");
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "북마크를 변경하지 못했습니다.");
+    } finally {
+      setBookmarkingItemIds((current) => {
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
+    }
+  };
   const logout = () => {
     void api.logout().catch(() => undefined);
     api.clearAccessToken();
@@ -1427,6 +1467,10 @@ export default function App() {
     setResult(null);
     setStatistics(null);
     setPassageHighlights({});
+    setBookmarkingItemIds(new Set());
+    if (filters.bookmarked) {
+      writeListParams({ ...filters, bookmarked: false, query });
+    }
     navigate("/");
     setToast("로그아웃되었습니다.");
   };
@@ -1656,7 +1700,7 @@ export default function App() {
         {authLoading ? <p role="status">불러오는 중입니다.</p> : <Routes>
           <Route
             path="/"
-            element={<ReadingListScreen items={items} loading={isListLoading} error={listError} page={listPage} totalPages={listTotalPages} totalItems={listTotalItems} onPageChange={setListPage} authenticated={authenticated} filters={filters} setFilters={setListFilters} query={query} setQuery={setListQuery} onOpenFilters={openListFilters} onOpenScoreGuide={openScoreGuide} onStart={start} />}
+            element={<ReadingListScreen items={items} loading={isListLoading} error={listError} page={listPage} totalPages={listTotalPages} totalItems={listTotalItems} onPageChange={setListPage} authenticated={authenticated} filters={filters} setFilters={setListFilters} query={query} setQuery={setListQuery} onOpenFilters={openListFilters} onOpenScoreGuide={openScoreGuide} onStart={start} bookmarkingItemIds={bookmarkingItemIds} onToggleBookmark={(item) => void toggleBookmark(item)} />}
           />
           <Route path="/readings/:itemId" element={<RequireAuth authenticated={authenticated}><ReadingRoute items={items} attempt={attempt} result={result} onChoose={(questionId, choiceId) => setAttempt((current) => current ? { ...current, selectedChoiceId: current.questions[0]?.id === questionId ? choiceId : current.selectedChoiceId, answers: current.answers.map((answer) => answer.questionId === questionId ? { ...answer, selectedChoiceId: choiceId } : answer), message: "" } : current)} onSubmit={submit} isSubmitting={isSubmitting} onAbandon={goHome} onReport={openReport} onTranslate={openTranslation} onResult={() => result && navigate(`/results/${result.itemId}`)} highlights={attempt ? passageHighlights[attempt.itemId] ?? [] : []} onCreateHighlight={(startOffset, endOffset, selectedText) => attempt ? createPassageHighlight(attempt.itemId, startOffset, endOffset, selectedText) : Promise.reject(new Error("진행 중인 풀이가 없습니다."))} onDeleteHighlight={(highlightId) => attempt ? deletePassageHighlight(attempt.itemId, highlightId) : Promise.reject(new Error("진행 중인 풀이가 없습니다."))} /></RequireAuth>} />
           <Route path="/results/:itemId" element={<RequireAuth authenticated={authenticated}><ResultRoute result={result} onFeedback={openFeedback} onContinue={continueReading} onHome={goHome} /></RequireAuth>} />

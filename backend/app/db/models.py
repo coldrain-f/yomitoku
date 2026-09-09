@@ -190,6 +190,23 @@ class PassageHighlight(TimestampedModel, Base):
     selected_text: Mapped[str] = mapped_column(Text, nullable=False)
 
 
+class ItemBookmark(TimestampedModel, Base):
+    __tablename__ = "item_bookmarks"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "reading_item_id", name="uq_item_bookmark_user_item"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    reading_item_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("reading_items.id", ondelete="CASCADE"), nullable=False
+    )
+
+
 class ItemFeedback(TimestampedModel, Base):
     __tablename__ = "item_feedback"
     __table_args__ = (

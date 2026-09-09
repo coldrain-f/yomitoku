@@ -11,8 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import selectinload
 
 from app.api.routes.readings import (
+    bookmark_reading_item,
     create_passage_highlight,
     delete_passage_highlight,
+    delete_reading_bookmark,
     elapsed_seconds_since,
     get_attempt_state,
     get_owned_attempt_for_update,
@@ -24,7 +26,7 @@ from app.api.routes.readings import (
 )
 from app.core.security import CurrentUser
 from app.db.base import Base
-from app.db.models import Attempt, ReadingChoice, ReadingItem, User
+from app.db.models import Attempt, ItemBookmark, ReadingChoice, ReadingItem, User
 from app.schemas import AttemptSubmitRequest, PassageHighlightCreateRequest
 
 
@@ -292,6 +294,76 @@ async def test_passage_highlights_persist_per_user_and_can_be_removed(
         (start_offset, "근거")
     ]
     assert remaining == []
+
+
+@pytest.mark.asyncio
+async def test_bookmarks_are_per_user_and_combine_with_language_filters(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    user, _, _ = await make_open_attempt(sessions)
+    other_user = CurrentUser(id=uuid4(), role="learner")
+    korean_item_id = uuid4()
+
+    async with sessions() as session:
+        session.add(User(id=other_user.id, role="learner"))
+        session.add(
+            ReadingItem(
+                id=korean_item_id,
+                title="한국어 북마크",
+                passage="한국어 지문입니다.",
+                question="질문입니다.",
+                explanation="해설입니다.",
+                language="ko",
+                official_level="TOPIK 3급",
+                length_type="short",
+                topic="교육",
+                recommended_seconds=180,
+                status="published",
+                published_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+        japanese_item_id = await session.scalar(
+            select(ReadingItem.id).where(ReadingItem.language == "ja")
+        )
+        assert japanese_item_id is not None
+
+        assert (await bookmark_reading_item(japanese_item_id, session, user)).is_bookmarked
+        assert (await bookmark_reading_item(korean_item_id, session, user)).is_bookmarked
+
+        japanese = await list_published_reading_items(
+            session=session,
+            current_user=user,
+            language="ja",
+            bookmarked=True,
+        )
+        korean = await list_published_reading_items(
+            session=session,
+            current_user=user,
+            language="ko",
+            bookmarked=True,
+        )
+        other_user_page = await list_published_reading_items(
+            session=session,
+            current_user=other_user,
+        )
+
+        assert [item.id for item in japanese.items] == [japanese_item_id]
+        assert [item.id for item in korean.items] == [korean_item_id]
+        assert japanese.items[0].is_bookmarked is True
+        assert all(item.is_bookmarked is False for item in other_user_page.items)
+        assert await session.scalar(select(ItemBookmark.id)) is not None
+
+        removed = await delete_reading_bookmark(japanese_item_id, session, user)
+        after_removal = await list_published_reading_items(
+            session=session,
+            current_user=user,
+            language="ja",
+            bookmarked=True,
+        )
+
+    assert removed.is_bookmarked is False
+    assert after_removal.items == []
 
 
 def test_highlight_offsets_do_not_split_utf16_surrogate_pairs() -> None:

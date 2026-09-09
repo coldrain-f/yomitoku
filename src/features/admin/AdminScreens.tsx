@@ -1303,6 +1303,7 @@ export function ManualCreateScreen({
     myFirstSubmissionTimedOut: false,
     myScore: null,
     myScoreReason: null,
+    isBookmarked: false,
     passage: values.passage,
     question: values.question,
     choices: values.choices,

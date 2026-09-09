@@ -1321,6 +1321,40 @@ fieldset.admin-edit-form {
   font-size: 12px;
 }
 
+.bookmark-filter-button {
+  min-height: 34px;
+  border: 1px solid #d7b978;
+  border-radius: 999px;
+  background: #fffaf0;
+  color: #8a641d;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 11px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.bookmark-filter-button [data-lucide] {
+  width: 15px;
+  height: 15px;
+}
+
+.bookmark-filter-button:hover,
+.bookmark-filter-button:focus-visible,
+.bookmark-filter-button.is-active {
+  border-color: #af7b1e;
+  background: #f5dfad;
+  color: #6f4b0b;
+}
+
+.bookmark-filter-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
 .filter-search {
   position: relative;
   flex: 1;
@@ -1420,7 +1454,7 @@ fieldset.admin-edit-form {
   color: var(--ink);
   padding: 14px 30px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto 20px;
+  grid-template-columns: minmax(0, 1fr) auto 34px 20px;
   gap: 12px;
   align-items: center;
   position: relative;
@@ -1447,6 +1481,45 @@ fieldset.admin-edit-form {
   border: 0;
   background: transparent;
   padding: 0;
+}
+
+.reading-row > .row-bookmark-button {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+}
+
+.row-bookmark-button {
+  width: 30px;
+  height: 32px;
+  border: 1px solid #e1d2b2;
+  border-radius: 5px;
+  background: #fffefa;
+  color: #9b751f;
+  display: inline-grid;
+  place-items: center;
+}
+
+.row-bookmark-button:hover:not(:disabled),
+.row-bookmark-button:focus-visible:not(:disabled) {
+  border-color: #af7b1e;
+  background: #fff7e7;
+}
+
+.row-bookmark-button.is-bookmarked {
+  border-color: #b98220;
+  background: #f4dcaa;
+  color: #754d08;
+}
+
+.row-bookmark-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.row-bookmark-button [data-lucide] {
+  width: 16px;
+  height: 16px;
 }
 
 .reading-row-main {
@@ -3084,7 +3157,7 @@ body.dialog-open {
   }
 
   .reading-row {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto 34px;
     padding: 14px 18px;
   }
 
@@ -3106,6 +3179,10 @@ body.dialog-open {
   .reading-row > .row-state {
     grid-column: 2;
     justify-self: start;
+  }
+
+  .reading-row > .row-bookmark-button {
+    grid-column: 3;
   }
 
   .list-pagination {
