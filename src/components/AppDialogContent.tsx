@@ -43,7 +43,7 @@ interface AppDialogContentProps {
   highlightsLoading: boolean;
   highlightsError: string;
   removingHighlightId: string | null;
-  onRemoveHighlight: (readingItemId: string, highlightId: string) => Promise<void>;
+  onRemoveHighlight: (readingItemId: string, highlightId: string) => void | Promise<void>;
 }
 
 export function AppDialogContent({

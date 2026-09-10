@@ -728,6 +728,7 @@ export default function App() {
       );
     } finally {
       setRemovingHighlightId(null);
+      showHighlightCollectionDialog();
     }
   };
   const loadGenerationModels = async () => {
@@ -1335,6 +1336,13 @@ export default function App() {
       title: "점수 기준",
       description: "",
     });
+  const showHighlightCollectionDialog = () =>
+    openDialog({
+      type: "highlights",
+      kicker: "My highlights",
+      title: "내 하이라이트",
+      description: "",
+    });
   const openHighlightCollection = () => {
     if (!authenticated) {
       openLogin();
@@ -1344,12 +1352,7 @@ export default function App() {
     setHighlightCollectionError("");
     setRemovingHighlightId(null);
     setIsHighlightCollectionLoading(true);
-    openDialog({
-      type: "highlights",
-      kicker: "My highlights",
-      title: "내 하이라이트",
-      description: "",
-    });
+    showHighlightCollectionDialog();
     void api
       .highlightCollection()
       .then(setHighlightCollection)
@@ -1361,6 +1364,28 @@ export default function App() {
         ),
       )
       .finally(() => setIsHighlightCollectionLoading(false));
+  };
+  const confirmHighlightRemoval = (itemId: string, highlightId: string) => {
+    const highlight = highlightCollection.find((entry) => entry.id === highlightId);
+    if (!highlight || removingHighlightId) return;
+    openDialog({
+      type: "highlight-delete",
+      kicker: "Remove highlight",
+      title: "이 하이라이트를 제거할까요?",
+      context: highlight.selectedText,
+      contextMeta: [
+        highlight.officialLevel,
+        lengthLabels[highlight.lengthType],
+        highlight.topic,
+      ],
+      description: "제거한 하이라이트는 복구할 수 없습니다.",
+      confirmLabel: "제거하기",
+      onCancel: showHighlightCollectionDialog,
+      onConfirm: () => {
+        closeDialog();
+        void removeHighlightFromCollection(itemId, highlightId);
+      },
+    });
   };
   const openAdminFilters = () => {
     setAdminFilterDraft(adminFilters);
@@ -1814,7 +1839,7 @@ export default function App() {
         </nav>
       ) : null}
       <Dialog dialog={dialog} onClose={closeDialog}>
-        <AppDialogContent type={dialog?.type} authenticated={authenticated} filterDraft={filterDraft} setFilterDraft={setFilterDraft} adminFilterDraft={adminFilterDraft} setAdminFilterDraft={setAdminFilterDraft} reportText={reportText} setReportText={setReportText} feedback={feedback} feedbackLanguage={result?.item.language ?? defaultGenerationLanguage} setFeedback={setFeedback} dialogError={dialogError} googleClientId={googleClientId} onGoogleCredential={completeGoogleLogin} onGoogleError={setDialogError} translation={translation} translationLoading={translationLoading} translationError={translationError} highlights={highlightCollection} highlightsLoading={isHighlightCollectionLoading} highlightsError={highlightCollectionError} removingHighlightId={removingHighlightId} onRemoveHighlight={removeHighlightFromCollection} />
+        <AppDialogContent type={dialog?.type} authenticated={authenticated} filterDraft={filterDraft} setFilterDraft={setFilterDraft} adminFilterDraft={adminFilterDraft} setAdminFilterDraft={setAdminFilterDraft} reportText={reportText} setReportText={setReportText} feedback={feedback} feedbackLanguage={result?.item.language ?? defaultGenerationLanguage} setFeedback={setFeedback} dialogError={dialogError} googleClientId={googleClientId} onGoogleCredential={completeGoogleLogin} onGoogleError={setDialogError} translation={translation} translationLoading={translationLoading} translationError={translationError} highlights={highlightCollection} highlightsLoading={isHighlightCollectionLoading} highlightsError={highlightCollectionError} removingHighlightId={removingHighlightId} onRemoveHighlight={confirmHighlightRemoval} />
       </Dialog>
       {toast ? <div className="toast is-visible" role="status">{toast}</div> : null}
     </main>

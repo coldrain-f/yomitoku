@@ -244,7 +244,8 @@ export interface DialogConfig {
     | "google-login"
     | "translation"
     | "score-guide"
-    | "highlights";
+    | "highlights"
+    | "highlight-delete";
   kicker: string;
   title: string;
   context?: string;
@@ -252,6 +253,7 @@ export interface DialogConfig {
   description: string;
   confirmLabel?: string;
   onConfirm?: () => void;
+  onCancel?: () => void;
   onReset?: () => void;
 }
 

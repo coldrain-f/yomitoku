@@ -26,7 +26,10 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
     );
     document.body.classList.add("dialog-open");
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        onClose();
+        dialog.onCancel?.();
+      }
     };
     document.addEventListener("keydown", onKeyDown);
     return () => {
@@ -37,6 +40,10 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
   }, [dialog, onClose]);
 
   if (!dialog) return null;
+  const dismiss = () => {
+    onClose();
+    dialog.onCancel?.();
+  };
   const closeLabel =
     dialog.type === "translation" ||
     dialog.type === "score-guide" ||
@@ -47,9 +54,9 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
   return (
     <div
       className="dialog-backdrop"
-        onMouseDown={(event: MouseEvent<HTMLDivElement>) =>
-          event.currentTarget === event.target && onClose()
-        }
+      onMouseDown={(event: MouseEvent<HTMLDivElement>) => {
+        if (event.currentTarget === event.target) dismiss();
+      }}
     >
       <section
         className={`confirm-dialog${
@@ -66,7 +73,7 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
           type="button"
           aria-label="닫기"
           title="닫기"
-          onClick={onClose}
+          onClick={dismiss}
         >
           <Icon icon={X} />
         </button>
@@ -89,7 +96,7 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
         {dialog.description ? <p className="body-copy">{dialog.description}</p> : null}
         {children}
         <div className={`dialog-actions${dialog.onReset ? " has-reset" : ""}`}>
-          <button className="text-button" type="button" onClick={onClose}>
+          <button className="text-button" type="button" onClick={dismiss}>
             {closeLabel}
           </button>
           {dialog.onReset ? (
