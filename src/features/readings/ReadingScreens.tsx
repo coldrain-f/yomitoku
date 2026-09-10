@@ -57,6 +57,7 @@ interface ReadingListScreenProps {
   query: string;
   setQuery: (query: string) => void;
   onOpenFilters: () => void;
+  onOpenHighlights: () => void;
   onOpenScoreGuide: () => void;
   onStart: (item: ReadingItem) => void;
   bookmarkingItemIds: Set<string>;
@@ -114,6 +115,7 @@ export function ReadingListScreen({
   query,
   setQuery,
   onOpenFilters,
+  onOpenHighlights,
   onOpenScoreGuide,
   onStart,
   bookmarkingItemIds,
@@ -215,6 +217,17 @@ export function ReadingListScreen({
           >
             <Icon icon={SlidersHorizontal} />
           </button>
+          {authenticated ? (
+            <button
+              className="icon-button list-highlights-button"
+              type="button"
+              aria-label="내 하이라이트"
+              title="내 하이라이트"
+              onClick={onOpenHighlights}
+            >
+              <Icon icon={Highlighter} />
+            </button>
+          ) : null}
         </div>
         {loading ? <LoadingOverlay label="목록을 불러오는 중입니다." /> : null}
         {error ? <p className="list-load-error" role="alert">{error}</p> : null}

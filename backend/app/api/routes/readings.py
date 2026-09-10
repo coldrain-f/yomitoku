@@ -38,6 +38,7 @@ from app.schemas import (
     AttemptSubmitRequest,
     FeedbackRequest,
     LengthType,
+    PassageHighlightCollectionEntry,
     PassageHighlightCreateRequest,
     PassageHighlightResponse,
     ReadingBookmarkResponse,
@@ -600,6 +601,44 @@ async def list_published_reading_items(
         total_items=total_items,
         total_pages=total_pages,
     )
+
+
+@router.get("/highlights", response_model=list[PassageHighlightCollectionEntry])
+async def list_user_passage_highlights(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> list[PassageHighlightCollectionEntry]:
+    rows = (
+        await session.execute(
+            select(PassageHighlight, ReadingItem)
+            .join(ReadingItem, ReadingItem.id == PassageHighlight.reading_item_id)
+            .where(
+                PassageHighlight.user_id == current_user.id,
+                ReadingItem.status == "published",
+            )
+            .order_by(PassageHighlight.created_at.desc())
+        )
+    ).all()
+    return [
+        PassageHighlightCollectionEntry(
+            id=highlight.id,
+            reading_item_id=item.id,
+            title=item.title,
+            language=item.language,
+            official_level=item.official_level,
+            length_type=item.length_type,
+            topic=item.topic,
+            selected_text=highlight.selected_text,
+            created_at=highlight.created_at,
+        )
+        for highlight, item in rows
+        if selected_text_for_offsets(
+            normalized_passage_text(item.passage),
+            highlight.start_offset,
+            highlight.end_offset,
+        )
+        == highlight.selected_text
+    ]
 
 
 @router.get("/{item_id}", response_model=ReadingItemDetail)

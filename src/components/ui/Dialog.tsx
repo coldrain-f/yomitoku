@@ -38,7 +38,9 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
 
   if (!dialog) return null;
   const closeLabel =
-    dialog.type === "translation" || dialog.type === "score-guide"
+    dialog.type === "translation" ||
+    dialog.type === "score-guide" ||
+    dialog.type === "highlights"
       ? "닫기"
       : "취소";
 
@@ -50,7 +52,11 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
         }
     >
       <section
-        className={`confirm-dialog${dialog.type === "translation" ? " confirm-dialog-wide" : ""}`}
+        className={`confirm-dialog${
+          dialog.type === "translation" || dialog.type === "highlights"
+            ? " confirm-dialog-wide"
+            : ""
+        }`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="dialog-title"

@@ -20,6 +20,7 @@ from app.api.routes.readings import (
     get_owned_attempt_for_update,
     list_passage_highlights,
     list_published_reading_items,
+    list_user_passage_highlights,
     selected_text_for_offsets,
     start_attempt,
     submit_attempt,
@@ -294,6 +295,34 @@ async def test_passage_highlights_persist_per_user_and_can_be_removed(
         (start_offset, "근거")
     ]
     assert remaining == []
+
+
+@pytest.mark.asyncio
+async def test_highlight_collection_includes_item_context(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    user, _, _ = await make_open_attempt(sessions)
+
+    async with sessions() as session:
+        item = await session.scalar(select(ReadingItem))
+        assert item is not None
+        start_offset = item.passage.index("근거")
+        await create_passage_highlight(
+            item.id,
+            PassageHighlightCreateRequest(
+                start_offset=start_offset,
+                end_offset=start_offset + len("근거"),
+                selected_text="근거",
+            ),
+            session,
+            user,
+        )
+        collection = await list_user_passage_highlights(session, user)
+
+    assert len(collection) == 1
+    assert collection[0].reading_item_id == item.id
+    assert collection[0].title == item.title
+    assert collection[0].selected_text == "근거"
 
 
 @pytest.mark.asyncio

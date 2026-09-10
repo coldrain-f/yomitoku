@@ -1,5 +1,7 @@
 import { OptionButtons } from "./ui/OptionButtons";
+import { Trash2 } from "lucide-react";
 import { GoogleSignInButton } from "../features/auth/GoogleSignInButton";
+import { Icon } from "./ui/Icon";
 import { lengthLabels } from "../lib/reading";
 import {
   languageLabels,
@@ -12,6 +14,7 @@ import type {
   AdminFilters,
   DialogConfig,
   FeedbackValues,
+  HighlightCollectionEntry,
   ListFilters,
   ReadingLanguage,
   StateSetter,
@@ -36,6 +39,11 @@ interface AppDialogContentProps {
   translation: ReadingTranslation | null;
   translationLoading: boolean;
   translationError: string;
+  highlights: HighlightCollectionEntry[];
+  highlightsLoading: boolean;
+  highlightsError: string;
+  removingHighlightId: string | null;
+  onRemoveHighlight: (readingItemId: string, highlightId: string) => Promise<void>;
 }
 
 export function AppDialogContent({
@@ -57,6 +65,11 @@ export function AppDialogContent({
   translation,
   translationLoading,
   translationError,
+  highlights,
+  highlightsLoading,
+  highlightsError,
+  removingHighlightId,
+  onRemoveHighlight,
 }: AppDialogContentProps) {
   if (type === "google-login") {
     return (
@@ -93,6 +106,79 @@ export function AppDialogContent({
         <p className="score-guide-note">
           문항별 점수 배지를 탭하면 해당 점수의 사유를 확인할 수 있습니다.
         </p>
+      </div>
+    );
+  }
+
+  if (type === "highlights") {
+    const groups = new Map<
+      string,
+      { item: HighlightCollectionEntry; highlights: HighlightCollectionEntry[] }
+    >();
+    for (const highlight of highlights) {
+      const group = groups.get(highlight.readingItemId);
+      if (group) {
+        group.highlights.push(highlight);
+      } else {
+        groups.set(highlight.readingItemId, {
+          item: highlight,
+          highlights: [highlight],
+        });
+      }
+    }
+
+    return (
+      <div className="highlight-collection-dialog">
+        {highlightsLoading ? (
+          <p className="highlight-collection-status" role="status">
+            하이라이트를 불러오는 중입니다.
+          </p>
+        ) : null}
+        {highlightsError ? (
+          <p className="dialog-field-error" role="alert">
+            {highlightsError}
+          </p>
+        ) : null}
+        {!highlightsLoading && !highlightsError && highlights.length === 0 ? (
+          <p className="highlight-collection-empty">
+            저장한 하이라이트가 없습니다. 지문에서 복습할 문장을 선택해 보세요.
+          </p>
+        ) : null}
+        {[...groups.values()].map(({ item, highlights: itemHighlights }) => (
+          <section className="highlight-collection-group" key={item.readingItemId}>
+            <div className="highlight-collection-heading">
+              <h3>{item.title}</h3>
+              <div className="highlight-collection-meta">
+                <span className="badge">{languageLabels[item.language]}</span>
+                <span className="badge">{item.officialLevel}</span>
+                <span className="badge">{lengthLabels[item.lengthType]}</span>
+                <span>{item.topic}</span>
+              </div>
+            </div>
+            <ul className="highlight-collection-list">
+              {itemHighlights.map((highlight) => (
+                <li key={highlight.id}>
+                  <p lang={highlight.language}>{highlight.selectedText}</p>
+                  <button
+                    className="icon-button highlight-collection-remove"
+                    type="button"
+                    aria-label={`${item.title}의 하이라이트 제거`}
+                    title="하이라이트 제거"
+                    disabled={removingHighlightId === highlight.id}
+                    onClick={() =>
+                      void onRemoveHighlight(
+                        highlight.readingItemId,
+                        highlight.id,
+                      )
+                    }
+                  >
+                    <Icon icon={Trash2} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
       </div>
     );
   }

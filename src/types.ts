@@ -48,6 +48,18 @@ export interface PassageHighlight {
   selectedText: string;
 }
 
+export interface HighlightCollectionEntry {
+  id: string;
+  readingItemId: string;
+  title: string;
+  language: ReadingLanguage;
+  officialLevel: DifficultyLevel;
+  lengthType: LengthType;
+  topic: Topic;
+  selectedText: string;
+  createdAt: string;
+}
+
 export interface ItemReport {
   id: string;
   content: string;
@@ -231,7 +243,8 @@ export interface DialogConfig {
     | "feedback"
     | "google-login"
     | "translation"
-    | "score-guide";
+    | "score-guide"
+    | "highlights";
   kicker: string;
   title: string;
   context?: string;

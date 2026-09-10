@@ -4,6 +4,7 @@ import type {
   Choice,
   DifficultyLevel,
   GenerationValues,
+  HighlightCollectionEntry,
   ItemReport,
   ItemValidation,
   LearningScore,
@@ -521,6 +522,10 @@ export const api = {
     }),
   highlights: (itemId: string) =>
     request<ApiPassageHighlight[]>(`/reading-items/${itemId}/highlights`).then(
+      (highlights) => highlights.map((highlight) => ({ ...highlight })),
+    ),
+  highlightCollection: () =>
+    request<HighlightCollectionEntry[]>("/reading-items/highlights").then(
       (highlights) => highlights.map((highlight) => ({ ...highlight })),
     ),
   createHighlight: (

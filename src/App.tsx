@@ -60,6 +60,7 @@ import type {
   DialogConfig,
   FeedbackValues,
   GenerationValues,
+  HighlightCollectionEntry,
   ListFilters,
   ManualReadingDraft,
   PassageHighlight,
@@ -499,6 +500,15 @@ export default function App() {
   const [passageHighlights, setPassageHighlights] = useState<
     Record<string, PassageHighlight[]>
   >({});
+  const [highlightCollection, setHighlightCollection] = useState<
+    HighlightCollectionEntry[]
+  >([]);
+  const [isHighlightCollectionLoading, setIsHighlightCollectionLoading] =
+    useState(false);
+  const [highlightCollectionError, setHighlightCollectionError] = useState("");
+  const [removingHighlightId, setRemovingHighlightId] = useState<string | null>(
+    null,
+  );
   const [adminLoaded, setAdminLoaded] = useState(false);
   const [isListLoading, setIsListLoading] = useState(true);
   const [bookmarkingItemIds, setBookmarkingItemIds] = useState<Set<string>>(
@@ -692,6 +702,33 @@ export default function App() {
       ...current,
       [itemId]: (current[itemId] ?? []).filter((entry) => entry.id !== highlightId),
     }));
+  };
+  const removeHighlightFromCollection = async (
+    itemId: string,
+    highlightId: string,
+  ) => {
+    if (removingHighlightId) return;
+    setRemovingHighlightId(highlightId);
+    setHighlightCollectionError("");
+    try {
+      await api.deleteHighlight(itemId, highlightId);
+      setHighlightCollection((current) =>
+        current.filter((highlight) => highlight.id !== highlightId),
+      );
+      setPassageHighlights((current) => ({
+        ...current,
+        [itemId]: (current[itemId] ?? []).filter(
+          (highlight) => highlight.id !== highlightId,
+        ),
+      }));
+      setToast("하이라이트를 제거했습니다.");
+    } catch (error) {
+      setHighlightCollectionError(
+        error instanceof Error ? error.message : "하이라이트를 제거하지 못했습니다.",
+      );
+    } finally {
+      setRemovingHighlightId(null);
+    }
   };
   const loadGenerationModels = async () => {
     setGenerationModelsError("");
@@ -1298,6 +1335,33 @@ export default function App() {
       title: "점수 기준",
       description: "",
     });
+  const openHighlightCollection = () => {
+    if (!authenticated) {
+      openLogin();
+      return;
+    }
+    setHighlightCollection([]);
+    setHighlightCollectionError("");
+    setRemovingHighlightId(null);
+    setIsHighlightCollectionLoading(true);
+    openDialog({
+      type: "highlights",
+      kicker: "My highlights",
+      title: "내 하이라이트",
+      description: "",
+    });
+    void api
+      .highlightCollection()
+      .then(setHighlightCollection)
+      .catch((error: unknown) =>
+        setHighlightCollectionError(
+          error instanceof Error
+            ? error.message
+            : "하이라이트를 불러오지 못했습니다.",
+        ),
+      )
+      .finally(() => setIsHighlightCollectionLoading(false));
+  };
   const openAdminFilters = () => {
     setAdminFilterDraft(adminFilters);
     openDialog({
@@ -1493,6 +1557,9 @@ export default function App() {
     setResult(null);
     setStatistics(null);
     setPassageHighlights({});
+    setHighlightCollection([]);
+    setHighlightCollectionError("");
+    setRemovingHighlightId(null);
     setBookmarkingItemIds(new Set());
     if (filters.bookmarked) {
       writeListParams({ ...filters, bookmarked: false, query });
@@ -1726,7 +1793,7 @@ export default function App() {
         {authLoading ? <p role="status">불러오는 중입니다.</p> : <Routes>
           <Route
             path="/"
-            element={<ReadingListScreen items={items} loading={isListLoading} error={listError} page={listPage} totalPages={listTotalPages} totalItems={listTotalItems} onPageChange={setListPage} authenticated={authenticated} filters={filters} setFilters={setListFilters} query={query} setQuery={setListQuery} onOpenFilters={openListFilters} onOpenScoreGuide={openScoreGuide} onStart={start} bookmarkingItemIds={bookmarkingItemIds} onToggleBookmark={(item) => void toggleBookmark(item)} />}
+            element={<ReadingListScreen items={items} loading={isListLoading} error={listError} page={listPage} totalPages={listTotalPages} totalItems={listTotalItems} onPageChange={setListPage} authenticated={authenticated} filters={filters} setFilters={setListFilters} query={query} setQuery={setListQuery} onOpenFilters={openListFilters} onOpenHighlights={openHighlightCollection} onOpenScoreGuide={openScoreGuide} onStart={start} bookmarkingItemIds={bookmarkingItemIds} onToggleBookmark={(item) => void toggleBookmark(item)} />}
           />
           <Route path="/readings/:itemId" element={<RequireAuth authenticated={authenticated}><ReadingRoute items={items} attempt={attempt} result={result} onChoose={(questionId, choiceId) => setAttempt((current) => current ? { ...current, selectedChoiceId: current.questions[0]?.id === questionId ? choiceId : current.selectedChoiceId, answers: current.answers.map((answer) => answer.questionId === questionId ? { ...answer, selectedChoiceId: choiceId } : answer), message: "" } : current)} onSubmit={submit} isSubmitting={isSubmitting} onAbandon={goHome} onReport={openReport} onTranslate={openTranslation} onResult={() => result && navigate(`/results/${result.itemId}`)} highlights={attempt ? passageHighlights[attempt.itemId] ?? [] : []} onCreateHighlight={(startOffset, endOffset, selectedText) => attempt ? createPassageHighlight(attempt.itemId, startOffset, endOffset, selectedText) : Promise.reject(new Error("진행 중인 풀이가 없습니다."))} onDeleteHighlight={(highlightId) => attempt ? deletePassageHighlight(attempt.itemId, highlightId) : Promise.reject(new Error("진행 중인 풀이가 없습니다."))} /></RequireAuth>} />
           <Route path="/results/:itemId" element={<RequireAuth authenticated={authenticated}><ResultRoute result={result} onFeedback={openFeedback} onContinue={continueReading} onHome={goHome} /></RequireAuth>} />
@@ -1747,7 +1814,7 @@ export default function App() {
         </nav>
       ) : null}
       <Dialog dialog={dialog} onClose={closeDialog}>
-        <AppDialogContent type={dialog?.type} authenticated={authenticated} filterDraft={filterDraft} setFilterDraft={setFilterDraft} adminFilterDraft={adminFilterDraft} setAdminFilterDraft={setAdminFilterDraft} reportText={reportText} setReportText={setReportText} feedback={feedback} feedbackLanguage={result?.item.language ?? defaultGenerationLanguage} setFeedback={setFeedback} dialogError={dialogError} googleClientId={googleClientId} onGoogleCredential={completeGoogleLogin} onGoogleError={setDialogError} translation={translation} translationLoading={translationLoading} translationError={translationError} />
+        <AppDialogContent type={dialog?.type} authenticated={authenticated} filterDraft={filterDraft} setFilterDraft={setFilterDraft} adminFilterDraft={adminFilterDraft} setAdminFilterDraft={setAdminFilterDraft} reportText={reportText} setReportText={setReportText} feedback={feedback} feedbackLanguage={result?.item.language ?? defaultGenerationLanguage} setFeedback={setFeedback} dialogError={dialogError} googleClientId={googleClientId} onGoogleCredential={completeGoogleLogin} onGoogleError={setDialogError} translation={translation} translationLoading={translationLoading} translationError={translationError} highlights={highlightCollection} highlightsLoading={isHighlightCollectionLoading} highlightsError={highlightCollectionError} removingHighlightId={removingHighlightId} onRemoveHighlight={removeHighlightFromCollection} />
       </Dialog>
       {toast ? <div className="toast is-visible" role="status">{toast}</div> : null}
     </main>

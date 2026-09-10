@@ -330,6 +330,18 @@ class PassageHighlightResponse(ApiModel):
     selected_text: str
 
 
+class PassageHighlightCollectionEntry(ApiModel):
+    id: UUID
+    reading_item_id: UUID
+    title: str
+    language: ReadingLanguage
+    official_level: ReadingLevel
+    length_type: LengthType
+    topic: str
+    selected_text: str
+    created_at: datetime
+
+
 class ReadingBookmarkResponse(ApiModel):
     reading_item_id: UUID
     is_bookmarked: bool
