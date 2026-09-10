@@ -61,6 +61,7 @@ import type {
   FeedbackValues,
   GenerationValues,
   HighlightCollectionPage,
+  HighlightRemovalConfirmation,
   ListFilters,
   ManualReadingDraft,
   PassageHighlight,
@@ -516,6 +517,8 @@ export default function App() {
     "all" | ReadingLanguage
   >("all");
   const [highlightQuery, setHighlightQuery] = useState("");
+  const [highlightRemoval, setHighlightRemoval] =
+    useState<HighlightRemovalConfirmation | null>(null);
   const [removingHighlightId, setRemovingHighlightId] = useState<string | null>(
     null,
   );
@@ -760,7 +763,6 @@ export default function App() {
       );
     } finally {
       setRemovingHighlightId(null);
-      showHighlightCollectionDialog();
     }
   };
   const loadGenerationModels = async () => {
@@ -1424,6 +1426,7 @@ export default function App() {
     setHighlightCollection(emptyHighlightCollection);
     setHighlightCollectionError("");
     setRemovingHighlightId(null);
+    setHighlightRemoval(null);
     showHighlightCollectionDialog();
     void loadHighlightCollection({ language: "all", query: "", page: 1 });
   };
@@ -1433,23 +1436,15 @@ export default function App() {
     );
     const highlight = item?.highlights.find((entry) => entry.id === highlightId);
     if (!item || !highlight || removingHighlightId) return;
-    openDialog({
-      type: "highlight-delete",
-      kicker: "Remove highlight",
-      title: "이 하이라이트를 제거할까요?",
-      context: highlight.selectedText,
-      contextMeta: [
-        item.officialLevel,
-        lengthLabels[item.lengthType],
-        item.topic,
-      ],
-      description: "제거한 하이라이트는 복구할 수 없습니다.",
-      confirmLabel: "제거하기",
-      onCancel: showHighlightCollectionDialog,
-      onConfirm: () => {
-        closeDialog();
-        void removeHighlightFromCollection(itemId, highlightId);
-      },
+    setHighlightRemoval({
+      readingItemId: itemId,
+      highlightId,
+      title: item.title,
+      language: item.language,
+      officialLevel: item.officialLevel,
+      lengthType: item.lengthType,
+      topic: item.topic,
+      selectedText: highlight.selectedText,
     });
   };
   const openAdminFilters = () => {
@@ -1650,6 +1645,7 @@ export default function App() {
     setHighlightCollection(emptyHighlightCollection);
     setHighlightCollectionError("");
     setRemovingHighlightId(null);
+    setHighlightRemoval(null);
     setBookmarkingItemIds(new Set());
     if (filters.bookmarked) {
       writeListParams({ ...filters, bookmarked: false, query });
@@ -1904,7 +1900,7 @@ export default function App() {
         </nav>
       ) : null}
       <Dialog dialog={dialog} onClose={closeDialog}>
-        <AppDialogContent type={dialog?.type} authenticated={authenticated} filterDraft={filterDraft} setFilterDraft={setFilterDraft} adminFilterDraft={adminFilterDraft} setAdminFilterDraft={setAdminFilterDraft} reportText={reportText} setReportText={setReportText} feedback={feedback} feedbackLanguage={result?.item.language ?? defaultGenerationLanguage} setFeedback={setFeedback} dialogError={dialogError} googleClientId={googleClientId} onGoogleCredential={completeGoogleLogin} onGoogleError={setDialogError} translation={translation} translationLoading={translationLoading} translationError={translationError} highlightCollection={highlightCollection} highlightLanguage={highlightLanguage} highlightQuery={highlightQuery} onHighlightLanguageChange={(language) => { setHighlightLanguage(language); void loadHighlightCollection({ language, page: 1 }); }} onHighlightQueryChange={setHighlightQuery} onHighlightSearch={() => void loadHighlightCollection({ page: 1 })} onHighlightPageChange={(page) => void loadHighlightCollection({ page })} highlightsLoading={isHighlightCollectionLoading} highlightsError={highlightCollectionError} removingHighlightId={removingHighlightId} onRemoveHighlight={confirmHighlightRemoval} />
+        <AppDialogContent type={dialog?.type} authenticated={authenticated} filterDraft={filterDraft} setFilterDraft={setFilterDraft} adminFilterDraft={adminFilterDraft} setAdminFilterDraft={setAdminFilterDraft} reportText={reportText} setReportText={setReportText} feedback={feedback} feedbackLanguage={result?.item.language ?? defaultGenerationLanguage} setFeedback={setFeedback} dialogError={dialogError} googleClientId={googleClientId} onGoogleCredential={completeGoogleLogin} onGoogleError={setDialogError} translation={translation} translationLoading={translationLoading} translationError={translationError} highlightCollection={highlightCollection} highlightLanguage={highlightLanguage} highlightQuery={highlightQuery} onHighlightLanguageChange={(language) => { setHighlightLanguage(language); void loadHighlightCollection({ language, page: 1 }); }} onHighlightQueryChange={setHighlightQuery} onHighlightSearch={() => void loadHighlightCollection({ page: 1 })} onHighlightPageChange={(page) => void loadHighlightCollection({ page })} highlightsLoading={isHighlightCollectionLoading} highlightsError={highlightCollectionError} removingHighlightId={removingHighlightId} highlightRemoval={highlightRemoval} onCancelHighlightRemoval={() => setHighlightRemoval(null)} onConfirmHighlightRemoval={() => { if (!highlightRemoval) return; setHighlightRemoval(null); void removeHighlightFromCollection(highlightRemoval.readingItemId, highlightRemoval.highlightId); }} onRemoveHighlight={confirmHighlightRemoval} />
       </Dialog>
       {toast ? <div className="toast is-visible" role="status">{toast}</div> : null}
     </main>

@@ -74,6 +74,17 @@ export interface HighlightCollectionPage {
   totalPages: number;
 }
 
+export interface HighlightRemovalConfirmation {
+  readingItemId: string;
+  highlightId: string;
+  title: string;
+  language: ReadingLanguage;
+  officialLevel: DifficultyLevel;
+  lengthType: LengthType;
+  topic: Topic;
+  selectedText: string;
+}
+
 export interface ItemReport {
   id: string;
   content: string;
@@ -258,8 +269,7 @@ export interface DialogConfig {
     | "google-login"
     | "translation"
     | "score-guide"
-    | "highlights"
-    | "highlight-delete";
+    | "highlights";
   kicker: string;
   title: string;
   context?: string;

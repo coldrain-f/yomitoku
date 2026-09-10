@@ -15,6 +15,7 @@ import type {
   DialogConfig,
   FeedbackValues,
   HighlightCollectionPage,
+  HighlightRemovalConfirmation,
   ListFilters,
   ReadingLanguage,
   StateSetter,
@@ -49,6 +50,9 @@ interface AppDialogContentProps {
   highlightsLoading: boolean;
   highlightsError: string;
   removingHighlightId: string | null;
+  highlightRemoval: HighlightRemovalConfirmation | null;
+  onCancelHighlightRemoval: () => void;
+  onConfirmHighlightRemoval: () => void;
   onRemoveHighlight: (readingItemId: string, highlightId: string) => void | Promise<void>;
 }
 
@@ -81,6 +85,9 @@ export function AppDialogContent({
   highlightsLoading,
   highlightsError,
   removingHighlightId,
+  highlightRemoval,
+  onCancelHighlightRemoval,
+  onConfirmHighlightRemoval,
   onRemoveHighlight,
 }: AppDialogContentProps) {
   if (type === "google-login") {
@@ -246,6 +253,37 @@ export function AppDialogContent({
                 </button>
               </div>
             ) : null}
+          </div>
+        ) : null}
+        {highlightRemoval ? (
+          <div
+            className="highlight-removal-confirmation"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="highlight-removal-title"
+          >
+            <div className="highlight-removal-confirmation-card">
+              <p className="kicker">Remove highlight</p>
+              <h3 id="highlight-removal-title">이 하이라이트를 제거할까요?</h3>
+              <p className="highlight-removal-title">{highlightRemoval.title}</p>
+              <p className="highlight-removal-text" lang={highlightRemoval.language}>
+                {highlightRemoval.selectedText}
+              </p>
+              <div className="highlight-removal-meta">
+                <span className="badge">{highlightRemoval.officialLevel}</span>
+                <span className="badge">{lengthLabels[highlightRemoval.lengthType]}</span>
+                <span>{highlightRemoval.topic}</span>
+              </div>
+              <p className="highlight-removal-note">제거한 하이라이트는 복구할 수 없습니다.</p>
+              <div className="highlight-removal-actions">
+                <button className="text-button" type="button" onClick={onCancelHighlightRemoval}>
+                  취소
+                </button>
+                <button className="primary-button" type="button" onClick={onConfirmHighlightRemoval}>
+                  제거하기
+                </button>
+              </div>
+            </div>
           </div>
         ) : null}
       </div>
