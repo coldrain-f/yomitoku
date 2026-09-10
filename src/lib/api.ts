@@ -4,7 +4,7 @@ import type {
   Choice,
   DifficultyLevel,
   GenerationValues,
-  HighlightCollectionEntry,
+  HighlightCollectionPage,
   ItemReport,
   ItemValidation,
   LearningScore,
@@ -524,10 +524,22 @@ export const api = {
     request<ApiPassageHighlight[]>(`/reading-items/${itemId}/highlights`).then(
       (highlights) => highlights.map((highlight) => ({ ...highlight })),
     ),
-  highlightCollection: () =>
-    request<HighlightCollectionEntry[]>("/reading-items/highlights").then(
-      (highlights) => highlights.map((highlight) => ({ ...highlight })),
-    ),
+  highlightCollection: ({
+    language,
+    query,
+    page = 1,
+  }: {
+    language?: "ja" | "ko";
+    query?: string;
+    page?: number;
+  } = {}) => {
+    const searchParams = new URLSearchParams({ page: String(page) });
+    if (language) searchParams.set("language", language);
+    if (query) searchParams.set("query", query);
+    return request<HighlightCollectionPage>(
+      `/reading-items/highlights?${searchParams}`,
+    );
+  },
   createHighlight: (
     itemId: string,
     startOffset: number,

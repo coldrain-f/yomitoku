@@ -2,7 +2,7 @@ import { OptionButtons } from "./ui/OptionButtons";
 import { Trash2 } from "lucide-react";
 import { GoogleSignInButton } from "../features/auth/GoogleSignInButton";
 import { Icon } from "./ui/Icon";
-import { lengthLabels } from "../lib/reading";
+import { formatDate, lengthLabels } from "../lib/reading";
 import {
   languageLabels,
   generationLevelsForLanguage,
@@ -14,7 +14,7 @@ import type {
   AdminFilters,
   DialogConfig,
   FeedbackValues,
-  HighlightCollectionEntry,
+  HighlightCollectionPage,
   ListFilters,
   ReadingLanguage,
   StateSetter,
@@ -39,7 +39,13 @@ interface AppDialogContentProps {
   translation: ReadingTranslation | null;
   translationLoading: boolean;
   translationError: string;
-  highlights: HighlightCollectionEntry[];
+  highlightCollection: HighlightCollectionPage;
+  highlightLanguage: "all" | ReadingLanguage;
+  highlightQuery: string;
+  onHighlightLanguageChange: (language: "all" | ReadingLanguage) => void;
+  onHighlightQueryChange: (query: string) => void;
+  onHighlightSearch: () => void;
+  onHighlightPageChange: (page: number) => void;
   highlightsLoading: boolean;
   highlightsError: string;
   removingHighlightId: string | null;
@@ -65,7 +71,13 @@ export function AppDialogContent({
   translation,
   translationLoading,
   translationError,
-  highlights,
+  highlightCollection,
+  highlightLanguage,
+  highlightQuery,
+  onHighlightLanguageChange,
+  onHighlightQueryChange,
+  onHighlightSearch,
+  onHighlightPageChange,
   highlightsLoading,
   highlightsError,
   removingHighlightId,
@@ -111,24 +123,44 @@ export function AppDialogContent({
   }
 
   if (type === "highlights") {
-    const groups = new Map<
-      string,
-      { item: HighlightCollectionEntry; highlights: HighlightCollectionEntry[] }
-    >();
-    for (const highlight of highlights) {
-      const group = groups.get(highlight.readingItemId);
-      if (group) {
-        group.highlights.push(highlight);
-      } else {
-        groups.set(highlight.readingItemId, {
-          item: highlight,
-          highlights: [highlight],
-        });
-      }
-    }
-
     return (
       <div className="highlight-collection-dialog">
+        <form
+          className="highlight-collection-controls"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onHighlightSearch();
+          }}
+        >
+          <label className="sr-only" htmlFor="highlight-collection-search">
+            제목 또는 하이라이트 검색
+          </label>
+          <div className="highlight-collection-search">
+            <input
+              id="highlight-collection-search"
+              type="search"
+              value={highlightQuery}
+              placeholder="제목 또는 문장 검색"
+              onChange={(event) => onHighlightQueryChange(event.target.value)}
+            />
+            <button className="text-button" type="submit" disabled={highlightsLoading}>
+              검색
+            </button>
+          </div>
+          <OptionButtons
+            value={highlightLanguage}
+            options={[
+              { value: "all", label: "전체" },
+              { value: "ja", label: "일본어" },
+              { value: "ko", label: "한국어" },
+            ]}
+            onChange={(language) =>
+              onHighlightLanguageChange(language as "all" | ReadingLanguage)
+            }
+            ariaLabel="하이라이트 언어 필터"
+            disabled={highlightsLoading}
+          />
+        </form>
         {highlightsLoading ? (
           <p className="highlight-collection-status" role="status">
             하이라이트를 불러오는 중입니다.
@@ -139,26 +171,36 @@ export function AppDialogContent({
             {highlightsError}
           </p>
         ) : null}
-        {!highlightsLoading && !highlightsError && highlights.length === 0 ? (
+        {!highlightsLoading && !highlightsError && highlightCollection.totalItems === 0 ? (
           <p className="highlight-collection-empty">
             저장한 하이라이트가 없습니다. 지문에서 복습할 문장을 선택해 보세요.
           </p>
         ) : null}
-        {[...groups.values()].map(({ item, highlights: itemHighlights }) => (
-          <section className="highlight-collection-group" key={item.readingItemId}>
-            <div className="highlight-collection-heading">
-              <h3>{item.title}</h3>
+        {!highlightsLoading && !highlightsError && highlightCollection.items.map((item) => (
+          <details
+            className="highlight-collection-group"
+            key={item.readingItemId}
+          >
+            <summary className="highlight-collection-heading">
+              <div>
+                <h3>{item.title}</h3>
+                <p className="highlight-collection-summary">
+                  하이라이트 {item.highlights.length}개 · {item.lastSubmittedAt
+                    ? `최근 제출 ${formatDate(item.lastSubmittedAt)}`
+                    : `최근 저장 ${formatDate(item.lastHighlightedAt)}`}
+                </p>
+              </div>
               <div className="highlight-collection-meta">
                 <span className="badge">{languageLabels[item.language]}</span>
                 <span className="badge">{item.officialLevel}</span>
                 <span className="badge">{lengthLabels[item.lengthType]}</span>
                 <span>{item.topic}</span>
               </div>
-            </div>
+            </summary>
             <ul className="highlight-collection-list">
-              {itemHighlights.map((highlight) => (
+              {item.highlights.map((highlight) => (
                 <li key={highlight.id}>
-                  <p lang={highlight.language}>{highlight.selectedText}</p>
+                  <p lang={item.language}>{highlight.selectedText}</p>
                   <button
                     className="icon-button highlight-collection-remove"
                     type="button"
@@ -167,7 +209,7 @@ export function AppDialogContent({
                     disabled={removingHighlightId === highlight.id}
                     onClick={() =>
                       void onRemoveHighlight(
-                        highlight.readingItemId,
+                        item.readingItemId,
                         highlight.id,
                       )
                     }
@@ -177,8 +219,35 @@ export function AppDialogContent({
                 </li>
               ))}
             </ul>
-          </section>
+          </details>
         ))}
+        {!highlightsLoading && !highlightsError && highlightCollection.totalItems > 0 ? (
+          <div className="highlight-collection-pagination">
+            <span>
+              {highlightCollection.totalItems}개 문항 중 {highlightCollection.page} / {highlightCollection.totalPages}
+            </span>
+            {highlightCollection.totalPages > 1 ? (
+              <div>
+                <button
+                  className="text-button"
+                  type="button"
+                  disabled={highlightCollection.page === 1}
+                  onClick={() => onHighlightPageChange(highlightCollection.page - 1)}
+                >
+                  이전
+                </button>
+                <button
+                  className="text-button"
+                  type="button"
+                  disabled={highlightCollection.page === highlightCollection.totalPages}
+                  onClick={() => onHighlightPageChange(highlightCollection.page + 1)}
+                >
+                  다음
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     );
   }

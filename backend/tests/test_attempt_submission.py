@@ -319,10 +319,95 @@ async def test_highlight_collection_includes_item_context(
         )
         collection = await list_user_passage_highlights(session, user)
 
-    assert len(collection) == 1
-    assert collection[0].reading_item_id == item.id
-    assert collection[0].title == item.title
-    assert collection[0].selected_text == "근거"
+    assert collection.total_items == 1
+    assert collection.items[0].reading_item_id == item.id
+    assert collection.items[0].title == item.title
+    assert collection.items[0].highlights[0].selected_text == "근거"
+
+
+@pytest.mark.asyncio
+async def test_highlight_collection_groups_by_item_and_prioritizes_recent_submission(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    user, _, _ = await make_open_attempt(sessions)
+    submitted_item_id = uuid4()
+
+    async with sessions() as session:
+        first_item = await session.scalar(select(ReadingItem))
+        assert first_item is not None
+        first_start = first_item.passage.index("근거")
+        await create_passage_highlight(
+            first_item.id,
+            PassageHighlightCreateRequest(
+                start_offset=first_start,
+                end_offset=first_start + len("근거"),
+                selected_text="근거",
+            ),
+            session,
+            user,
+        )
+        submitted_item = ReadingItem(
+            id=submitted_item_id,
+            title="최근에 제출한 문항",
+            passage="중요한 문장을 다시 확인한다.",
+            question="질문입니다.",
+            explanation="해설입니다.",
+            language="ko",
+            official_level="TOPIK 3급",
+            length_type="medium",
+            topic="교육",
+            recommended_seconds=300,
+            status="published",
+            published_at=datetime.now(UTC),
+        )
+        session.add(submitted_item)
+        session.add(
+            Attempt(
+                id=uuid4(),
+                user_id=user.id,
+                reading_item_id=submitted_item_id,
+                started_at=datetime.now(UTC) - timedelta(minutes=5),
+                submitted_at=datetime.now(UTC),
+                elapsed_seconds=300,
+                is_correct=True,
+            )
+        )
+        await session.commit()
+        submitted_start = submitted_item.passage.index("중요한")
+        await create_passage_highlight(
+            submitted_item.id,
+            PassageHighlightCreateRequest(
+                start_offset=submitted_start,
+                end_offset=submitted_start + len("중요한"),
+                selected_text="중요한",
+            ),
+            session,
+            user,
+        )
+
+        collection = await list_user_passage_highlights(
+            session,
+            user,
+            page=1,
+            page_size=20,
+        )
+        filtered = await list_user_passage_highlights(
+            session,
+            user,
+            language="ko",
+            query="최근에 제출",
+            page=1,
+            page_size=1,
+        )
+
+    assert collection.total_items == 2
+    assert collection.items[0].reading_item_id == submitted_item_id
+    assert collection.items[0].last_submitted_at is not None
+    assert filtered.total_items == 1
+    assert filtered.items[0].reading_item_id == submitted_item_id
+    assert [highlight.selected_text for highlight in filtered.items[0].highlights] == [
+        "중요한"
+    ]
 
 
 @pytest.mark.asyncio

@@ -48,16 +48,30 @@ export interface PassageHighlight {
   selectedText: string;
 }
 
-export interface HighlightCollectionEntry {
+export interface HighlightCollectionSnippet {
   id: string;
+  selectedText: string;
+  createdAt: string;
+}
+
+export interface HighlightCollectionItem {
   readingItemId: string;
   title: string;
   language: ReadingLanguage;
   officialLevel: DifficultyLevel;
   lengthType: LengthType;
   topic: Topic;
-  selectedText: string;
-  createdAt: string;
+  lastSubmittedAt: string | null;
+  lastHighlightedAt: string;
+  highlights: HighlightCollectionSnippet[];
+}
+
+export interface HighlightCollectionPage {
+  items: HighlightCollectionItem[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
 }
 
 export interface ItemReport {

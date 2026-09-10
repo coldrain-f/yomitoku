@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -38,7 +38,9 @@ from app.schemas import (
     AttemptSubmitRequest,
     FeedbackRequest,
     LengthType,
-    PassageHighlightCollectionEntry,
+    PassageHighlightCollectionItem,
+    PassageHighlightCollectionPage,
+    PassageHighlightCollectionSnippet,
     PassageHighlightCreateRequest,
     PassageHighlightResponse,
     ReadingBookmarkResponse,
@@ -603,42 +605,148 @@ async def list_published_reading_items(
     )
 
 
-@router.get("/highlights", response_model=list[PassageHighlightCollectionEntry])
+@router.get("/highlights", response_model=PassageHighlightCollectionPage)
 async def list_user_passage_highlights(
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
-) -> list[PassageHighlightCollectionEntry]:
-    rows = (
-        await session.execute(
-            select(PassageHighlight, ReadingItem)
-            .join(ReadingItem, ReadingItem.id == PassageHighlight.reading_item_id)
-            .where(
-                PassageHighlight.user_id == current_user.id,
-                ReadingItem.status == "published",
+    language: Annotated[ReadingLanguage | None, Query()] = None,
+    query: Annotated[str | None, Query(max_length=100)] = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=20)] = 20,
+) -> PassageHighlightCollectionPage:
+    """Return reviewable highlight groups, ordered by the learner's latest submission."""
+    filters = [
+        PassageHighlight.user_id == current_user.id,
+        ReadingItem.status == "published",
+    ]
+    if language is not None:
+        filters.append(ReadingItem.language == language)
+    normalized_query = query.strip() if query else ""
+    if normalized_query:
+        keyword = f"%{normalized_query}%"
+        filters.append(
+            or_(
+                ReadingItem.title.ilike(keyword),
+                PassageHighlight.selected_text.ilike(keyword),
             )
-            .order_by(PassageHighlight.created_at.desc())
+        )
+
+    # One item can have many highlights. Page by item so a review card never splits
+    # across pages, then load just that page's highlights below.
+    latest_submissions = (
+        select(
+            Attempt.reading_item_id.label("reading_item_id"),
+            func.max(Attempt.submitted_at).label("last_submitted_at"),
+        )
+        .where(
+            Attempt.user_id == current_user.id,
+            Attempt.submitted_at.is_not(None),
+        )
+        .group_by(Attempt.reading_item_id)
+        .subquery()
+    )
+    highlight_groups = (
+        select(
+            ReadingItem.id.label("reading_item_id"),
+            func.max(PassageHighlight.created_at).label("last_highlighted_at"),
+        )
+        .join(PassageHighlight, PassageHighlight.reading_item_id == ReadingItem.id)
+        .where(*filters)
+        .group_by(ReadingItem.id)
+        .subquery()
+    )
+    total_items = await session.scalar(
+        select(func.count()).select_from(highlight_groups)
+    )
+    total_items = total_items or 0
+    total_pages = max(1, math.ceil(total_items / page_size))
+    page = min(page, total_pages)
+
+    group_rows = (
+        await session.execute(
+            select(
+                ReadingItem,
+                latest_submissions.c.last_submitted_at,
+                highlight_groups.c.last_highlighted_at,
+            )
+            .join(highlight_groups, highlight_groups.c.reading_item_id == ReadingItem.id)
+            .outerjoin(
+                latest_submissions,
+                latest_submissions.c.reading_item_id == ReadingItem.id,
+            )
+            .order_by(
+                case(
+                    (latest_submissions.c.last_submitted_at.is_(None), 1), else_=0
+                ).asc(),
+                latest_submissions.c.last_submitted_at.desc(),
+                highlight_groups.c.last_highlighted_at.desc(),
+                ReadingItem.id.asc(),
+            )
+            .offset((page - 1) * page_size)
+            .limit(page_size)
         )
     ).all()
-    return [
-        PassageHighlightCollectionEntry(
-            id=highlight.id,
-            reading_item_id=item.id,
-            title=item.title,
-            language=item.language,
-            official_level=item.official_level,
-            length_type=item.length_type,
-            topic=item.topic,
-            selected_text=highlight.selected_text,
-            created_at=highlight.created_at,
+    if not group_rows:
+        return PassageHighlightCollectionPage(
+            page=page,
+            page_size=page_size,
+            total_items=total_items,
+            total_pages=total_pages,
         )
-        for highlight, item in rows
-        if selected_text_for_offsets(
-            normalized_passage_text(item.passage),
-            highlight.start_offset,
-            highlight.end_offset,
+
+    item_ids = [item.id for item, _, _ in group_rows]
+    highlights_by_item: dict[UUID, list[PassageHighlightCollectionSnippet]] = {
+        item_id: [] for item_id in item_ids
+    }
+    passages_by_item = {
+        item.id: normalized_passage_text(item.passage) for item, _, _ in group_rows
+    }
+    highlights = await session.scalars(
+        select(PassageHighlight)
+        .where(
+            PassageHighlight.user_id == current_user.id,
+            PassageHighlight.reading_item_id.in_(item_ids),
         )
-        == highlight.selected_text
-    ]
+        .order_by(PassageHighlight.created_at.desc(), PassageHighlight.id.asc())
+    )
+    for highlight in highlights:
+        if (
+            selected_text_for_offsets(
+                passages_by_item[highlight.reading_item_id],
+                highlight.start_offset,
+                highlight.end_offset,
+            )
+            == highlight.selected_text
+        ):
+            highlights_by_item[highlight.reading_item_id].append(
+                PassageHighlightCollectionSnippet(
+                    id=highlight.id,
+                    selected_text=highlight.selected_text,
+                    created_at=highlight.created_at,
+                )
+            )
+
+    return PassageHighlightCollectionPage(
+        items=[
+            PassageHighlightCollectionItem(
+                reading_item_id=item.id,
+                title=item.title,
+                language=item.language,
+                official_level=item.official_level,
+                length_type=item.length_type,
+                topic=item.topic,
+                last_submitted_at=last_submitted_at,
+                last_highlighted_at=last_highlighted_at,
+                highlights=highlights_by_item[item.id],
+            )
+            for item, last_submitted_at, last_highlighted_at in group_rows
+            if highlights_by_item[item.id]
+        ],
+        page=page,
+        page_size=page_size,
+        total_items=total_items,
+        total_pages=total_pages,
+    )
 
 
 @router.get("/{item_id}", response_model=ReadingItemDetail)

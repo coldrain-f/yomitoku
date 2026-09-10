@@ -60,7 +60,7 @@ import type {
   DialogConfig,
   FeedbackValues,
   GenerationValues,
-  HighlightCollectionEntry,
+  HighlightCollectionPage,
   ListFilters,
   ManualReadingDraft,
   PassageHighlight,
@@ -93,6 +93,13 @@ const defaultAdminFilters: AdminFilters = {
 const listFiltersStorageKey = "yomitoku.list-filters";
 const adminFiltersStorageKey = "yomitoku.admin-filters";
 const readingSessionStoragePrefix = "yomitoku.reading-session:";
+const emptyHighlightCollection: HighlightCollectionPage = {
+  items: [],
+  page: 1,
+  pageSize: 20,
+  totalItems: 0,
+  totalPages: 1,
+};
 
 interface StoredReadingSession {
   attemptId: string;
@@ -500,12 +507,15 @@ export default function App() {
   const [passageHighlights, setPassageHighlights] = useState<
     Record<string, PassageHighlight[]>
   >({});
-  const [highlightCollection, setHighlightCollection] = useState<
-    HighlightCollectionEntry[]
-  >([]);
+  const [highlightCollection, setHighlightCollection] =
+    useState<HighlightCollectionPage>(emptyHighlightCollection);
   const [isHighlightCollectionLoading, setIsHighlightCollectionLoading] =
     useState(false);
   const [highlightCollectionError, setHighlightCollectionError] = useState("");
+  const [highlightLanguage, setHighlightLanguage] = useState<
+    "all" | ReadingLanguage
+  >("all");
+  const [highlightQuery, setHighlightQuery] = useState("");
   const [removingHighlightId, setRemovingHighlightId] = useState<string | null>(
     null,
   );
@@ -578,6 +588,7 @@ export default function App() {
   const restoredAttemptKeyRef = useRef<string | null>(null);
   const listRequestRef = useRef(0);
   const adminListRequestRef = useRef(0);
+  const highlightCollectionRequestRef = useRef(0);
   const [manualError, setManualError] = useState("");
   const [generation, setGeneration] = useState<GenerationValues>({
     language: defaultGenerationLanguage,
@@ -712,9 +723,30 @@ export default function App() {
     setHighlightCollectionError("");
     try {
       await api.deleteHighlight(itemId, highlightId);
-      setHighlightCollection((current) =>
-        current.filter((highlight) => highlight.id !== highlightId),
-      );
+      setHighlightCollection((current) => {
+        const removedGroup = current.items.find(
+          (item) =>
+            item.readingItemId === itemId &&
+            item.highlights.some((highlight) => highlight.id === highlightId),
+        );
+        const items = current.items.flatMap((item) => {
+          if (item.readingItemId !== itemId) return [item];
+          const highlights = item.highlights.filter(
+            (highlight) => highlight.id !== highlightId,
+          );
+          return highlights.length ? [{ ...item, highlights }] : [];
+        });
+        const totalItems = Math.max(
+          0,
+          current.totalItems - (removedGroup?.highlights.length === 1 ? 1 : 0),
+        );
+        return {
+          ...current,
+          items,
+          totalItems,
+          totalPages: Math.max(1, Math.ceil(totalItems / current.pageSize)),
+        };
+      });
       setPassageHighlights((current) => ({
         ...current,
         [itemId]: (current[itemId] ?? []).filter(
@@ -1343,40 +1375,73 @@ export default function App() {
       title: "내 하이라이트",
       description: "",
     });
+  const loadHighlightCollection = ({
+    language = highlightLanguage,
+    query = highlightQuery,
+    page = highlightCollection.page,
+  }: {
+    language?: "all" | ReadingLanguage;
+    query?: string;
+    page?: number;
+  } = {}) => {
+    const requestId = highlightCollectionRequestRef.current + 1;
+    highlightCollectionRequestRef.current = requestId;
+    setHighlightCollectionError("");
+    setIsHighlightCollectionLoading(true);
+    return api
+      .highlightCollection({
+        language: language === "all" ? undefined : language,
+        query: query.trim() || undefined,
+        page,
+      })
+      .then((collection) => {
+        if (highlightCollectionRequestRef.current === requestId) {
+          setHighlightCollection(collection);
+        }
+      })
+      .catch((error: unknown) => {
+        if (highlightCollectionRequestRef.current === requestId) {
+          setHighlightCollectionError(
+            error instanceof Error
+              ? error.message
+              : "하이라이트를 불러오지 못했습니다.",
+          );
+        }
+      })
+      .finally(() => {
+        if (highlightCollectionRequestRef.current === requestId) {
+          setIsHighlightCollectionLoading(false);
+        }
+      });
+  };
   const openHighlightCollection = () => {
     if (!authenticated) {
       openLogin();
       return;
     }
-    setHighlightCollection([]);
+    setHighlightLanguage("all");
+    setHighlightQuery("");
+    setHighlightCollection(emptyHighlightCollection);
     setHighlightCollectionError("");
     setRemovingHighlightId(null);
-    setIsHighlightCollectionLoading(true);
     showHighlightCollectionDialog();
-    void api
-      .highlightCollection()
-      .then(setHighlightCollection)
-      .catch((error: unknown) =>
-        setHighlightCollectionError(
-          error instanceof Error
-            ? error.message
-            : "하이라이트를 불러오지 못했습니다.",
-        ),
-      )
-      .finally(() => setIsHighlightCollectionLoading(false));
+    void loadHighlightCollection({ language: "all", query: "", page: 1 });
   };
   const confirmHighlightRemoval = (itemId: string, highlightId: string) => {
-    const highlight = highlightCollection.find((entry) => entry.id === highlightId);
-    if (!highlight || removingHighlightId) return;
+    const item = highlightCollection.items.find((entry) =>
+      entry.highlights.some((highlight) => highlight.id === highlightId),
+    );
+    const highlight = item?.highlights.find((entry) => entry.id === highlightId);
+    if (!item || !highlight || removingHighlightId) return;
     openDialog({
       type: "highlight-delete",
       kicker: "Remove highlight",
       title: "이 하이라이트를 제거할까요?",
       context: highlight.selectedText,
       contextMeta: [
-        highlight.officialLevel,
-        lengthLabels[highlight.lengthType],
-        highlight.topic,
+        item.officialLevel,
+        lengthLabels[item.lengthType],
+        item.topic,
       ],
       description: "제거한 하이라이트는 복구할 수 없습니다.",
       confirmLabel: "제거하기",
@@ -1582,7 +1647,7 @@ export default function App() {
     setResult(null);
     setStatistics(null);
     setPassageHighlights({});
-    setHighlightCollection([]);
+    setHighlightCollection(emptyHighlightCollection);
     setHighlightCollectionError("");
     setRemovingHighlightId(null);
     setBookmarkingItemIds(new Set());
@@ -1839,7 +1904,7 @@ export default function App() {
         </nav>
       ) : null}
       <Dialog dialog={dialog} onClose={closeDialog}>
-        <AppDialogContent type={dialog?.type} authenticated={authenticated} filterDraft={filterDraft} setFilterDraft={setFilterDraft} adminFilterDraft={adminFilterDraft} setAdminFilterDraft={setAdminFilterDraft} reportText={reportText} setReportText={setReportText} feedback={feedback} feedbackLanguage={result?.item.language ?? defaultGenerationLanguage} setFeedback={setFeedback} dialogError={dialogError} googleClientId={googleClientId} onGoogleCredential={completeGoogleLogin} onGoogleError={setDialogError} translation={translation} translationLoading={translationLoading} translationError={translationError} highlights={highlightCollection} highlightsLoading={isHighlightCollectionLoading} highlightsError={highlightCollectionError} removingHighlightId={removingHighlightId} onRemoveHighlight={confirmHighlightRemoval} />
+        <AppDialogContent type={dialog?.type} authenticated={authenticated} filterDraft={filterDraft} setFilterDraft={setFilterDraft} adminFilterDraft={adminFilterDraft} setAdminFilterDraft={setAdminFilterDraft} reportText={reportText} setReportText={setReportText} feedback={feedback} feedbackLanguage={result?.item.language ?? defaultGenerationLanguage} setFeedback={setFeedback} dialogError={dialogError} googleClientId={googleClientId} onGoogleCredential={completeGoogleLogin} onGoogleError={setDialogError} translation={translation} translationLoading={translationLoading} translationError={translationError} highlightCollection={highlightCollection} highlightLanguage={highlightLanguage} highlightQuery={highlightQuery} onHighlightLanguageChange={(language) => { setHighlightLanguage(language); void loadHighlightCollection({ language, page: 1 }); }} onHighlightQueryChange={setHighlightQuery} onHighlightSearch={() => void loadHighlightCollection({ page: 1 })} onHighlightPageChange={(page) => void loadHighlightCollection({ page })} highlightsLoading={isHighlightCollectionLoading} highlightsError={highlightCollectionError} removingHighlightId={removingHighlightId} onRemoveHighlight={confirmHighlightRemoval} />
       </Dialog>
       {toast ? <div className="toast is-visible" role="status">{toast}</div> : null}
     </main>

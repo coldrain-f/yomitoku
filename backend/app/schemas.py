@@ -330,16 +330,30 @@ class PassageHighlightResponse(ApiModel):
     selected_text: str
 
 
-class PassageHighlightCollectionEntry(ApiModel):
+class PassageHighlightCollectionSnippet(ApiModel):
     id: UUID
+    selected_text: str
+    created_at: datetime
+
+
+class PassageHighlightCollectionItem(ApiModel):
     reading_item_id: UUID
     title: str
     language: ReadingLanguage
     official_level: ReadingLevel
     length_type: LengthType
     topic: str
-    selected_text: str
-    created_at: datetime
+    last_submitted_at: datetime | None
+    last_highlighted_at: datetime
+    highlights: list[PassageHighlightCollectionSnippet] = Field(default_factory=list)
+
+
+class PassageHighlightCollectionPage(ApiModel):
+    items: list[PassageHighlightCollectionItem] = Field(default_factory=list)
+    page: int
+    page_size: int
+    total_items: int
+    total_pages: int
 
 
 class ReadingBookmarkResponse(ApiModel):

@@ -8,6 +8,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    Index,
     Numeric,
     String,
     Text,
@@ -172,6 +173,12 @@ class PassageHighlight(TimestampedModel, Base):
             "start_offset",
             "end_offset",
             name="uq_passage_highlight_range",
+        ),
+        Index(
+            "ix_passage_highlights_user_item_created",
+            "user_id",
+            "reading_item_id",
+            "created_at",
         ),
     )
 
