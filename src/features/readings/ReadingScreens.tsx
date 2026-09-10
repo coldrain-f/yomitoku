@@ -426,6 +426,7 @@ function PassageHighlighter({
 }) {
   const passageRef = useRef<HTMLDivElement>(null);
   const actionRef = useRef<HTMLDivElement>(null);
+  const floatingActionRef = useRef<HTMLButtonElement>(null);
   const lastTouchSelectionAtRef = useRef(0);
   const [pending, setPending] = useState<PendingHighlight | null>(null);
   const [activeHighlight, setActiveHighlight] = useState<HighlightAction | null>(null);
@@ -438,7 +439,11 @@ function PassageHighlighter({
   useEffect(() => {
     const dismiss = (event: PointerEvent) => {
       const target = event.target;
-      if (target instanceof Node && actionRef.current?.contains(target)) {
+      if (
+        target instanceof Node &&
+        (actionRef.current?.contains(target) ||
+          floatingActionRef.current?.contains(target))
+      ) {
         return;
       }
       setPending(null);
@@ -676,6 +681,32 @@ function PassageHighlighter({
           </button>
         </div>
       ) : null}
+      <button
+        className={`passage-highlight-fab${pending ? " is-ready" : ""}`}
+        ref={floatingActionRef}
+        type="button"
+        aria-label={
+          pending
+            ? isSaving
+              ? "하이라이트 저장 중"
+              : "선택한 글자 하이라이트하기"
+            : "글자를 선택하면 하이라이트할 수 있습니다"
+        }
+        title={
+          pending
+            ? isSaving
+              ? "저장 중"
+              : "하이라이트하기"
+            : "글자를 선택하세요"
+        }
+        disabled={!pending || isSaving}
+        onClick={() => void createHighlight()}
+      >
+        <Icon icon={Highlighter} />
+        <span className="sr-only">
+          {isSaving ? "저장 중" : "하이라이트"}
+        </span>
+      </button>
       {activeHighlight ? (
         <div
           className="passage-highlight-menu"

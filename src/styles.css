@@ -2247,6 +2247,10 @@ fieldset.admin-edit-form {
   height: 14px;
 }
 
+.passage-highlight-fab {
+  display: none;
+}
+
 .passage-highlight-error {
   margin: 12px 0 0;
   color: var(--danger);
@@ -3235,6 +3239,53 @@ body.dialog-open {
   .passage {
     font-size: 18px;
     line-height: 2;
+  }
+
+  .passage-highlight-action {
+    display: none;
+  }
+
+  .passage-highlight-fab {
+    position: fixed;
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(16px, env(safe-area-inset-bottom));
+    z-index: 31;
+    width: 46px;
+    height: 46px;
+    border: 1px solid var(--line-strong);
+    border-radius: 50%;
+    background: var(--paper-solid);
+    color: var(--muted);
+    display: inline-grid;
+    place-items: center;
+    box-shadow: 0 5px 16px rgba(32, 35, 33, 0.14);
+    touch-action: manipulation;
+  }
+
+  .passage-highlight-fab.is-ready {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #ffffff;
+  }
+
+  .passage-highlight-fab:disabled {
+    cursor: default;
+    opacity: 0.58;
+  }
+
+  .passage-highlight-fab.is-ready:disabled {
+    opacity: 0.78;
+  }
+
+  .passage-highlight-fab:not(:disabled):hover,
+  .passage-highlight-fab:not(:disabled):focus-visible {
+    background: #30302d;
+  }
+
+  .passage-highlight-fab [data-lucide] {
+    width: 20px;
+    height: 20px;
+    stroke-width: 1.8;
   }
 
   .answer-choice {
