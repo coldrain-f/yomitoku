@@ -436,13 +436,151 @@ function AdminEditRoute({
 }) {
   const { itemId } = useParams();
   const item = items.find((entry) => entry.id === itemId);
+  const [isSuggestingTitle, setIsSuggestingTitle] = useState(false);
+  const [titleSuggestionError, setTitleSuggestionError] = useState("");
+  const [isSuggestingTopic, setIsSuggestingTopic] = useState(false);
+  const [topicSuggestionError, setTopicSuggestionError] = useState("");
+  const [suggestingExplanationIndex, setSuggestingExplanationIndex] = useState<number | null>(null);
+  const [explanationSuggestionErrors, setExplanationSuggestionErrors] = useState<
+    Record<number, string>
+  >({});
+  const suggestionRequestRef = useRef(0);
 
   useEffect(() => {
     if (item && (!draft || draft.id !== item.id)) setDraft(structuredClone(item));
   }, [draft?.id, item, setDraft]);
 
+  useEffect(() => {
+    suggestionRequestRef.current += 1;
+    setIsSuggestingTitle(false);
+    setTitleSuggestionError("");
+    setIsSuggestingTopic(false);
+    setTopicSuggestionError("");
+    setSuggestingExplanationIndex(null);
+    setExplanationSuggestionErrors({});
+  }, [itemId]);
+
   if (!item) return <Navigate to="/admin/readings" replace />;
   if (!draft || draft.id !== item.id) return null;
+  const suggestTitle = async () => {
+    const passage = draft.passage.trim();
+    const draftId = draft.id;
+    if (!passage) {
+      setTitleSuggestionError("지문을 먼저 입력해 주세요.");
+      return;
+    }
+    const requestId = suggestionRequestRef.current + 1;
+    suggestionRequestRef.current = requestId;
+    setIsSuggestingTitle(true);
+    setTitleSuggestionError("");
+    try {
+      const { title } = await api.suggestAdminTitle(passage, draft.language);
+      if (!title.trim()) throw new Error("AI가 제목을 만들지 못했습니다.");
+      if (suggestionRequestRef.current !== requestId) return;
+      setDraft((current) =>
+        current?.id === draftId ? { ...current, title: title.trim() } : current,
+      );
+    } catch (suggestionError) {
+      if (suggestionRequestRef.current !== requestId) return;
+      setTitleSuggestionError(
+        suggestionError instanceof Error
+          ? suggestionError.message
+          : "AI 제목 제안에 실패했습니다.",
+      );
+    } finally {
+      if (suggestionRequestRef.current === requestId) setIsSuggestingTitle(false);
+    }
+  };
+  const suggestTopic = async () => {
+    const passage = draft.passage.trim();
+    const draftId = draft.id;
+    if (!passage) {
+      setTopicSuggestionError("지문을 먼저 입력해 주세요.");
+      return;
+    }
+    const requestId = suggestionRequestRef.current + 1;
+    suggestionRequestRef.current = requestId;
+    setIsSuggestingTopic(true);
+    setTopicSuggestionError("");
+    try {
+      const { topic } = await api.suggestAdminTopic(passage, draft.language);
+      if (!readingTopics.includes(topic)) {
+        throw new Error("AI가 목록에 없는 주제를 반환했습니다.");
+      }
+      if (suggestionRequestRef.current !== requestId) return;
+      setDraft((current) =>
+        current?.id === draftId ? { ...current, topic } : current,
+      );
+    } catch (suggestionError) {
+      if (suggestionRequestRef.current !== requestId) return;
+      setTopicSuggestionError(
+        suggestionError instanceof Error
+          ? suggestionError.message
+          : "AI 주제 제안에 실패했습니다.",
+      );
+    } finally {
+      if (suggestionRequestRef.current === requestId) setIsSuggestingTopic(false);
+    }
+  };
+  const suggestExplanation = async (questionIndex: number) => {
+    const passage = draft.passage.trim();
+    const draftId = draft.id;
+    const question = draft.questions[questionIndex];
+    if (
+      !passage ||
+      !question?.question.trim() ||
+      question.choices.some((choice) => !choice.text.trim())
+    ) {
+      setExplanationSuggestionErrors((current) => ({
+        ...current,
+        [questionIndex]: "지문, 문제, 선택지 네 개를 모두 입력해 주세요.",
+      }));
+      return;
+    }
+    const requestId = suggestionRequestRef.current + 1;
+    suggestionRequestRef.current = requestId;
+    setSuggestingExplanationIndex(questionIndex);
+    setExplanationSuggestionErrors((current) => ({ ...current, [questionIndex]: "" }));
+    try {
+      const { explanation } = await api.suggestAdminExplanation(
+        passage,
+        question.question.trim(),
+        question.choices,
+        draft.language,
+      );
+      if (!explanation.trim()) throw new Error("AI가 해설을 만들지 못했습니다.");
+      if (suggestionRequestRef.current !== requestId) return;
+      setDraft((current) => {
+        if (!current || current.id !== draftId) return current;
+        const questions = current.questions.map((entry, index) =>
+          index === questionIndex
+            ? { ...entry, explanation: explanation.trim() }
+            : entry,
+        );
+        const firstQuestion = questions[0];
+        return {
+          ...current,
+          questions,
+          question: firstQuestion.question,
+          choices: firstQuestion.choices,
+          explanation: firstQuestion.explanation,
+        };
+      });
+    } catch (suggestionError) {
+      if (suggestionRequestRef.current !== requestId) return;
+      setExplanationSuggestionErrors((current) => ({
+        ...current,
+        [questionIndex]:
+          suggestionError instanceof Error
+            ? suggestionError.message
+            : "AI 해설 생성에 실패했습니다.",
+      }));
+    } finally {
+      if (suggestionRequestRef.current === requestId) {
+        setSuggestingExplanationIndex(null);
+      }
+    }
+  };
   return (
     <AdminEdit
       item={item}
@@ -454,6 +592,15 @@ function AdminEditRoute({
       onDelete={() => onDelete(item)}
       onBack={onBack}
       isSaving={isSaving}
+      onSuggestTitle={() => void suggestTitle()}
+      isSuggestingTitle={isSuggestingTitle}
+      titleSuggestionError={titleSuggestionError}
+      onSuggestTopic={() => void suggestTopic()}
+      isSuggestingTopic={isSuggestingTopic}
+      topicSuggestionError={topicSuggestionError}
+      onSuggestExplanation={(questionIndex) => void suggestExplanation(questionIndex)}
+      suggestingExplanationIndex={suggestingExplanationIndex}
+      explanationSuggestionErrors={explanationSuggestionErrors}
       onConfirmQuestionTruncation={onConfirmQuestionTruncation}
     />
   );

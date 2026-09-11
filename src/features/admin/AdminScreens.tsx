@@ -755,7 +755,7 @@ export function AdminEdit({
           <div className="admin-field admin-field-wide admin-title-field">
             <div className="admin-field-label-row">
               <span className="form-label">제목</span>
-              {manual && onSuggestTitle ? (
+              {onSuggestTitle ? (
                 <button
                   className="text-button admin-ai-suggest"
                   type="button"
@@ -865,7 +865,7 @@ export function AdminEdit({
             <div className="admin-field">
               <div className="admin-field-label-row">
                 <span className="form-label">주제</span>
-                {manual && onSuggestTopic ? (
+                {onSuggestTopic ? (
                   <button
                     className={
                       "admin-topic-suggest" +
@@ -1040,7 +1040,7 @@ export function AdminEdit({
                 <div className="admin-field admin-field-wide">
                   <div className="admin-field-label-row">
                     <span className="form-label">해설</span>
-                    {manual && onSuggestExplanation ? (
+                    {onSuggestExplanation ? (
                       <button
                         className="text-button admin-ai-suggest"
                         type="button"
