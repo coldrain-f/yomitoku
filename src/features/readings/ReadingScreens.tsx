@@ -87,6 +87,7 @@ interface ReadingScreenProps {
 interface ResultScreenProps {
   result: ReadingResult | null;
   onFeedback: () => void;
+  onReview: () => void;
   onContinue: () => void;
   onHome: () => void;
 }
@@ -930,6 +931,7 @@ export function ReadingScreen({
 export function ResultScreen({
   result,
   onFeedback,
+  onReview,
   onContinue,
   onHome,
 }: ResultScreenProps) {
@@ -937,6 +939,13 @@ export function ResultScreen({
   const { item, isCorrect, elapsedSeconds } = result;
   const correctCount = result.questionResults.filter((entry) => entry.isCorrect).length;
   const questionCount = result.questionResults.length || 1;
+  const timeDifference = elapsedSeconds - item.recommendedSeconds;
+  const timeDetail =
+    timeDifference === 0
+      ? "권장 시간에 맞춰 풀이"
+      : timeDifference > 0
+        ? `권장보다 ${formatTime(timeDifference)} 초과`
+        : `권장보다 ${formatTime(Math.abs(timeDifference))} 빠름`;
 
   return (
     <section
@@ -965,11 +974,22 @@ export function ResultScreen({
             >
               {isCorrect ? "정답" : "오답"}
             </strong>
-            <span className="result-answer-summary">
-              <span>
+            {questionCount > 1 ? (
+              <div className="result-question-statuses" aria-label="문제별 정답 결과">
+                {result.questionResults.map((questionResult, index) => (
+                  <span
+                    className={questionResult.isCorrect ? "is-correct" : "is-wrong"}
+                    key={questionResult.questionId}
+                  >
+                    문제 {index + 1} {questionResult.isCorrect ? "정답" : "오답"}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <span className="result-answer-summary">
                 정답 <strong>{correctCount} / {questionCount}</strong>
               </span>
-            </span>
+            )}
           </div>
           <div className="result-metric">
             <span className="result-label">권장 시간</span>
@@ -984,9 +1004,7 @@ export function ResultScreen({
             <span className="result-label">풀이 시간</span>
             <strong className="result-value">{formatTime(elapsedSeconds)}</strong>
             <span className="result-detail">
-              {elapsedSeconds > item.recommendedSeconds
-                ? `${formatTime(elapsedSeconds - item.recommendedSeconds)} 초과`
-                : "걸림"}
+              {timeDetail}
             </span>
           </div>
           <div className="result-metric">
@@ -1003,12 +1021,14 @@ export function ResultScreen({
             문항 평가
           </button>
           <div className="result-actions">
-            <button className="text-button" type="button" onClick={onContinue}>
+            <button className="text-button" type="button" onClick={onReview}>
+              해설 다시 보기
+            </button>
+            <button className="primary-button" type="button" onClick={onContinue}>
               {isCorrect ? "다음 문항" : "다시 풀기"}
             </button>
-            <button className="primary-button" type="button" onClick={onHome}>
+            <button className="text-button" type="button" onClick={onHome}>
               목록으로
-              <Icon icon={ArrowRight} />
             </button>
           </div>
         </div>

@@ -2849,6 +2849,32 @@ fieldset.admin-edit-form {
   font-variant-numeric: tabular-nums;
 }
 
+.result-question-statuses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.result-question-statuses span {
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+}
+
+.result-question-statuses .is-correct {
+  border-color: rgba(62, 107, 86, 0.28);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.result-question-statuses .is-wrong {
+  border-color: rgba(166, 91, 50, 0.3);
+  background: var(--retry-soft);
+  color: var(--retry);
+}
+
 .result-value.is-wrong + .result-answer-summary strong:first-child {
   color: var(--danger);
 }
@@ -3648,8 +3674,13 @@ body.dialog-open {
   }
 
   .highlight-collection-pagination {
-    align-items: flex-start;
+    align-items: stretch;
     flex-direction: column;
+  }
+
+  .highlight-collection-pagination .list-pagination {
+    justify-content: center;
+    width: 100%;
   }
 
   .dialog-actions {
