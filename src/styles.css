@@ -1990,12 +1990,6 @@ fieldset.admin-edit-form {
   place-items: center;
 }
 
-.highlight-collection-spinner {
-  width: 44px;
-  height: 44px;
-  border-width: 4px;
-}
-
 .highlight-collection-group {
   border: 1px solid var(--line);
   background: #fbfcf8;
@@ -3143,29 +3137,6 @@ body.dialog-open {
   width: min(100%, 860px);
 }
 
-.confirm-dialog-filter {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 0;
-}
-
-.dialog-scroll-content {
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 30px 30px 0;
-}
-
-.confirm-dialog-filter .dialog-actions {
-  flex: 0 0 auto;
-  margin: 0;
-  padding: 18px 30px 30px;
-  border-top: 1px solid var(--line);
-  background: var(--paper-solid);
-  box-shadow: 0 -10px 18px rgba(32, 35, 33, 0.04);
-}
-
 .translation-dialog {
   margin-top: 20px;
 }
@@ -3630,18 +3601,6 @@ body.dialog-open {
 
   .confirm-dialog {
     padding: 26px 20px 20px;
-  }
-
-  .confirm-dialog-filter {
-    padding: 0;
-  }
-
-  .dialog-scroll-content {
-    padding: 26px 20px 0;
-  }
-
-  .confirm-dialog-filter .dialog-actions {
-    padding: 16px 20px 20px;
   }
 
   .translation-comparison {

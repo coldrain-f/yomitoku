@@ -174,7 +174,7 @@ export function AppDialogContent({
             role="status"
             aria-label="하이라이트를 불러오는 중입니다."
           >
-            <span className="loading-spinner highlight-collection-spinner" aria-hidden="true" />
+            <span className="loading-spinner loading-spinner-large" aria-hidden="true" />
           </div>
         ) : null}
         {highlightsError ? (
