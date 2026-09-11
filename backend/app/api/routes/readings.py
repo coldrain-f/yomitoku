@@ -829,9 +829,15 @@ async def translate_reading_item(
 ) -> ReadingTranslationResponse:
     item = await get_published_item(session, item_id)
     questions = await ensure_item_questions(session, item)
+    translation_source_texts = [
+        item.title,
+        item.passage,
+        *(question.question for question in questions),
+        *(choice.text for question in questions for choice in question.choices),
+    ]
     try:
         translations = await translate_texts(
-            [item.title, item.passage, *(question.question for question in questions)],
+            translation_source_texts,
             item.language,
         )
     except TranslationError as error:
@@ -840,6 +846,8 @@ async def translate_reading_item(
             detail=str(error),
         ) from error
     target_language: ReadingLanguage = "ko" if item.language == "ja" else "ja"
+    question_translations = translations[2 : 2 + len(questions)]
+    choice_translations = iter(translations[2 + len(questions) :])
     return ReadingTranslationResponse(
         source_language=item.language,
         target_language=target_language,
@@ -860,9 +868,19 @@ async def translate_reading_item(
         questions=[
             {
                 "source_text": question.question,
-                "translated_text": translations[index + 2],
+                "translated_text": question_translations[index],
             }
             for index, question in enumerate(questions)
+        ],
+        question_choices=[
+            [
+                {
+                    "source_text": choice.text,
+                    "translated_text": next(choice_translations),
+                }
+                for choice in question.choices
+            ]
+            for question in questions
         ],
     )
 

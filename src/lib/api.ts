@@ -235,6 +235,7 @@ export interface ReadingTranslation {
   passage: TranslationSegment;
   question: TranslationSegment;
   questions: TranslationSegment[];
+  questionChoices: TranslationSegment[][];
 }
 
 export interface GenerationJob {

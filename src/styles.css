@@ -3208,6 +3208,16 @@ body.dialog-open {
   line-height: 1.85;
 }
 
+.translation-section.is-choice {
+  padding-left: 12px;
+  border-left: 2px solid #dedfd8;
+}
+
+.translation-section.is-choice dd {
+  font-size: 14px;
+  line-height: 1.75;
+}
+
 .translation-section dd[lang="ja"] {
   font-family: "Yu Mincho", YuMincho, "Hiragino Mincho ProN", "Hiragino Mincho Pro", "MS PMincho", "Noto Serif JP", serif;
 }

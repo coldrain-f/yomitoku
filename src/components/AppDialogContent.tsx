@@ -569,16 +569,29 @@ export function AppDialogContent({
   }
 
   if (type === "translation") {
+    const choiceLabels = ["①", "②", "③", "④"];
     const translationSections = translation
       ? [
-          { label: "제목", segment: translation.title },
-          { label: "지문", segment: translation.passage },
-          ...(translation.questions.length
-            ? translation.questions.map((segment, index) => ({
-                label: `문제 ${index + 1}`,
-                segment,
-              }))
-            : [{ label: "문제", segment: translation.question }]),
+          { label: "제목", segment: translation.title, isChoice: false },
+          { label: "지문", segment: translation.passage, isChoice: false },
+          ...(
+            translation.questions.length
+              ? translation.questions
+              : [translation.question]
+          ).flatMap((segment, questionIndex, questions) => [
+            {
+              label: questions.length > 1 ? `문제 ${questionIndex + 1}` : "문제",
+              segment,
+              isChoice: false,
+            },
+            ...(translation.questionChoices?.[questionIndex] ?? []).map(
+              (choice, choiceIndex) => ({
+                label: `선택지 ${choiceLabels[choiceIndex] ?? choiceIndex + 1}`,
+                segment: choice,
+                isChoice: true,
+              }),
+            ),
+          ]),
         ]
       : [];
     return (
@@ -598,8 +611,11 @@ export function AppDialogContent({
             <section className="translation-pane">
               <h3>{languageLabels[translation.sourceLanguage]} 원문</h3>
               <dl className="translation-sections">
-                {translationSections.map(({ label, segment }) => (
-                  <div className="translation-section" key={label}>
+                {translationSections.map(({ label, segment, isChoice }) => (
+                  <div
+                    className={`translation-section${isChoice ? " is-choice" : ""}`}
+                    key={`${label}-${segment.sourceText}`}
+                  >
                     <dt>{label}</dt>
                     <dd lang={translation.sourceLanguage}>{segment.sourceText}</dd>
                   </div>
@@ -609,8 +625,11 @@ export function AppDialogContent({
             <section className="translation-pane">
               <h3>{languageLabels[translation.targetLanguage]} 번역</h3>
               <dl className="translation-sections">
-                {translationSections.map(({ label, segment }) => (
-                  <div className="translation-section" key={label}>
+                {translationSections.map(({ label, segment, isChoice }) => (
+                  <div
+                    className={`translation-section${isChoice ? " is-choice" : ""}`}
+                    key={`${label}-${segment.sourceText}`}
+                  >
                     <dt>{label}</dt>
                     <dd lang={translation.targetLanguage}>
                       {segment.translatedText}

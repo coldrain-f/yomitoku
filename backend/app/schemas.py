@@ -321,6 +321,7 @@ class ReadingTranslationResponse(ApiModel):
     passage: TranslationSegment
     question: TranslationSegment
     questions: list[TranslationSegment] = Field(default_factory=list)
+    question_choices: list[list[TranslationSegment]] = Field(default_factory=list)
 
 
 class PassageHighlightResponse(ApiModel):

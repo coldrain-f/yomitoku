@@ -1518,7 +1518,7 @@ export default function App() {
       type: "translation",
       kicker: "Reading translation",
       title: "문항 원문과 해석",
-      description: "제목, 지문, 문제의 원문과 번역문을 함께 확인할 수 있습니다.",
+      description: "제목, 지문, 문제와 선택지의 원문과 번역문을 함께 확인할 수 있습니다.",
     });
     void api
       .translateReading(result.itemId)
