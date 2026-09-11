@@ -3007,31 +3007,44 @@ body.dialog-open {
 }
 
 .dialog-context {
-  margin: 0 0 16px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  background: #f8f8f4;
+  margin: 0 0 18px;
+  padding: 0 0 15px;
+  border-bottom: 1px solid var(--line);
   color: var(--ink);
 }
 
 .dialog-context-title {
   margin: 0;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.55;
+  font-weight: 500;
   overflow-wrap: anywhere;
 }
 
 .dialog-context-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
+  gap: 0;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .dialog-context-meta .badge {
-  min-height: 24px;
-  padding: 0 8px;
-  background: var(--paper-solid);
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  font-weight: 500;
+}
+
+.dialog-context-meta .badge:not(:last-child)::after {
+  content: "·";
+  margin: 0 7px;
+  color: #b3b4ae;
 }
 
 .dialog-report-field {

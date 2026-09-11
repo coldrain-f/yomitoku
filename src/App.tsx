@@ -53,6 +53,7 @@ import {
   recommendedSecondsByLength,
   recommendedTopic,
 } from "./lib/readingPolicy";
+import { formatTime } from "./lib/reading";
 import type {
   AdminFilters,
   AttemptRecord,
@@ -1145,6 +1146,13 @@ export default function App() {
   const openStartDialog = (item: ReadingItem) => {
     const hasScore = item.myScore !== null;
     const hasPreviousSubmission = hasScore || item.myLatestStatus !== null;
+    const previousResult = hasScore
+      ? `지난 점수: ${item.myScore}점`
+      : item.myLatestStatus === "wrong"
+        ? "지난 풀이: 오답"
+        : item.myLatestStatus === "correct"
+          ? "지난 풀이: 정답"
+          : null;
     return openDialog({
       kicker: "Start reading",
       title:
@@ -1156,8 +1164,8 @@ export default function App() {
       context: item.title,
       contextMeta: [item.officialLevel, lengthLabels[item.lengthType], item.topic],
       description: hasPreviousSubmission
-        ? "새 답안과 풀이 시간을 기록합니다."
-        : "문제를 열면 풀이 시간이 시작됩니다.",
+        ? `${previousResult} · 다시 풀면 새 답안과 풀이 시간이 기록됩니다.`
+        : `권장 시간 ${formatTime(item.recommendedSeconds)} · 시작 즉시 타이머가 시작됩니다.`,
       confirmLabel: hasPreviousSubmission ? "다시 풀기" : "시작하기",
       onConfirm: () => {
         closeDialog();
