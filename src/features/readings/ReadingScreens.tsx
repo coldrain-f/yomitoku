@@ -152,6 +152,9 @@ export function ReadingListScreen({
             <h1 className="title-jp">読解一覧</h1>
           </div>
           <div className="list-head-actions">
+            {active ? (
+              <p className="list-result-count">{totalItems}개 결과</p>
+            ) : null}
             <button
               className="text-button score-guide-button"
               type="button"
@@ -160,9 +163,6 @@ export function ReadingListScreen({
               <Icon icon={Info} />
               점수 안내
             </button>
-            {active ? (
-              <p className="list-result-count">{totalItems}개 결과</p>
-            ) : null}
           </div>
         </div>
         <div className="list-toolbar">
