@@ -1982,6 +1982,20 @@ fieldset.admin-edit-form {
   line-height: 1.6;
 }
 
+.highlight-collection-loading {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.highlight-collection-spinner {
+  width: 44px;
+  height: 44px;
+  border-width: 4px;
+}
+
 .highlight-collection-group {
   border: 1px solid var(--line);
   background: #fbfcf8;

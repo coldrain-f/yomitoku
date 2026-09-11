@@ -169,9 +169,13 @@ export function AppDialogContent({
           />
         </form>
         {highlightsLoading ? (
-          <p className="highlight-collection-status" role="status">
-            하이라이트를 불러오는 중입니다.
-          </p>
+          <div
+            className="highlight-collection-loading"
+            role="status"
+            aria-label="하이라이트를 불러오는 중입니다."
+          >
+            <span className="loading-spinner highlight-collection-spinner" aria-hidden="true" />
+          </div>
         ) : null}
         {highlightsError ? (
           <p className="dialog-field-error" role="alert">
@@ -183,7 +187,7 @@ export function AppDialogContent({
             저장한 하이라이트가 없습니다. 지문에서 복습할 문장을 선택해 보세요.
           </p>
         ) : null}
-        {!highlightsLoading && !highlightsError && highlightCollection.items.map((item) => (
+        {!highlightsError && highlightCollection.items.map((item) => (
           <details
             className="highlight-collection-group"
             key={item.readingItemId}
@@ -228,7 +232,7 @@ export function AppDialogContent({
             </ul>
           </details>
         ))}
-        {!highlightsLoading && !highlightsError && highlightCollection.totalItems > 0 ? (
+        {!highlightsError && highlightCollection.totalItems > 0 ? (
           <div className="highlight-collection-pagination">
             <span>
               {highlightCollection.totalItems}개 문항 중 {highlightCollection.page} / {highlightCollection.totalPages}
