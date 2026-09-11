@@ -1336,12 +1336,11 @@ fieldset.admin-edit-form {
   font-size: 12px;
 }
 
-.list-toolbar .bookmark-filter-button {
-  width: 52px;
-  flex: 0 0 52px;
-  min-height: 34px;
-  padding: 0 8px;
-  font-size: 12px;
+.list-toolbar-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
 }
 
 .filter-search {
@@ -3653,13 +3652,9 @@ body.dialog-open {
     order: 1;
   }
 
-  .list-filter-button {
+  .list-toolbar-tools {
     order: 1;
     margin-left: auto;
-  }
-
-  .list-highlights-button {
-    order: 1;
   }
 }
 

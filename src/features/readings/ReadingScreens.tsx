@@ -194,40 +194,43 @@ export function ReadingListScreen({
               ariaLabel="독해 언어"
             />
           </div>
-          {authenticated ? (
+          <div className="list-toolbar-tools">
+            {authenticated ? (
+              <button
+                className={`icon-button bookmark-filter-button${filters.bookmarked ? " is-active" : ""}`}
+                type="button"
+                aria-label="북마크 문항만 보기"
+                aria-pressed={filters.bookmarked}
+                title="북마크 문항만 보기"
+                onClick={() =>
+                  setFilters({ ...filters, bookmarked: !filters.bookmarked })
+                }
+              >
+                <Icon icon={Star} fill={filters.bookmarked ? "currentColor" : "none"} />
+              </button>
+            ) : null}
             <button
-              className={`text-button bookmark-filter-button${filters.bookmarked ? " is-selected" : ""}`}
+              className={`icon-button list-filter-button${hasAdvancedFilters ? " is-active" : ""}`}
               type="button"
-              aria-pressed={filters.bookmarked}
-              title="북마크 문항만 보기"
-              onClick={() =>
-                setFilters({ ...filters, bookmarked: !filters.bookmarked })
-              }
+              aria-label="필터 및 정렬"
+              aria-pressed={hasAdvancedFilters}
+              title="필터 및 정렬"
+              onClick={onOpenFilters}
             >
-              북마크
+              <Icon icon={SlidersHorizontal} />
             </button>
-          ) : null}
-          <button
-            className={`icon-button list-filter-button${hasAdvancedFilters ? " is-active" : ""}`}
-            type="button"
-            aria-label="필터 및 정렬"
-            aria-pressed={hasAdvancedFilters}
-            title="필터 및 정렬"
-            onClick={onOpenFilters}
-          >
-            <Icon icon={SlidersHorizontal} />
-          </button>
-          {authenticated ? (
-            <button
-              className="icon-button list-highlights-button"
-              type="button"
-              aria-label="내 하이라이트"
-              title="내 하이라이트"
-              onClick={onOpenHighlights}
-            >
-              <Icon icon={Highlighter} />
-            </button>
-          ) : null}
+            {authenticated ? (
+              <button
+                className="icon-button list-highlights-button"
+                type="button"
+                aria-label="내 하이라이트"
+                title="내 하이라이트"
+                onClick={onOpenHighlights}
+              >
+                <Icon icon={Highlighter} />
+              </button>
+            ) : null}
+          </div>
         </div>
         {loading ? <LoadingOverlay label="목록을 불러오는 중입니다." /> : null}
         {error ? <p className="list-load-error" role="alert">{error}</p> : null}
