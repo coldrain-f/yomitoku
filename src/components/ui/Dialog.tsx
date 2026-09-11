@@ -59,9 +59,11 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
     >
       <section
         className={`confirm-dialog${
-          dialog.type === "translation" || dialog.type === "highlights"
+          dialog.type === "translation"
             ? " confirm-dialog-wide"
             : ""
+        }${
+          dialog.type === "highlights" ? " confirm-dialog-highlights" : ""
         }`}
         role="dialog"
         aria-modal="true"

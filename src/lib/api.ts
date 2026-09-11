@@ -528,12 +528,17 @@ export const api = {
     language,
     query,
     page = 1,
+    pageSize = 5,
   }: {
     language?: "ja" | "ko";
     query?: string;
     page?: number;
+    pageSize?: number;
   } = {}) => {
-    const searchParams = new URLSearchParams({ page: String(page) });
+    const searchParams = new URLSearchParams({
+      page: String(page),
+      page_size: String(pageSize),
+    });
     if (language) searchParams.set("language", language);
     if (query) searchParams.set("query", query);
     return request<HighlightCollectionPage>(

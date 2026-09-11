@@ -1,4 +1,5 @@
 import { OptionButtons } from "./ui/OptionButtons";
+import { ListPagination } from "./ui/ListPagination";
 import { Trash2 } from "lucide-react";
 import { GoogleSignInButton } from "../features/auth/GoogleSignInButton";
 import { Icon } from "./ui/Icon";
@@ -238,24 +239,12 @@ export function AppDialogContent({
               {highlightCollection.totalItems}개 문항 중 {highlightCollection.page} / {highlightCollection.totalPages}
             </span>
             {highlightCollection.totalPages > 1 ? (
-              <div>
-                <button
-                  className="text-button"
-                  type="button"
-                  disabled={highlightCollection.page === 1}
-                  onClick={() => onHighlightPageChange(highlightCollection.page - 1)}
-                >
-                  이전
-                </button>
-                <button
-                  className="text-button"
-                  type="button"
-                  disabled={highlightCollection.page === highlightCollection.totalPages}
-                  onClick={() => onHighlightPageChange(highlightCollection.page + 1)}
-                >
-                  다음
-                </button>
-              </div>
+              <ListPagination
+                page={highlightCollection.page}
+                totalPages={highlightCollection.totalPages}
+                onChange={onHighlightPageChange}
+                ariaLabel="내 하이라이트 페이지"
+              />
             ) : null}
           </div>
         ) : null}

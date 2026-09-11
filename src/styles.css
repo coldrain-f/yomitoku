@@ -2115,15 +2115,11 @@ fieldset.admin-edit-form {
   font-size: 12px;
 }
 
-.highlight-collection-pagination > div {
-  display: flex;
-  gap: 6px;
-}
-
-.highlight-collection-pagination .text-button {
-  min-height: 32px;
-  padding: 0 10px;
-  font-size: 13px;
+.highlight-collection-pagination .list-pagination {
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 0;
+  border: 0;
 }
 
 .highlight-removal-confirmation {
@@ -3138,6 +3134,10 @@ body.dialog-open {
 
 .confirm-dialog-wide {
   width: min(100%, 860px);
+}
+
+.confirm-dialog-highlights {
+  width: min(100%, 640px);
 }
 
 .translation-dialog {

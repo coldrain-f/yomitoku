@@ -94,10 +94,11 @@ const defaultAdminFilters: AdminFilters = {
 const listFiltersStorageKey = "yomitoku.list-filters";
 const adminFiltersStorageKey = "yomitoku.admin-filters";
 const readingSessionStoragePrefix = "yomitoku.reading-session:";
+const highlightCollectionPageSize = 5;
 const emptyHighlightCollection: HighlightCollectionPage = {
   items: [],
   page: 1,
-  pageSize: 20,
+  pageSize: highlightCollectionPageSize,
   totalItems: 0,
   totalPages: 1,
 };
@@ -1395,6 +1396,7 @@ export default function App() {
         language: language === "all" ? undefined : language,
         query: query.trim() || undefined,
         page,
+        pageSize: highlightCollectionPageSize,
       })
       .then((collection) => {
         if (highlightCollectionRequestRef.current === requestId) {
