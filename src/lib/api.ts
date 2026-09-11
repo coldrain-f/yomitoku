@@ -369,6 +369,21 @@ function toItem(summary: ApiReadingSummary, detail?: ApiReadingDetail): ReadingI
   };
 }
 
+function isPersistedId(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
+}
+
+function adminChoiceInput(choice: Choice) {
+  return {
+    ...(isPersistedId(choice.id) ? { id: choice.id } : {}),
+    text: choice.text,
+    isCorrect: Boolean(choice.isCorrect),
+    wrongExplanation: choice.wrongExplanation ?? null,
+  };
+}
+
 function queryString(values: Record<string, string | number | boolean | undefined>) {
   const query = new URLSearchParams();
   Object.entries(values).forEach(([key, value]) => {
@@ -595,22 +610,12 @@ export const api = {
         lengthType: item.lengthType,
         topic: item.topic,
         recommendedSeconds: item.recommendedSeconds,
-        choices: item.choices.map((choice) => ({
-          id: choice.id,
-          text: choice.text,
-          isCorrect: Boolean(choice.isCorrect),
-          wrongExplanation: choice.wrongExplanation ?? null,
-        })),
+        choices: item.choices.map(adminChoiceInput),
         questions: item.questions.map((question) => ({
-          id: question.id,
+          ...(isPersistedId(question.id) ? { id: question.id } : {}),
           question: question.question,
           explanation: question.explanation,
-          choices: question.choices.map((choice) => ({
-            id: choice.id,
-            text: choice.text,
-            isCorrect: Boolean(choice.isCorrect),
-            wrongExplanation: choice.wrongExplanation ?? null,
-          })),
+          choices: question.choices.map(adminChoiceInput),
         })),
       }),
     });
