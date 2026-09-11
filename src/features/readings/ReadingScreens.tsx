@@ -197,7 +197,7 @@ export function ReadingListScreen({
           <div className="list-toolbar-tools">
             {authenticated ? (
               <button
-                className={`icon-button bookmark-filter-button${filters.bookmarked ? " is-active" : ""}`}
+                className={`icon-button bookmark-filter-button${filters.bookmarked ? " is-bookmarked" : ""}`}
                 type="button"
                 aria-label="북마크 문항만 보기"
                 aria-pressed={filters.bookmarked}

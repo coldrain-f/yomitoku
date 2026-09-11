@@ -1343,6 +1343,10 @@ fieldset.admin-edit-form {
   margin-left: auto;
 }
 
+.bookmark-filter-button.is-bookmarked {
+  color: var(--ink);
+}
+
 .filter-search {
   position: relative;
   flex: 1;
