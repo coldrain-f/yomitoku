@@ -361,16 +361,18 @@ export function AdminScreen({
               ariaLabel="관리 문항 언어"
             />
           </div>
-          <button
-            className={`icon-button list-filter-button${hasAppliedFilters ? " is-active" : ""}`}
-            type="button"
-            aria-label="필터 및 정렬"
-            aria-pressed={hasAppliedFilters}
-            title="필터 및 정렬"
-            onClick={onFilters}
-          >
-            <Icon icon={SlidersHorizontal} />
-          </button>
+          <div className="admin-toolbar-tools">
+            <button
+              className={`icon-button list-filter-button${hasAppliedFilters ? " is-active" : ""}`}
+              type="button"
+              aria-label="필터 및 정렬"
+              aria-pressed={hasAppliedFilters}
+              title="필터 및 정렬"
+              onClick={onFilters}
+            >
+              <Icon icon={SlidersHorizontal} />
+            </button>
+          </div>
         </div>
         {loading ? <LoadingOverlay label="관리 문항을 불러오는 중입니다." /> : null}
         {error ? <p className="list-load-error" role="alert">{error}</p> : null}
