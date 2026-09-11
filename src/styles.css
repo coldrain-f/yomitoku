@@ -1822,6 +1822,23 @@ fieldset.admin-edit-form {
   cursor: default;
 }
 
+.primary-button.danger-button {
+  border-color: var(--danger);
+  background: var(--danger);
+}
+
+.primary-button.danger-button:hover,
+.primary-button.danger-button:focus-visible {
+  border-color: #8f3e2f;
+  background: #8f3e2f;
+}
+
+.primary-button.danger-button:disabled {
+  border-color: var(--line);
+  background: #f1f2ed;
+  color: var(--muted);
+}
+
 .text-button[aria-pressed="true"],
 .text-button.is-selected {
   border-color: var(--accent);
@@ -3112,6 +3129,29 @@ body.dialog-open {
   width: min(100%, 860px);
 }
 
+.confirm-dialog-filter {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.dialog-scroll-content {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 30px 30px 0;
+}
+
+.confirm-dialog-filter .dialog-actions {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 18px 30px 30px;
+  border-top: 1px solid var(--line);
+  background: var(--paper-solid);
+  box-shadow: 0 -10px 18px rgba(32, 35, 33, 0.04);
+}
+
 .translation-dialog {
   margin-top: 20px;
 }
@@ -3576,6 +3616,18 @@ body.dialog-open {
 
   .confirm-dialog {
     padding: 26px 20px 20px;
+  }
+
+  .confirm-dialog-filter {
+    padding: 0;
+  }
+
+  .dialog-scroll-content {
+    padding: 26px 20px 0;
+  }
+
+  .confirm-dialog-filter .dialog-actions {
+    padding: 16px 20px 20px;
   }
 
   .translation-comparison {

@@ -50,6 +50,8 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
     dialog.type === "highlights"
       ? "닫기"
       : "취소";
+  const isFilterDialog =
+    dialog.type === "list-filter" || dialog.type === "admin-filter";
 
   return (
     <div
@@ -63,6 +65,8 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
           dialog.type === "translation" || dialog.type === "highlights"
             ? " confirm-dialog-wide"
             : ""
+        }${
+          isFilterDialog ? " confirm-dialog-filter" : ""
         }`}
         role="dialog"
         aria-modal="true"
@@ -77,24 +81,26 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
         >
           <Icon icon={X} />
         </button>
-        <p className="kicker">{dialog.kicker}</p>
-        <h2 className="dialog-title" id="dialog-title">
-          {dialog.title}
-        </h2>
-        {dialog.context || dialog.contextMeta?.length ? (
-          <div className="dialog-context">
-            {dialog.context ? <p className="dialog-context-title">{dialog.context}</p> : null}
-            {dialog.contextMeta?.length ? (
-              <div className="dialog-context-meta" aria-label="문항 정보">
-                {dialog.contextMeta.map((value) => (
-                  <span className="badge" key={value}>{value}</span>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-        {dialog.description ? <p className="body-copy">{dialog.description}</p> : null}
-        {children}
+        <div className={isFilterDialog ? "dialog-scroll-content" : undefined}>
+          <p className="kicker">{dialog.kicker}</p>
+          <h2 className="dialog-title" id="dialog-title">
+            {dialog.title}
+          </h2>
+          {dialog.context || dialog.contextMeta?.length ? (
+            <div className="dialog-context">
+              {dialog.context ? <p className="dialog-context-title">{dialog.context}</p> : null}
+              {dialog.contextMeta?.length ? (
+                <div className="dialog-context-meta" aria-label="문항 정보">
+                  {dialog.contextMeta.map((value) => (
+                    <span className="badge" key={value}>{value}</span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {dialog.description ? <p className="body-copy">{dialog.description}</p> : null}
+          {children}
+        </div>
         <div className={`dialog-actions${dialog.onReset ? " has-reset" : ""}`}>
           <button className="text-button" type="button" onClick={dismiss}>
             {closeLabel}

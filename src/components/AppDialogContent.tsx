@@ -279,7 +279,7 @@ export function AppDialogContent({
                 <button className="text-button" type="button" onClick={onCancelHighlightRemoval}>
                   취소
                 </button>
-                <button className="primary-button" type="button" onClick={onConfirmHighlightRemoval}>
+                <button className="primary-button danger-button" type="button" onClick={onConfirmHighlightRemoval}>
                   제거하기
                 </button>
               </div>
