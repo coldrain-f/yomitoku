@@ -295,7 +295,7 @@ export function ReadingListScreen({
                     <LearningStatusBadge itemId={item.id} progress={progress} />
                   </span>
                   <time className="row-date">
-                    등록 {formatDate(item.publishedAt ?? item.createdAt)} · 정답률{" "}
+                    {formatDate(item.publishedAt ?? item.createdAt)} · 정답률{" "}
                     {item.itemAccuracy === null ? "-" : `${Math.round(item.itemAccuracy)}%`}
                   </time>
                 </span>
