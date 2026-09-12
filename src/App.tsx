@@ -646,11 +646,7 @@ export default function App() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const screen = screenForPath(location.pathname);
-  const returnToGuestList = Boolean(
-    (location.state as { returnToList?: boolean } | null)?.returnToList,
-  );
   const [authenticated, setAuthenticated] = useState(false);
-  const [guestListEntered, setGuestListEntered] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [role, setRole] = useState<Role>("learner");
@@ -1741,7 +1737,7 @@ export default function App() {
   };
   const openLogin = () => {
     setDialogError("");
-    navigate("/login", { state: { returnToList: guestListEntered } });
+    navigate("/login");
   };
   const saveBookmark = async (item: ReadingItem) => {
     if (!authenticated) {
@@ -1802,7 +1798,6 @@ export default function App() {
     if (userId) clearReadingSession(userId);
     restoredAttemptKeyRef.current = null;
     setAuthenticated(false);
-    setGuestListEntered(false);
     setUserId(null);
     setRole("learner");
     setAttempt(null);
@@ -2041,7 +2036,7 @@ export default function App() {
           onOpenStats={openStatsFromHeader}
           onLogout={logoutFromHeader}
         />
-        {screen !== "login" && (authenticated || guestListEntered) ? (
+        {screen !== "login" && authenticated ? (
           <Breadcrumb screen={screen} />
         ) : null}
         {authLoading ? <p role="status">{t("common.loading")}</p> : <Routes>
@@ -2059,7 +2054,6 @@ export default function App() {
                   onBack={() => {
                     setPendingStart(null);
                     setDialogError("");
-                    if (returnToGuestList) setGuestListEntered(true);
                     navigate("/");
                   }}
                 />
@@ -2069,13 +2063,10 @@ export default function App() {
           <Route
             path="/"
             element={
-              authenticated || guestListEntered ? (
+              authenticated ? (
                 <ReadingListScreen items={items} loading={isListLoading} error={listError} page={listPage} totalPages={listTotalPages} totalItems={listTotalItems} onPageChange={setListPage} authenticated={authenticated} filters={filters} setFilters={setListFilters} query={query} setQuery={setListQuery} onOpenFilters={openListFilters} onOpenHighlights={openHighlightCollection} onOpenScoreGuide={openScoreGuide} onStart={start} bookmarkingItemIds={bookmarkingItemIds} onToggleBookmark={(item) => void toggleBookmark(item)} />
               ) : (
-                <WelcomeScreen
-                  onLogin={openLogin}
-                  onBrowse={() => setGuestListEntered(true)}
-                />
+                <WelcomeScreen onLogin={openLogin} />
               )
             }
           />

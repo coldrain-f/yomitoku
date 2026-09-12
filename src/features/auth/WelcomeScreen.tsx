@@ -1,13 +1,12 @@
-import { ArrowRight, LogIn } from "lucide-react";
+import { LogIn } from "lucide-react";
 import { Icon } from "../../components/ui/Icon";
 import { useI18n } from "../../lib/i18n";
 
 interface WelcomeScreenProps {
   onLogin: () => void;
-  onBrowse: () => void;
 }
 
-export function WelcomeScreen({ onLogin, onBrowse }: WelcomeScreenProps) {
+export function WelcomeScreen({ onLogin }: WelcomeScreenProps) {
   const { t } = useI18n();
 
   return (
@@ -24,10 +23,6 @@ export function WelcomeScreen({ onLogin, onBrowse }: WelcomeScreenProps) {
         <button className="primary-button welcome-login" type="button" onClick={onLogin}>
           <Icon icon={LogIn} />
           {t("welcome.login")}
-        </button>
-        <button className="link-button welcome-browse" type="button" onClick={onBrowse}>
-          {t("welcome.browse")}
-          <Icon icon={ArrowRight} />
         </button>
       </div>
     </section>

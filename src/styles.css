@@ -3261,11 +3261,6 @@ body.dialog-open {
   justify-content: center;
 }
 
-.welcome-browse {
-  margin-top: 16px;
-  color: var(--muted);
-}
-
 .dialog-feedback-field {
   margin-top: 20px;
 }
