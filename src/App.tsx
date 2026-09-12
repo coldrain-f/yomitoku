@@ -37,6 +37,7 @@ import {
   useAdminReadingList,
   useGenerationResources,
 } from "./features/admin/useAdminResources";
+import { useAdminReadingActions } from "./features/admin/useAdminReadingActions";
 import { AppDialogContent } from "./components/AppDialogContent";
 import { AppHeader } from "./components/AppHeader";
 import { Breadcrumb } from "./components/ui/Breadcrumb";
@@ -337,6 +338,9 @@ function AdminEditRoute({
   onBack,
   isSaving,
   onConfirmQuestionTruncation,
+  onSuggestTitleRequest,
+  onSuggestTopicRequest,
+  onSuggestExplanationRequest,
 }: {
   items: ReadingItem[];
   draft: ReadingItem | null;
@@ -351,6 +355,17 @@ function AdminEditRoute({
     removedQuestionCount: number,
     onConfirm: () => void,
   ) => void;
+  onSuggestTitleRequest: (passage: string, language: ReadingLanguage) => Promise<string>;
+  onSuggestTopicRequest: (
+    passage: string,
+    language: ReadingLanguage,
+  ) => Promise<ReadingItem["topic"]>;
+  onSuggestExplanationRequest: (
+    passage: string,
+    question: string,
+    choices: ReadingItem["choices"],
+    language: ReadingLanguage,
+  ) => Promise<string>;
 }) {
   const { t, errorMessage } = useI18n();
   const { itemId } = useParams();
@@ -393,7 +408,7 @@ function AdminEditRoute({
     setIsSuggestingTitle(true);
     setTitleSuggestionError("");
     try {
-      const { title } = await api.suggestAdminTitle(passage, draft.language);
+      const title = await onSuggestTitleRequest(passage, draft.language);
       if (!title.trim()) throw new Error(t("admin.titleSuggestionEmpty"));
       if (suggestionRequestRef.current !== requestId) return;
       setDraft((current) =>
@@ -420,7 +435,7 @@ function AdminEditRoute({
     setIsSuggestingTopic(true);
     setTopicSuggestionError("");
     try {
-      const { topic } = await api.suggestAdminTopic(passage, draft.language);
+      const topic = await onSuggestTopicRequest(passage, draft.language);
       if (!readingTopics.includes(topic)) {
         throw new Error(t("admin.topicSuggestionInvalid"));
       }
@@ -457,7 +472,7 @@ function AdminEditRoute({
     setSuggestingExplanationIndex(questionIndex);
     setExplanationSuggestionErrors((current) => ({ ...current, [questionIndex]: "" }));
     try {
-      const { explanation } = await api.suggestAdminExplanation(
+      const explanation = await onSuggestExplanationRequest(
         passage,
         question.question.trim(),
         question.choices,
@@ -642,14 +657,6 @@ export default function App() {
   const [translation, setTranslation] = useState<ReadingTranslation | null>(null);
   const [translationLoading, setTranslationLoading] = useState(false);
   const [translationError, setTranslationError] = useState("");
-  const [draft, setDraft] = useState<ReadingItem | null>(null);
-  const [manualDraft, setManualDraft] = useState<ManualReadingDraft>(
-    createManualReadingDraft,
-  );
-  const [isManualSaving, setIsManualSaving] = useState(false);
-  const [isAdminSaving, setIsAdminSaving] = useState(false);
-  const adminSavingRef = useRef(false);
-  const [manualError, setManualError] = useState("");
   const [generation, setGeneration] = useState<GenerationValues>({
     language: defaultGenerationLanguage,
     level: defaultGenerationLevelByLanguage[defaultGenerationLanguage],
@@ -685,6 +692,32 @@ export default function App() {
     }),
     pageSize: listPageSize,
     storageKey: adminFiltersStorageKey,
+  });
+  const {
+    deleteAdminItem,
+    draft,
+    isAdminSaving,
+    isManualSaving,
+    manualDraft,
+    manualError,
+    openAdminItem,
+    publishAdminItem,
+    resetManualDraft,
+    saveAdminItem,
+    saveManualReading,
+    setDraft,
+    setManualDraft,
+    suggestExplanation,
+    suggestTitle,
+    suggestTopic,
+    toggleHold,
+  } = useAdminReadingActions({
+    createManualDraft: createManualReadingDraft,
+    errorMessage,
+    removeAdminItem: (itemId) =>
+      setAdminItems((current) => current.filter((item) => item.id !== itemId)),
+    replaceAdminItem,
+    validateManualDraft: (item) => validateManualReadingDraft(item, t),
   });
   const [adminFilterDraft, setAdminFilterDraft] = useState(adminFilters);
   const adminFilterDraftRef = useRef(adminFilterDraft);
@@ -1065,8 +1098,7 @@ export default function App() {
         closeDialog();
         void (async () => {
           try {
-            await api.deleteAdminReading(item.id);
-            setAdminItems((current) => current.filter((entry) => entry.id !== item.id));
+            await deleteAdminItem(item.id);
             setItems((current) => current.filter((entry) => entry.id !== item.id));
             setAttempts((current) => current.filter((entry) => entry.itemId !== item.id));
             await loadStatistics();
@@ -1351,9 +1383,7 @@ export default function App() {
   const openEdit = (item: ReadingItem) => {
     void (async () => {
       try {
-        const detail = await api.adminReading(item.id);
-        replaceAdminItem(detail);
-        setDraft(structuredClone(detail));
+        const detail = await openAdminItem(item.id);
         navigate(`/admin/readings/${detail.id}/edit`);
       } catch (error) {
         setToast(errorMessage(error, "admin.openFailed"));
@@ -1405,42 +1435,22 @@ export default function App() {
     });
   };
   const updateAdminItem = async (item: ReadingItem) => {
-    if (adminSavingRef.current) return;
-    adminSavingRef.current = true;
-    setIsAdminSaving(true);
     try {
-      const next = await api.updateAdminReading(item);
-      replaceAdminItem(next);
-      setDraft(structuredClone(next));
+      const next = await saveAdminItem(item);
+      if (!next) return;
       setToast(t("admin.savedChanges"));
     } catch (error) {
       setToast(errorMessage(error, "admin.saveFailed"));
-    } finally {
-      adminSavingRef.current = false;
-      setIsAdminSaving(false);
     }
   };
   const createManualReading = async () => {
-    const validationError = validateManualReadingDraft(manualDraft, t);
-    if (validationError) {
-      setManualError(validationError);
-      return;
-    }
-    setIsManualSaving(true);
-    setManualError("");
     try {
-      const next = await api.createAdminReading(manualDraft);
-      replaceAdminItem(next);
-      setManualDraft(createManualReadingDraft());
-      setDraft(structuredClone(next));
+      const next = await saveManualReading();
+      if (!next) return;
       navigate("/admin/readings/" + next.id + "/edit");
       setToast(t("admin.manualSaved"));
     } catch (error) {
-      const message = errorMessage(error, "admin.saveFailed");
-      setManualError(message);
-      setToast(message);
-    } finally {
-      setIsManualSaving(false);
+      setToast(errorMessage(error, "admin.saveFailed"));
     }
   };
   const leaveManualCreate = (
@@ -1455,8 +1465,7 @@ export default function App() {
       Boolean(manualDraft.explanation.trim()) ||
       manualDraft.choices.some((choice) => Boolean(choice.text.trim()));
     if (!hasContent) {
-      setManualDraft(createManualReadingDraft());
-      setManualError("");
+      resetManualDraft();
       afterLeave?.();
       navigate(target);
       return;
@@ -1468,8 +1477,7 @@ export default function App() {
       confirmLabel: t("admin.discardDraftConfirm"),
       onConfirm: () => {
         closeDialog();
-        setManualDraft(createManualReadingDraft());
-        setManualError("");
+        resetManualDraft();
         afterLeave?.();
         navigate(target);
       },
@@ -1498,9 +1506,7 @@ export default function App() {
         closeDialog();
         void (async () => {
           try {
-            const next = item.status === "held" ? await api.unhold(item.id) : await api.hold(item.id);
-            replaceAdminItem(next);
-            setDraft((current) => (current?.id === next.id ? structuredClone(next) : current));
+            await toggleHold(item);
             await Promise.all([loadPublicItems(), loadStatistics()]);
             setToast(isHeld ? t("admin.holdCancelled") : t("admin.held"));
           } catch (error) {
@@ -1517,27 +1523,17 @@ export default function App() {
       description: t("admin.publishDescription"),
       confirmLabel: t("admin.publish"),
       onConfirm: () => {
-        if (adminSavingRef.current) return;
-        adminSavingRef.current = true;
-        setIsAdminSaving(true);
         closeDialog();
         void (async () => {
           try {
-            const saved = await api.updateAdminReading(item);
-            replaceAdminItem(saved);
-            setDraft(structuredClone(saved));
-            const next = await api.publish(saved.id);
-            replaceAdminItem(next);
-            setDraft((current) => (current?.id === next.id ? structuredClone(next) : current));
+            const next = await publishAdminItem(item);
+            if (!next) return;
             await Promise.all([loadPublicItems(), loadStatistics()]);
             setDraft(null);
             navigate("/admin/readings/new");
             setToast(t("admin.published"));
           } catch (error) {
             setToast(errorMessage(error, "admin.publishFailed"));
-          } finally {
-            adminSavingRef.current = false;
-            setIsAdminSaving(false);
           }
         })();
       },
@@ -1627,11 +1623,11 @@ export default function App() {
           <Route path="/readings/:itemId" element={<RequireAuth authenticated={authenticated}><ReadingRoute items={items} attempt={attempt} result={result} onChoose={chooseAnswer} onSubmit={submit} isSubmitting={isSubmitting} onAbandon={goHome} onReport={openReport} onTranslate={openTranslation} onResult={() => result && navigate(`/results/${result.itemId}`)} highlights={attempt ? passageHighlights[attempt.itemId] ?? [] : []} onCreateHighlight={(startOffset, endOffset, selectedText) => attempt ? createPassageHighlight(attempt.itemId, startOffset, endOffset, selectedText) : Promise.reject(new Error(t("reading.noActiveAttempt")))} onDeleteHighlight={(highlightId) => attempt ? deletePassageHighlight(attempt.itemId, highlightId) : Promise.reject(new Error(t("reading.noActiveAttempt")))} /></RequireAuth>} />
           <Route path="/results/:itemId" element={<RequireAuth authenticated={authenticated}><ResultRoute result={result} onFeedback={openFeedback} onReview={() => result && navigate(`/readings/${result.itemId}`)} onContinue={continueReading} onHome={goHome} /></RequireAuth>} />
           <Route path="/statistics" element={<RequireAuth authenticated={authenticated}><StatsScreen statistics={statistics} /></RequireAuth>} />
-          <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} error={adminListError} page={adminPage} totalPages={adminTotalPages} totalItems={adminTotalItems} onPageChange={setAdminPage} filters={adminFilters} query={adminQuery} setQuery={(nextQuery) => { setAdminPage(1); setAdminQuery(nextQuery); }} onLanguageChange={(language) => updateAdminFilters((current) => ({ ...current, language, level: "all" }))} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => { void loadGenerationModels(); navigate("/admin/readings/new"); }} onManualCreate={() => { setManualDraft(createManualReadingDraft()); setManualError(""); navigate("/admin/readings/manual"); }} onHistory={() => { void loadGenerationHistory(); navigate("/admin/generation-history"); }} /></RequireAdmin>} />
+          <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} error={adminListError} page={adminPage} totalPages={adminTotalPages} totalItems={adminTotalItems} onPageChange={setAdminPage} filters={adminFilters} query={adminQuery} setQuery={(nextQuery) => { setAdminPage(1); setAdminQuery(nextQuery); }} onLanguageChange={(language) => updateAdminFilters((current) => ({ ...current, language, level: "all" }))} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => { void loadGenerationModels(); navigate("/admin/readings/new"); }} onManualCreate={() => { resetManualDraft(); navigate("/admin/readings/manual"); }} onHistory={() => { void loadGenerationHistory(); navigate("/admin/generation-history"); }} /></RequireAdmin>} />
           <Route path="/admin/generation-history" element={<RequireAdmin authenticated={authenticated} role={role}><GenerationHistoryScreen items={generationHistory} loading={isGenerationHistoryLoading} error={generationHistoryError} page={generationHistoryPage} totalPages={generationHistoryTotalPages} totalItems={generationHistoryTotalItems} onPageChange={(page) => void loadGenerationHistory(page)} onRefresh={() => void loadGenerationHistory(generationHistoryPage)} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
-          <Route path="/admin/readings/manual" element={<RequireAdmin authenticated={authenticated} role={role}><ManualCreateScreen values={manualDraft} setValues={setManualDraft} isSaving={isManualSaving} error={manualError} onSave={() => void createManualReading()} onBack={leaveManualCreate} onSuggestTitle={async (passage, language) => (await api.suggestAdminTitle(passage, language)).title} onSuggestTopic={async (passage, language) => (await api.suggestAdminTopic(passage, language)).topic} onSuggestExplanation={async (passage, question, choices, language) => (await api.suggestAdminExplanation(passage, question, choices, language)).explanation} onConfirmQuestionTruncation={confirmQuestionTruncation} /></RequireAdmin>} />
+          <Route path="/admin/readings/manual" element={<RequireAdmin authenticated={authenticated} role={role}><ManualCreateScreen values={manualDraft} setValues={setManualDraft} isSaving={isManualSaving} error={manualError} onSave={() => void createManualReading()} onBack={leaveManualCreate} onSuggestTitle={suggestTitle} onSuggestTopic={suggestTopic} onSuggestExplanation={suggestExplanation} onConfirmQuestionTruncation={confirmQuestionTruncation} /></RequireAdmin>} />
           <Route path="/admin/readings/new" element={<RequireAdmin authenticated={authenticated} role={role}><GenerateScreen values={generation} setValues={setGeneration} modelOptions={generationModels} modelError={generationModelsError} isCreating={isGenerating} progressLabel={generationProgress} error={generationJob.error} onCreate={createDraft} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
-          <Route path="/admin/readings/:itemId/edit" element={<RequireAdmin authenticated={authenticated} role={role}><AdminEditRoute items={adminItems} draft={draft} setDraft={setDraft} onSave={() => draft && void updateAdminItem(draft)} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={leaveEditor} isSaving={isAdminSaving} onConfirmQuestionTruncation={confirmQuestionTruncation} /></RequireAdmin>} />
+          <Route path="/admin/readings/:itemId/edit" element={<RequireAdmin authenticated={authenticated} role={role}><AdminEditRoute items={adminItems} draft={draft} setDraft={setDraft} onSave={() => draft && void updateAdminItem(draft)} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={leaveEditor} isSaving={isAdminSaving} onConfirmQuestionTruncation={confirmQuestionTruncation} onSuggestTitleRequest={suggestTitle} onSuggestTopicRequest={suggestTopic} onSuggestExplanationRequest={suggestExplanation} /></RequireAdmin>} />
           <Route path="/admin/readings/:itemId/preview" element={<RequireAdmin authenticated={authenticated} role={role}><PreviewRoute items={adminItems} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>}
