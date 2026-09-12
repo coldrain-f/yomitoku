@@ -31,6 +31,7 @@ import { useReadingSubmission } from "./features/readings/useReadingSubmission";
 import { StatsScreen } from "./features/statistics/StatsScreen";
 import { LoginScreen } from "./features/auth/LoginScreen";
 import { WelcomeScreen } from "./features/auth/WelcomeScreen";
+import { useAuth } from "./features/auth/useAuth";
 import { useGenerationJob } from "./features/admin/useGenerationJob";
 import {
   useAdminReadingList,
@@ -43,7 +44,6 @@ import { Dialog } from "./components/ui/Dialog";
 import { Icon } from "./components/ui/Icon";
 import {
   api,
-  ApiError,
   recordFromResult,
   type GenerationJob,
   type ReadingTranslation,
@@ -552,10 +552,15 @@ export default function App() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const screen = screenForPath(location.pathname);
-  const [authenticated, setAuthenticated] = useState(false);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [role, setRole] = useState<Role>("learner");
+  const {
+    authenticated,
+    authLoading,
+    initialAuthError,
+    role,
+    signInWithGoogle,
+    signOut,
+    userId,
+  } = useAuth();
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [attempts, setAttempts] = useState<AttemptRecord[]>([]);
   const [passageHighlights, setPassageHighlights] = useState<
@@ -814,32 +819,9 @@ export default function App() {
   const activeItem = items.find((item) => item.id === attempt?.itemId);
 
   useEffect(() => {
-    let active = true;
-    void (async () => {
-      try {
-        const user = await api.me();
-        if (!active) return;
-        setAuthenticated(true);
-        setUserId(user.id);
-        setRole(user.role);
-      } catch (error) {
-        if (!active) return;
-        if (error instanceof ApiError && error.status === 401) {
-          setAuthenticated(false);
-          setUserId(null);
-          setRole("learner");
-        }
-        if (!(error instanceof ApiError && error.status === 401)) {
-          setToast(errorMessage(error, "common.serverConnectionFailed"));
-        }
-      } finally {
-        if (active) setAuthLoading(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, []);
+    if (!initialAuthError) return;
+    setToast(errorMessage(initialAuthError, "common.serverConnectionFailed"));
+  }, [initialAuthError]);
 
   useEffect(() => {
     if (!authenticated) return;
@@ -1276,10 +1258,7 @@ export default function App() {
     const itemToStart = pendingStart;
     void (async () => {
     try {
-      const user = await api.signInWithGoogle(credential);
-      setAuthenticated(true);
-      setUserId(user.id);
-      setRole(user.role);
+      const user = await signInWithGoogle(credential);
       await Promise.all([
         loadPublicItems(),
         loadStatistics(),
@@ -1353,12 +1332,8 @@ export default function App() {
     });
   };
   const logout = () => {
-    void api.logout().catch(() => undefined);
-    api.clearAccessToken();
+    signOut();
     clearStoredSession();
-    setAuthenticated(false);
-    setUserId(null);
-    setRole("learner");
     resetSession();
     resetSubmission();
     setStatistics(null);
