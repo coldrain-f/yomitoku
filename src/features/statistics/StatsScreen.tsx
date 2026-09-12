@@ -11,7 +11,7 @@ interface StatsScreenProps {
 type ProgressStyle = CSSProperties & Record<"--progress", string>;
 
 export function StatsScreen({ statistics }: StatsScreenProps) {
-  const { t, lengthLabel } = useI18n();
+  const { t, levelLabel, lengthLabel } = useI18n();
 
   if (!statistics) {
     return (
@@ -136,7 +136,7 @@ export function StatsScreen({ statistics }: StatsScreenProps) {
           <div className="stats-bar-list">
             {statistics.byLevel.map((group) =>
               bar(
-                group.key as DifficultyLevel,
+                levelLabel(group.key as DifficultyLevel),
                 group.totalCount,
                 group.completedCount,
                 group.accuracy,

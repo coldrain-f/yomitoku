@@ -124,6 +124,7 @@ export function ReadingListScreen({
     locale,
     t,
     languageLabel,
+    levelLabel,
     lengthLabel,
     topicLabel,
     perceivedLabel: localizedPerceivedLabel,
@@ -281,7 +282,7 @@ export function ReadingListScreen({
                   </span>
                   <span className="row-meta">
                     <span className="badge row-level">
-                      {item.officialLevel}
+                      {levelLabel(item.officialLevel)}
                     </span>
                     {item.perceivedVotes >= minimumVotes ? (
                       <span className="badge row-perceived">
@@ -782,6 +783,7 @@ export function ReadingScreen({
   const {
     t,
     languageLabel,
+    levelLabel,
     lengthLabel,
     perceivedLabel: localizedPerceivedLabel,
   } = useI18n();
@@ -805,7 +807,7 @@ export function ReadingScreen({
             <p className="kicker">
               {t("reading.actualLevel", {
                 language: languageLabel(item.language),
-                level: item.officialLevel,
+                level: levelLabel(item.officialLevel),
               })}
               {item.perceivedVotes >= minimumVotes ? (
                 <> · {localizedPerceivedLabel(item)}</>
@@ -965,6 +967,7 @@ export function ResultScreen({
   const {
     t,
     languageLabel,
+    levelLabel,
     lengthLabel,
     topicLabel,
     perceivedLabel: localizedPerceivedLabel,
@@ -995,7 +998,7 @@ export function ResultScreen({
           <span>
             {t("reading.actualLevel", {
               language: languageLabel(item.language),
-              level: item.officialLevel,
+              level: levelLabel(item.officialLevel),
             })}
             {item.perceivedVotes >= minimumVotes ? (
               <> · {localizedPerceivedLabel(item)}</>

@@ -641,7 +641,7 @@ function PreviewRoute({
 }
 
 export default function App() {
-  const { t, lengthLabel, topicLabel } = useI18n();
+  const { t, levelLabel, lengthLabel, topicLabel } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1316,7 +1316,7 @@ export default function App() {
             ? t("start.retry")
             : t("start.begin"),
       context: item.title,
-      contextMeta: [item.officialLevel, lengthLabel(item.lengthType), topicLabel(item.topic)],
+      contextMeta: [levelLabel(item.officialLevel), lengthLabel(item.lengthType), topicLabel(item.topic)],
       description: hasPreviousSubmission
         ? t("start.retryDescription", { previous: previousResult ?? "" })
         : t("start.description", { time: formatTime(item.recommendedSeconds) }),
@@ -1781,7 +1781,7 @@ export default function App() {
       kicker: t("bookmark.kicker"),
       title: willBookmark ? t("bookmark.addTitle") : t("bookmark.removeTitle"),
       context: item.title,
-      contextMeta: [item.officialLevel, lengthLabel(item.lengthType), topicLabel(item.topic)],
+      contextMeta: [levelLabel(item.officialLevel), lengthLabel(item.lengthType), topicLabel(item.topic)],
       description: willBookmark
         ? t("bookmark.addDescription")
         : t("bookmark.removeDescription"),

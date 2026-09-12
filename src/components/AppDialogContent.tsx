@@ -84,7 +84,7 @@ export function AppDialogContent({
   onConfirmHighlightRemoval,
   onRemoveHighlight,
 }: AppDialogContentProps) {
-  const { locale, t, languageLabel, lengthLabel, topicLabel } = useI18n();
+  const { locale, t, languageLabel, levelLabel, lengthLabel, topicLabel } = useI18n();
 
   if (type === "score-guide") {
     return (
@@ -184,7 +184,7 @@ export function AppDialogContent({
               </div>
               <div className="highlight-collection-meta">
                 <span className="badge">{languageLabel(item.language)}</span>
-                <span className="badge">{item.officialLevel}</span>
+                <span className="badge">{levelLabel(item.officialLevel)}</span>
                 <span className="badge">{lengthLabel(item.lengthType)}</span>
                 <span>{topicLabel(item.topic)}</span>
               </div>
@@ -247,7 +247,7 @@ export function AppDialogContent({
                 {highlightRemoval.selectedText}
               </p>
               <div className="highlight-removal-meta">
-                <span className="badge">{highlightRemoval.officialLevel}</span>
+                <span className="badge">{levelLabel(highlightRemoval.officialLevel)}</span>
                 <span className="badge">{lengthLabel(highlightRemoval.lengthType)}</span>
                 <span>{topicLabel(highlightRemoval.topic)}</span>
               </div>
@@ -276,7 +276,10 @@ export function AppDialogContent({
             value={filterDraft.level}
             options={[
               { value: "all", label: t("filters.all") },
-              ...levelsForLanguage(filterDraft.language),
+              ...levelsForLanguage(filterDraft.language).map((value) => ({
+                value,
+                label: levelLabel(value),
+              })),
             ]}
             onChange={(level) =>
               setFilterDraft({

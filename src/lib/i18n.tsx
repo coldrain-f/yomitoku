@@ -7,7 +7,13 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { LengthType, ReadingItem, ReadingLanguage, Topic } from "../types";
+import type {
+  DifficultyLevel,
+  LengthType,
+  ReadingItem,
+  ReadingLanguage,
+  Topic,
+} from "../types";
 
 export type UiLocale = "ko" | "ja";
 
@@ -570,6 +576,21 @@ const lengthNames: Record<UiLocale, Record<LengthType, string>> = {
   ja: { short: "短文", medium: "中程度", long: "長文" },
 };
 
+const levelNames: Record<UiLocale, Record<DifficultyLevel, string>> = {
+  ko: {
+    N5: "N5", N4: "N4", N3: "N3", N2: "N2", N1: "N1", "N1+": "N1+",
+    "TOPIK 1급": "TOPIK 1급", "TOPIK 2급": "TOPIK 2급", "TOPIK 3급": "TOPIK 3급",
+    "TOPIK 4급": "TOPIK 4급", "TOPIK 5급": "TOPIK 5급", "TOPIK 6급": "TOPIK 6급",
+    "TOPIK 6급+": "TOPIK 6급+", 측정불가: "측정불가",
+  },
+  ja: {
+    N5: "N5", N4: "N4", N3: "N3", N2: "N2", N1: "N1", "N1+": "N1+",
+    "TOPIK 1급": "TOPIK 1級", "TOPIK 2급": "TOPIK 2級", "TOPIK 3급": "TOPIK 3級",
+    "TOPIK 4급": "TOPIK 4級", "TOPIK 5급": "TOPIK 5級", "TOPIK 6급": "TOPIK 6級",
+    "TOPIK 6급+": "TOPIK 6級+", 측정불가: "測定不可",
+  },
+};
+
 const topicNames: Record<UiLocale, Record<Topic, string>> = {
   ko: {
     생활: "생활", 가족: "가족", 학교: "학교", 직장: "직장", 건강: "건강", 취미: "취미",
@@ -609,6 +630,7 @@ interface I18nContextValue {
   setLocale: (locale: UiLocale) => void;
   t: (key: string, variables?: Variables) => string;
   languageLabel: (language: ReadingLanguage) => string;
+  levelLabel: (level: DifficultyLevel) => string;
   lengthLabel: (length: LengthType) => string;
   topicLabel: (topic: Topic) => string;
   perceivedLabel: (item: Pick<ReadingItem, "perceivedVotes" | "perceivedLevel">) => string;
@@ -640,13 +662,14 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       setLocale,
       t,
       languageLabel: (language) => languageNames[locale][language],
+      levelLabel: (level) => levelNames[locale][level],
       lengthLabel: (length) => lengthNames[locale][length],
       topicLabel: (topic) => topicNames[locale][topic],
       perceivedLabel: (item) =>
         item.perceivedVotes >= 10
           ? locale === "ja"
-            ? `体感 ${item.perceivedLevel}`
-            : `체감 ${item.perceivedLevel}`
+            ? `体感 ${levelNames[locale][item.perceivedLevel]}`
+            : `체감 ${levelNames[locale][item.perceivedLevel]}`
           : locale === "ja"
             ? "体感集計中"
             : "체감 집계 중",
