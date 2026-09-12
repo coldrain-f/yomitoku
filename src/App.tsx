@@ -444,7 +444,7 @@ function AdminEditRoute({
     onConfirm: () => void,
   ) => void;
 }) {
-  const { t } = useI18n();
+  const { t, errorMessage } = useI18n();
   const { itemId } = useParams();
   const item = items.find((entry) => entry.id === itemId);
   const [isSuggestingTitle, setIsSuggestingTitle] = useState(false);
@@ -494,9 +494,7 @@ function AdminEditRoute({
     } catch (suggestionError) {
       if (suggestionRequestRef.current !== requestId) return;
       setTitleSuggestionError(
-        suggestionError instanceof Error
-          ? suggestionError.message
-          : t("admin.titleSuggestionFailed"),
+        errorMessage(suggestionError, "admin.titleSuggestionFailed"),
       );
     } finally {
       if (suggestionRequestRef.current === requestId) setIsSuggestingTitle(false);
@@ -525,9 +523,7 @@ function AdminEditRoute({
     } catch (suggestionError) {
       if (suggestionRequestRef.current !== requestId) return;
       setTopicSuggestionError(
-        suggestionError instanceof Error
-          ? suggestionError.message
-          : t("admin.topicSuggestionFailed"),
+        errorMessage(suggestionError, "admin.topicSuggestionFailed"),
       );
     } finally {
       if (suggestionRequestRef.current === requestId) setIsSuggestingTopic(false);
@@ -582,9 +578,7 @@ function AdminEditRoute({
       setExplanationSuggestionErrors((current) => ({
         ...current,
         [questionIndex]:
-          suggestionError instanceof Error
-            ? suggestionError.message
-            : t("admin.explanationSuggestionFailed"),
+          errorMessage(suggestionError, "admin.explanationSuggestionFailed"),
       }));
     } finally {
       if (suggestionRequestRef.current === requestId) {
@@ -645,7 +639,7 @@ function PreviewRoute({
 }
 
 export default function App() {
-  const { t, levelLabel, lengthLabel, topicLabel } = useI18n();
+  const { t, levelLabel, lengthLabel, topicLabel, errorMessage } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -838,7 +832,7 @@ export default function App() {
       setListTotalItems(response.totalItems);
     } catch (error) {
       if (requestId === listRequestRef.current) {
-        setListError(error instanceof Error ? error.message : t("list.failed"));
+        setListError(errorMessage(error, "list.failed"));
       }
     } finally {
       if (requestId === listRequestRef.current) setIsListLoading(false);
@@ -919,9 +913,7 @@ export default function App() {
       }));
       setToast(t("highlights.removeSuccess"));
     } catch (error) {
-      setHighlightCollectionError(
-        error instanceof Error ? error.message : t("highlights.removeFailed"),
-      );
+      setHighlightCollectionError(errorMessage(error, "highlights.removeFailed"));
     } finally {
       setRemovingHighlightId(null);
     }
@@ -942,9 +934,7 @@ export default function App() {
       }));
     } catch (error) {
       setGenerationModels(null);
-      setGenerationModelsError(
-        error instanceof Error ? error.message : t("admin.modelsLoadFailed"),
-      );
+      setGenerationModelsError(errorMessage(error, "admin.modelsLoadFailed"));
     }
   };
   const loadGenerationHistory = async (page = 1) => {
@@ -957,9 +947,7 @@ export default function App() {
       setGenerationHistoryTotalPages(response.totalPages);
       setGenerationHistoryTotalItems(response.totalItems);
     } catch (error) {
-      setGenerationHistoryError(
-        error instanceof Error ? error.message : t("admin.historyLoadFailed"),
-      );
+      setGenerationHistoryError(errorMessage(error, "admin.historyLoadFailed"));
     } finally {
       setIsGenerationHistoryLoading(false);
     }
@@ -988,9 +976,7 @@ export default function App() {
       setAdminLoaded(true);
     } catch (error) {
       if (requestId === adminListRequestRef.current) {
-        setAdminListError(
-          error instanceof Error ? error.message : t("admin.listLoadFailed"),
-        );
+        setAdminListError(errorMessage(error, "admin.listLoadFailed"));
       }
     } finally {
       if (requestId === adminListRequestRef.current) setIsAdminListLoading(false);
@@ -1090,7 +1076,7 @@ export default function App() {
           setRole("learner");
         }
         if (!(error instanceof ApiError && error.status === 401)) {
-          setToast(error instanceof Error ? error.message : t("common.serverConnectionFailed"));
+          setToast(errorMessage(error, "common.serverConnectionFailed"));
         }
       } finally {
         if (active) setAuthLoading(false);
@@ -1109,7 +1095,7 @@ export default function App() {
   useEffect(() => {
     if (!authenticated) return;
     void loadStatistics().catch((error: unknown) =>
-      setToast(error instanceof Error ? error.message : t("stats.failed")),
+      setToast(errorMessage(error, "stats.failed")),
     );
   }, [authenticated]);
 
@@ -1372,7 +1358,7 @@ export default function App() {
             });
             navigate(`/readings/${item.id}`);
           } catch (error) {
-            setToast(error instanceof Error ? error.message : t("start.openFailed"));
+            setToast(errorMessage(error, "start.openFailed"));
           }
         })();
       },
@@ -1457,7 +1443,7 @@ export default function App() {
           } catch (error) {
             submittingRef.current = false;
             setIsSubmitting(false);
-            setToast(error instanceof Error ? error.message : t("submit.failed"));
+            setToast(errorMessage(error, "submit.failed"));
           }
         })();
       },
@@ -1482,7 +1468,7 @@ export default function App() {
             navigate(target);
             setToast(t("admin.deleted"));
           } catch (error) {
-            setToast(error instanceof Error ? error.message : t("admin.deleteFailed"));
+            setToast(errorMessage(error, "admin.deleteFailed"));
           }
         })();
       },
@@ -1661,9 +1647,7 @@ export default function App() {
         void api
           .report(activeItem.id, content)
           .then(() => setToast(t("report.success")))
-          .catch((error: unknown) =>
-            setToast(error instanceof Error ? error.message : t("report.failed")),
-          );
+          .catch((error: unknown) => setToast(errorMessage(error, "report.failed")));
       },
     });
   };
@@ -1682,9 +1666,7 @@ export default function App() {
       .translateReading(result.itemId)
       .then(setTranslation)
       .catch((error: unknown) =>
-        setTranslationError(
-          error instanceof Error ? error.message : t("translation.failed"),
-        ),
+        setTranslationError(errorMessage(error, "translation.failed")),
       )
       .finally(() => setTranslationLoading(false));
   };
@@ -1707,9 +1689,7 @@ export default function App() {
         void api
           .feedback(result.itemId, Number(values.quality), values.level, values.comment)
           .then(() => setToast(t("feedback.success")))
-          .catch((error: unknown) =>
-            setToast(error instanceof Error ? error.message : t("feedback.failed")),
-          );
+          .catch((error: unknown) => setToast(errorMessage(error, "feedback.failed")));
       },
     });
   };
@@ -1733,9 +1713,7 @@ export default function App() {
       setToast(t("auth.success"));
       if (itemToStart) openStartDialog(itemToStart);
     } catch (error) {
-      setDialogError(
-        error instanceof Error ? error.message : t("auth.failed"),
-      );
+      setDialogError(errorMessage(error, "auth.failed"));
     }
     })();
   };
@@ -1764,7 +1742,7 @@ export default function App() {
       }
       setToast(isBookmarked ? t("bookmark.addSuccess") : t("bookmark.removeSuccess"));
     } catch (error) {
-      setToast(error instanceof Error ? error.message : t("bookmark.failed"));
+      setToast(errorMessage(error, "bookmark.failed"));
     } finally {
       setBookmarkingItemIds((current) => {
         const next = new Set(current);
@@ -1828,7 +1806,7 @@ export default function App() {
         setDraft(structuredClone(detail));
         navigate(`/admin/readings/${detail.id}/edit`);
       } catch (error) {
-        setToast(error instanceof Error ? error.message : t("admin.openFailed"));
+        setToast(errorMessage(error, "admin.openFailed"));
       }
     })();
   };
@@ -1886,7 +1864,7 @@ export default function App() {
       setDraft(structuredClone(next));
       setToast(t("admin.savedChanges"));
     } catch (error) {
-      setToast(error instanceof Error ? error.message : t("admin.saveFailed"));
+      setToast(errorMessage(error, "admin.saveFailed"));
     } finally {
       adminSavingRef.current = false;
       setIsAdminSaving(false);
@@ -1908,7 +1886,7 @@ export default function App() {
       navigate("/admin/readings/" + next.id + "/edit");
       setToast(t("admin.manualSaved"));
     } catch (error) {
-      const message = error instanceof Error ? error.message : t("admin.saveFailed");
+      const message = errorMessage(error, "admin.saveFailed");
       setManualError(message);
       setToast(message);
     } finally {
@@ -1976,7 +1954,7 @@ export default function App() {
             await Promise.all([loadPublicItems(), loadStatistics()]);
             setToast(isHeld ? t("admin.holdCancelled") : t("admin.held"));
           } catch (error) {
-            setToast(error instanceof Error ? error.message : t("admin.changeStateFailed"));
+            setToast(errorMessage(error, "admin.changeStateFailed"));
           }
         })();
       },
@@ -2006,7 +1984,7 @@ export default function App() {
             navigate("/admin/readings/new");
             setToast(t("admin.published"));
           } catch (error) {
-            setToast(error instanceof Error ? error.message : t("admin.publishFailed"));
+            setToast(errorMessage(error, "admin.publishFailed"));
           } finally {
             adminSavingRef.current = false;
             setIsAdminSaving(false);

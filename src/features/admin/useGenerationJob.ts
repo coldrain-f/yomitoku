@@ -29,7 +29,7 @@ function restore(owner: string): Operation {
 }
 
 export function useGenerationJob(owner: string | null) {
-  const { t } = useI18n();
+  const { t, errorMessage } = useI18n();
   const [operation, setOperation] = useState<{ owner: string; value: Operation } | null>(null);
   const [job, setJob] = useState<GenerationJob | null>(null);
   const [busy, setBusy] = useState(true);
@@ -66,7 +66,7 @@ export function useGenerationJob(owner: string | null) {
           locked.current = false;
           setBusy(false);
           if (next?.status === "failed") {
-            setError(next.errorDetail ?? t("admin.generationFailed"));
+            setError(t("admin.generationFailed"));
           }
           return;
         }
@@ -79,7 +79,7 @@ export function useGenerationJob(owner: string | null) {
           store(owner, null);
           locked.current = false;
           setBusy(false);
-          setError(failure.message);
+          setError(errorMessage(failure, "admin.generationReconnect"));
           return;
         }
         setError(t("admin.generationReconnect"));
@@ -91,7 +91,7 @@ export function useGenerationJob(owner: string | null) {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [owner, operation, t]);
+  }, [errorMessage, owner, operation, t]);
 
   const start = (values: GenerationValues) => {
     if (!owner || locked.current) return;

@@ -243,6 +243,7 @@ export interface GenerationJob {
   status: string;
   currentNode: string;
   generatedItemId: string | null;
+  errorCode: string | null;
   errorDetail: string | null;
   conditions: GenerationJobHistory["conditions"];
 }
@@ -416,10 +417,21 @@ function validationErrorMessage(detail: unknown): string | null {
 }
 
 export class ApiError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(
+    readonly code: string,
+    readonly status: number,
+    message = code,
+  ) {
     super(message);
     this.name = "ApiError";
   }
+}
+
+function apiErrorCode(body: unknown, status: number): string {
+  if (isRecord(body) && typeof body.code === "string" && body.code) {
+    return body.code;
+  }
+  return `HTTP_${status}`;
 }
 
 async function request<T>(
@@ -442,9 +454,9 @@ async function request<T>(
   if (!response.ok) {
     const body = await response.json().catch(() => null);
     throw new ApiError(
-      validationErrorMessage(isRecord(body) ? body.detail : null) ??
-        "요청을 처리하지 못했습니다.",
+      apiErrorCode(body, response.status),
       response.status,
+      validationErrorMessage(isRecord(body) ? body.detail : null) ?? undefined,
     );
   }
   return response.json() as Promise<T>;

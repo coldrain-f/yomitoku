@@ -1222,7 +1222,7 @@ export function ManualCreateScreen({
   onSuggestExplanation,
   onConfirmQuestionTruncation,
 }: ManualCreateScreenProps) {
-  const { t } = useI18n();
+  const { t, errorMessage } = useI18n();
   const [isSuggestingTitle, setIsSuggestingTitle] = useState(false);
   const [titleSuggestionError, setTitleSuggestionError] = useState("");
   const [isSuggestingTopic, setIsSuggestingTopic] = useState(false);
@@ -1244,11 +1244,7 @@ export function ManualCreateScreen({
       if (!title.trim()) throw new Error(t("admin.titleSuggestionEmpty"));
       setValues((current) => ({ ...current, title: title.trim() }));
     } catch (suggestionError) {
-      setTitleSuggestionError(
-        suggestionError instanceof Error
-          ? suggestionError.message
-          : t("admin.titleSuggestionFailed"),
-      );
+      setTitleSuggestionError(errorMessage(suggestionError, "admin.titleSuggestionFailed"));
     } finally {
       setIsSuggestingTitle(false);
     }
@@ -1268,11 +1264,7 @@ export function ManualCreateScreen({
       }
       setValues((current) => ({ ...current, topic }));
     } catch (suggestionError) {
-      setTopicSuggestionError(
-        suggestionError instanceof Error
-          ? suggestionError.message
-          : t("admin.topicSuggestionFailed"),
-      );
+      setTopicSuggestionError(errorMessage(suggestionError, "admin.topicSuggestionFailed"));
     } finally {
       setIsSuggestingTopic(false);
     }
@@ -1311,10 +1303,10 @@ export function ManualCreateScreen({
     } catch (suggestionError) {
       setExplanationSuggestionErrors((current) => ({
         ...current,
-        [questionIndex]:
-          suggestionError instanceof Error
-            ? suggestionError.message
-            : t("admin.explanationSuggestionFailed"),
+        [questionIndex]: errorMessage(
+          suggestionError,
+          "admin.explanationSuggestionFailed",
+        ),
       }));
     } finally {
       setSuggestingExplanationIndex(null);
