@@ -3,6 +3,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Icon } from "./Icon";
+import { useI18n } from "../../lib/i18n";
 
 interface ListPaginationProps {
   page: number;
@@ -15,19 +16,20 @@ export function ListPagination({
   page,
   totalPages,
   onChange,
-  ariaLabel = "지문 목록 페이지",
+  ariaLabel,
 }: ListPaginationProps) {
+  const { t } = useI18n();
   const numbers = [...new Set([1, page - 1, page, page + 1, totalPages])]
     .filter((number) => number > 0 && number <= totalPages)
     .sort((a, b) => a - b);
 
   return (
-    <nav className="list-pagination" aria-label={ariaLabel}>
+    <nav className="list-pagination" aria-label={ariaLabel ?? t("pagination.readings")}>
       <button
         className="pagination-button"
         type="button"
         disabled={page === 1}
-        aria-label="이전 페이지"
+        aria-label={t("pagination.previous")}
         onClick={() => onChange(page - 1)}
       >
         <Icon icon={ChevronLeft} />
@@ -51,7 +53,7 @@ export function ListPagination({
         className="pagination-button"
         type="button"
         disabled={page === totalPages}
-        aria-label="다음 페이지"
+        aria-label={t("pagination.next")}
         onClick={() => onChange(page + 1)}
       >
         <Icon icon={ChevronRight} />

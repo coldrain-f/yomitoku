@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import type { Statistics } from "../../lib/api";
-import { formatTime, lengthLabels } from "../../lib/reading";
+import { formatTime } from "../../lib/reading";
+import { useI18n } from "../../lib/i18n";
 import type { DifficultyLevel, LengthType } from "../../types";
 
 interface StatsScreenProps {
@@ -10,10 +11,12 @@ interface StatsScreenProps {
 type ProgressStyle = CSSProperties & Record<"--progress", string>;
 
 export function StatsScreen({ statistics }: StatsScreenProps) {
+  const { t, lengthLabel } = useI18n();
+
   if (!statistics) {
     return (
-      <section className="screen screen-stats" aria-label="학습 통계">
-        <div className="paper">학습 통계를 불러오는 중입니다.</div>
+      <section className="screen screen-stats" aria-label={t("stats.aria")}>
+        <div className="paper">{t("stats.loading")}</div>
       </section>
     );
   }
@@ -32,7 +35,7 @@ export function StatsScreen({ statistics }: StatsScreenProps) {
       <div className="stats-bar-topline">
         <strong>{label}</strong>
         <span className="stats-bar-count">
-          {completed} / {total} 완료
+          {t("stats.completedCount", { completed, total })}
         </span>
       </div>
       <div className="stats-bar-track">
@@ -45,10 +48,10 @@ export function StatsScreen({ statistics }: StatsScreenProps) {
       </div>
       <p className="stats-bar-meta">
         <span>
-          정답률 <strong>{accuracy === null ? "-" : `${accuracy}%`}</strong>
+          {t("stats.barAccuracy")} <strong>{accuracy === null ? "-" : `${accuracy}%`}</strong>
         </span>
         <span>
-          평균 {averageElapsedSeconds === null ? "-" : formatTime(averageElapsedSeconds)}
+          {t("stats.barAverage")} {averageElapsedSeconds === null ? "-" : formatTime(averageElapsedSeconds)}
         </span>
       </p>
     </article>
@@ -57,48 +60,47 @@ export function StatsScreen({ statistics }: StatsScreenProps) {
   const total = statistics.totalGeneratedCount;
   const completed = statistics.completedCount;
   return (
-    <section className="screen screen-stats" aria-label="학습 통계">
+    <section className="screen screen-stats" aria-label={t("stats.aria")}>
       <div className="paper">
         <div className="stats-heading">
           <div>
-            <p className="kicker">Learning record</p>
-            <h1 className="screen-title">학습 통계</h1>
+            <p className="kicker">{t("stats.kicker")}</p>
+            <h1 className="screen-title">{t("stats.title")}</h1>
           </div>
-          <span className="badge">생성된 문제 {total}개</span>
+          <span className="badge">{t("stats.generated", { count: total })}</span>
         </div>
         <div className="stats-overview">
           <div className="stats-overview-item">
-            <span className="stats-label">풀이 완료</span>
+            <span className="stats-label">{t("stats.completed")}</span>
             <strong className="stats-value">
               {completed} / {total}
             </strong>
-            <span className="stats-detail">1회 이상 제출한 고유 문항</span>
+            <span className="stats-detail">{t("stats.completedDetail")}</span>
           </div>
           <div className="stats-overview-item">
-            <span className="stats-label">전체 정답률</span>
+            <span className="stats-label">{t("stats.accuracy")}</span>
             <strong className="stats-value">
               {statistics.accuracy === null ? "-" : `${statistics.accuracy}%`}
             </strong>
-            <span className="stats-detail">문항별 최근 제출 기준</span>
+            <span className="stats-detail">{t("stats.latestDetail")}</span>
           </div>
           <div className="stats-overview-item">
-            <span className="stats-label">평균 풀이 시간</span>
+            <span className="stats-label">{t("stats.averageTime")}</span>
             <strong className="stats-value">
               {statistics.averageElapsedSeconds === null
                 ? "-"
                 : formatTime(statistics.averageElapsedSeconds)}
             </strong>
-            <span className="stats-detail">문항별 최근 제출 기준</span>
+            <span className="stats-detail">{t("stats.latestDetail")}</span>
           </div>
         </div>
         <p className="stats-aggregation-note">
-          진도는 한 번 이상 제출한 고유 문항 수로, 정답률과 풀이 시간은 문항별
-          최근 제출 결과로 계산합니다.
+          {t("stats.note")}
         </p>
         <section className="stats-section stats-progress-section">
           <div className="stats-section-heading">
-            <h2 className="stats-section-title">학습 진도</h2>
-            <span className="stats-section-note">미풀이 {total - completed}문항</span>
+            <h2 className="stats-section-title">{t("stats.progress")}</h2>
+            <span className="stats-section-note">{t("stats.unstarted", { count: total - completed })}</span>
           </div>
           <div className="stats-progress-track">
             <span
@@ -111,13 +113,13 @@ export function StatsScreen({ statistics }: StatsScreenProps) {
         </section>
         <section className="stats-section">
           <div className="stats-section-heading">
-            <h2 className="stats-section-title">유형별 풀이 현황</h2>
-            <span className="stats-section-note">생성된 문제 기준</span>
+            <h2 className="stats-section-title">{t("stats.byLength")}</h2>
+            <span className="stats-section-note">{t("stats.generatedBasis")}</span>
           </div>
           <div className="stats-bar-list">
             {statistics.byLength.map((group) =>
               bar(
-                lengthLabels[group.key as LengthType],
+                lengthLabel(group.key as LengthType),
                 group.totalCount,
                 group.completedCount,
                 group.accuracy,
@@ -128,8 +130,8 @@ export function StatsScreen({ statistics }: StatsScreenProps) {
         </section>
         <section className="stats-section">
           <div className="stats-section-heading">
-            <h2 className="stats-section-title">난이도별 풀이 현황</h2>
-            <span className="stats-section-note">생성된 문제 기준</span>
+            <h2 className="stats-section-title">{t("stats.byLevel")}</h2>
+            <span className="stats-section-note">{t("stats.generatedBasis")}</span>
           </div>
           <div className="stats-bar-list">
             {statistics.byLevel.map((group) =>

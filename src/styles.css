@@ -103,6 +103,32 @@ textarea:focus-visible {
   gap: 6px;
 }
 
+.header-locale-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  background: var(--paper-solid);
+}
+
+.header-locale-button {
+  min-height: 24px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.header-locale-button:hover,
+.header-locale-button:focus-visible,
+.header-locale-button.is-active {
+  background: var(--ink);
+  color: var(--paper-solid);
+}
+
 .header-icon-button {
   width: 32px;
   height: 32px;

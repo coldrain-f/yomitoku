@@ -46,14 +46,13 @@ import {
   defaultGenerationLanguage,
   defaultGenerationLength,
   defaultGenerationLevelByLanguage,
-  languageLabels,
-  lengthLabels,
   listPageSize,
   readingTopics,
   recommendedSecondsByLength,
   recommendedTopic,
 } from "./lib/readingPolicy";
 import { formatTime } from "./lib/reading";
+import { useI18n } from "./lib/i18n";
 import type {
   AdminFilters,
   AttemptRecord,
@@ -639,6 +638,7 @@ function PreviewRoute({
 }
 
 export default function App() {
+  const { t, lengthLabel, topicLabel } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -831,7 +831,7 @@ export default function App() {
       setListTotalItems(response.totalItems);
     } catch (error) {
       if (requestId === listRequestRef.current) {
-        setListError(error instanceof Error ? error.message : "목록을 불러오지 못했습니다.");
+        setListError(error instanceof Error ? error.message : t("list.failed"));
       }
     } finally {
       if (requestId === listRequestRef.current) setIsListLoading(false);
@@ -910,10 +910,10 @@ export default function App() {
           (highlight) => highlight.id !== highlightId,
         ),
       }));
-      setToast("하이라이트를 제거했습니다.");
+      setToast(t("highlights.removeSuccess"));
     } catch (error) {
       setHighlightCollectionError(
-        error instanceof Error ? error.message : "하이라이트를 제거하지 못했습니다.",
+        error instanceof Error ? error.message : t("highlights.removeFailed"),
       );
     } finally {
       setRemovingHighlightId(null);
@@ -1299,26 +1299,26 @@ export default function App() {
     const hasScore = item.myScore !== null;
     const hasPreviousSubmission = hasScore || item.myLatestStatus !== null;
     const previousResult = hasScore
-      ? `지난 점수: ${item.myScore}점`
+      ? t("start.previousScore", { score: item.myScore ?? "" })
       : item.myLatestStatus === "wrong"
-        ? "지난 풀이: 오답"
+        ? t("start.previousWrong")
         : item.myLatestStatus === "correct"
-          ? "지난 풀이: 정답"
+          ? t("start.previousCorrect")
           : null;
     return openDialog({
-      kicker: "Start reading",
+      kicker: t("start.kicker"),
       title:
         !hasScore && item.myLatestStatus === "wrong"
-          ? "오답 문항을 다시 풀까요?"
+          ? t("start.retryWrong")
           : hasPreviousSubmission
-            ? "문항을 다시 풀까요?"
-            : "독해를 시작할까요?",
+            ? t("start.retry")
+            : t("start.begin"),
       context: item.title,
-      contextMeta: [item.officialLevel, lengthLabels[item.lengthType], item.topic],
+      contextMeta: [item.officialLevel, lengthLabel(item.lengthType), topicLabel(item.topic)],
       description: hasPreviousSubmission
-        ? `${previousResult} · 다시 풀면 새 답안과 풀이 시간이 기록됩니다.`
-        : `권장 시간 ${formatTime(item.recommendedSeconds)} · 시작 즉시 타이머가 시작됩니다.`,
-      confirmLabel: hasPreviousSubmission ? "다시 풀기" : "시작하기",
+        ? t("start.retryDescription", { previous: previousResult ?? "" })
+        : t("start.description", { time: formatTime(item.recommendedSeconds) }),
+      confirmLabel: hasPreviousSubmission ? t("start.retryButton") : t("start.button"),
       onConfirm: () => {
         closeDialog();
         void (async () => {
@@ -1366,7 +1366,7 @@ export default function App() {
             });
             navigate(`/readings/${item.id}`);
           } catch (error) {
-            setToast(error instanceof Error ? error.message : "문항을 열지 못했습니다.");
+            setToast(error instanceof Error ? error.message : t("start.openFailed"));
           }
         })();
       },
@@ -1388,36 +1388,36 @@ export default function App() {
       return;
     }
     openDialog({
-      kicker: "Leave reading",
-      title: "풀이를 포기할까요?",
-      description: `현재 답안과 풀이 시간은 저장되지 않고 ${targetLabel}으로 이동합니다.`,
-      confirmLabel: "포기하고 이동",
+      kicker: t("leave.kicker"),
+      title: t("leave.title"),
+      description: t("leave.description", { target: targetLabel }),
+      confirmLabel: t("leave.confirm"),
       onConfirm: () => {
         closeDialog();
         void api.abandonAttempt(attempt.attemptId);
         if (userId) clearReadingSession(userId);
         setAttempt(null);
         navigate(target);
-        setToast(`풀이를 포기하고 ${targetLabel}으로 이동했습니다.`);
+        setToast(t("leave.completed", { target: targetLabel }));
       },
     });
   };
   const goHome = () => {
-    if (screen !== "home") abandonAndNavigate("/", "독해 목록");
+    if (screen !== "home") abandonAndNavigate("/", t("leave.list"));
   };
 
   const submit = () => {
     if (!attempt || !activeItem || submittingRef.current) return;
     if (attempt.answers.some((answer) => !answer.selectedChoiceId)) {
-      setAttempt({ ...attempt, message: "모든 문제의 선택지를 고른 뒤 제출할 수 있습니다." });
+      setAttempt({ ...attempt, message: t("submit.selectAll") });
       return;
     }
     const answers = attempt.answers;
     openDialog({
-      kicker: "Submit answer",
-      title: "답안을 제출할까요?",
-      description: "제출하면 이 화면에서 정답과 선택지 해설을 확인할 수 있습니다.",
-      confirmLabel: "제출하기",
+      kicker: t("submit.kicker"),
+      title: t("submit.title"),
+      description: t("submit.description"),
+      confirmLabel: t("submit.confirm"),
       onConfirm: () => {
         if (submittingRef.current) return;
         submittingRef.current = true;
@@ -1451,7 +1451,7 @@ export default function App() {
           } catch (error) {
             submittingRef.current = false;
             setIsSubmitting(false);
-            setToast(error instanceof Error ? error.message : "답안을 제출하지 못했습니다.");
+            setToast(error instanceof Error ? error.message : t("submit.failed"));
           }
         })();
       },
@@ -1502,10 +1502,10 @@ export default function App() {
     setFilterDraft(filters);
     openDialog({
       type: "list-filter",
-      kicker: "Filter list",
-      title: "필터 및 정렬",
-      description: "조건을 선택한 뒤 적용해 주세요.",
-      confirmLabel: "적용하기",
+      kicker: t("filters.kicker"),
+      title: t("filters.title"),
+      description: t("filters.description"),
+      confirmLabel: t("filters.apply"),
       onConfirm: () => {
         setListFilters(filterDraftRef.current);
         closeDialog();
@@ -1527,15 +1527,15 @@ export default function App() {
   const openScoreGuide = () =>
     openDialog({
       type: "score-guide",
-      kicker: "Score guide",
-      title: "점수 기준",
+      kicker: t("score.kicker"),
+      title: t("score.title"),
       description: "",
     });
   const showHighlightCollectionDialog = () =>
     openDialog({
       type: "highlights",
-      kicker: "My highlights",
-      title: "내 하이라이트",
+      kicker: t("highlights.kicker"),
+      title: t("highlights.title"),
       description: "",
     });
   const loadHighlightCollection = ({
@@ -1568,7 +1568,7 @@ export default function App() {
           setHighlightCollectionError(
             error instanceof Error
               ? error.message
-              : "하이라이트를 불러오지 못했습니다.",
+              : t("highlights.failed"),
           );
         }
       })
@@ -1641,22 +1641,22 @@ export default function App() {
     setReportText("");
     openDialog({
       type: "report",
-      kicker: "Report issue",
-      title: "오류를 알려주세요",
-      description: "제보는 이 문항 정보와 함께 검토됩니다.",
-      confirmLabel: "제보 보내기",
+      kicker: t("report.kicker"),
+      title: t("report.title"),
+      description: t("report.description"),
+      confirmLabel: t("report.confirm"),
       onConfirm: () => {
         const content = reportTextRef.current.trim();
         if (!content) {
-          setDialogError("제보 내용을 입력해 주세요.");
+          setDialogError(t("report.empty"));
           return;
         }
         closeDialog();
         void api
           .report(activeItem.id, content)
-          .then(() => setToast("오류 제보가 접수되었습니다. 고맙습니다."))
+          .then(() => setToast(t("report.success")))
           .catch((error: unknown) =>
-            setToast(error instanceof Error ? error.message : "제보를 보내지 못했습니다."),
+            setToast(error instanceof Error ? error.message : t("report.failed")),
           );
       },
     });
@@ -1668,16 +1668,16 @@ export default function App() {
     setTranslationLoading(true);
     openDialog({
       type: "translation",
-      kicker: "Reading translation",
-      title: "문항 원문과 해석",
-      description: "제목, 지문, 문제와 선택지의 원문과 번역문을 함께 확인할 수 있습니다.",
+      kicker: t("translation.kicker"),
+      title: t("translation.title"),
+      description: t("translation.description"),
     });
     void api
       .translateReading(result.itemId)
       .then(setTranslation)
       .catch((error: unknown) =>
         setTranslationError(
-          error instanceof Error ? error.message : "문항을 번역하지 못했습니다.",
+          error instanceof Error ? error.message : t("translation.failed"),
         ),
       )
       .finally(() => setTranslationLoading(false));
@@ -1687,22 +1687,22 @@ export default function App() {
     setFeedback({ quality: "", level: "", comment: "" });
     openDialog({
       type: "feedback",
-      kicker: "Rate question",
-      title: "문항을 평가해 주세요",
-      description: "다음 문항을 만드는 데 반영합니다.",
-      confirmLabel: "평가 보내기",
+      kicker: t("feedback.kicker"),
+      title: t("feedback.title"),
+      description: t("feedback.description"),
+      confirmLabel: t("feedback.confirm"),
       onConfirm: () => {
         const values = feedbackRef.current;
         if (!values.quality || !values.level) {
-          setDialogError("문항 품질과 체감 난이도를 선택해 주세요.");
+          setDialogError(t("feedback.empty"));
           return;
         }
         closeDialog();
         void api
           .feedback(result.itemId, Number(values.quality), values.level, values.comment)
-          .then(() => setToast("문항 평가가 반영되었습니다. 고맙습니다."))
+          .then(() => setToast(t("feedback.success")))
           .catch((error: unknown) =>
-            setToast(error instanceof Error ? error.message : "평가를 보내지 못했습니다."),
+            setToast(error instanceof Error ? error.message : t("feedback.failed")),
           );
       },
     });
@@ -1723,11 +1723,11 @@ export default function App() {
       ]);
       setPendingStart(null);
       closeDialog();
-      setToast("로그인되었습니다.");
+      setToast(t("auth.success"));
       if (itemToStart) openStartDialog(itemToStart);
     } catch (error) {
       setDialogError(
-        error instanceof Error ? error.message : "로그인하지 못했습니다. 다시 시도해 주세요.",
+        error instanceof Error ? error.message : t("auth.failed"),
       );
     }
     })();
@@ -1735,9 +1735,9 @@ export default function App() {
   const openLogin = () =>
     openDialog({
       type: "google-login",
-      kicker: "Sign in",
-      title: "Google 계정으로 로그인",
-      description: "로그인하면 풀이 결과와 학습 통계를 기록할 수 있습니다.",
+      kicker: t("auth.kicker"),
+      title: t("auth.title"),
+      description: t("auth.description"),
     });
   const saveBookmark = async (item: ReadingItem) => {
     if (!authenticated) {
@@ -1758,9 +1758,9 @@ export default function App() {
       if (filters.bookmarked && !isBookmarked) {
         await loadPublicItems();
       }
-      setToast(isBookmarked ? "북마크에 저장했습니다." : "북마크를 해제했습니다.");
+      setToast(isBookmarked ? t("bookmark.addSuccess") : t("bookmark.removeSuccess"));
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "북마크를 변경하지 못했습니다.");
+      setToast(error instanceof Error ? error.message : t("bookmark.failed"));
     } finally {
       setBookmarkingItemIds((current) => {
         const next = new Set(current);
@@ -1778,14 +1778,14 @@ export default function App() {
 
     const willBookmark = !item.isBookmarked;
     openDialog({
-      kicker: "Bookmark reading",
-      title: willBookmark ? "이 문항을 북마크할까요?" : "북마크를 해제할까요?",
+      kicker: t("bookmark.kicker"),
+      title: willBookmark ? t("bookmark.addTitle") : t("bookmark.removeTitle"),
       context: item.title,
-      contextMeta: [item.officialLevel, lengthLabels[item.lengthType], item.topic],
+      contextMeta: [item.officialLevel, lengthLabel(item.lengthType), topicLabel(item.topic)],
       description: willBookmark
-        ? "북마크 목록에서 이 문항을 다시 찾을 수 있습니다."
-        : "북마크 목록에서 이 문항이 제거됩니다.",
-      confirmLabel: willBookmark ? "북마크하기" : "해제하기",
+        ? t("bookmark.addDescription")
+        : t("bookmark.removeDescription"),
+      confirmLabel: willBookmark ? t("bookmark.addConfirm") : t("bookmark.removeConfirm"),
       onConfirm: () => {
         closeDialog();
         void saveBookmark(item);
@@ -1813,7 +1813,7 @@ export default function App() {
       writeListParams({ ...filters, bookmarked: false, query });
     }
     navigate("/");
-    setToast("로그아웃되었습니다.");
+    setToast(t("auth.logout"));
   };
 
   const openEdit = (item: ReadingItem) => {
@@ -2030,7 +2030,7 @@ export default function App() {
           role={role}
           totalGenerated={totalGenerated}
           completeCount={completeCount}
-          progressLanguage={languageLabels[filters.language]}
+          progressLanguage={filters.language}
           onHome={goHomeFromHeader}
           onOpenAdmin={openAdminFromHeader}
           onOpenStats={openStatsFromHeader}
@@ -2038,12 +2038,12 @@ export default function App() {
           onLogout={logoutFromHeader}
         />
         <Breadcrumb screen={screen} />
-        {authLoading ? <p role="status">불러오는 중입니다.</p> : <Routes>
+        {authLoading ? <p role="status">{t("common.loading")}</p> : <Routes>
           <Route
             path="/"
             element={<ReadingListScreen items={items} loading={isListLoading} error={listError} page={listPage} totalPages={listTotalPages} totalItems={listTotalItems} onPageChange={setListPage} authenticated={authenticated} filters={filters} setFilters={setListFilters} query={query} setQuery={setListQuery} onOpenFilters={openListFilters} onOpenHighlights={openHighlightCollection} onOpenScoreGuide={openScoreGuide} onStart={start} bookmarkingItemIds={bookmarkingItemIds} onToggleBookmark={(item) => void toggleBookmark(item)} />}
           />
-          <Route path="/readings/:itemId" element={<RequireAuth authenticated={authenticated}><ReadingRoute items={items} attempt={attempt} result={result} onChoose={(questionId, choiceId) => setAttempt((current) => current ? { ...current, selectedChoiceId: current.questions[0]?.id === questionId ? choiceId : current.selectedChoiceId, answers: current.answers.map((answer) => answer.questionId === questionId ? { ...answer, selectedChoiceId: choiceId } : answer), message: "" } : current)} onSubmit={submit} isSubmitting={isSubmitting} onAbandon={goHome} onReport={openReport} onTranslate={openTranslation} onResult={() => result && navigate(`/results/${result.itemId}`)} highlights={attempt ? passageHighlights[attempt.itemId] ?? [] : []} onCreateHighlight={(startOffset, endOffset, selectedText) => attempt ? createPassageHighlight(attempt.itemId, startOffset, endOffset, selectedText) : Promise.reject(new Error("진행 중인 풀이가 없습니다."))} onDeleteHighlight={(highlightId) => attempt ? deletePassageHighlight(attempt.itemId, highlightId) : Promise.reject(new Error("진행 중인 풀이가 없습니다."))} /></RequireAuth>} />
+          <Route path="/readings/:itemId" element={<RequireAuth authenticated={authenticated}><ReadingRoute items={items} attempt={attempt} result={result} onChoose={(questionId, choiceId) => setAttempt((current) => current ? { ...current, selectedChoiceId: current.questions[0]?.id === questionId ? choiceId : current.selectedChoiceId, answers: current.answers.map((answer) => answer.questionId === questionId ? { ...answer, selectedChoiceId: choiceId } : answer), message: "" } : current)} onSubmit={submit} isSubmitting={isSubmitting} onAbandon={goHome} onReport={openReport} onTranslate={openTranslation} onResult={() => result && navigate(`/results/${result.itemId}`)} highlights={attempt ? passageHighlights[attempt.itemId] ?? [] : []} onCreateHighlight={(startOffset, endOffset, selectedText) => attempt ? createPassageHighlight(attempt.itemId, startOffset, endOffset, selectedText) : Promise.reject(new Error(t("reading.noActiveAttempt")))} onDeleteHighlight={(highlightId) => attempt ? deletePassageHighlight(attempt.itemId, highlightId) : Promise.reject(new Error(t("reading.noActiveAttempt")))} /></RequireAuth>} />
           <Route path="/results/:itemId" element={<RequireAuth authenticated={authenticated}><ResultRoute result={result} onFeedback={openFeedback} onReview={() => result && navigate(`/readings/${result.itemId}`)} onContinue={continueReading} onHome={goHome} /></RequireAuth>} />
           <Route path="/statistics" element={<RequireAuth authenticated={authenticated}><StatsScreen statistics={statistics} /></RequireAuth>} />
           <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} error={adminListError} page={adminPage} totalPages={adminTotalPages} totalItems={adminTotalItems} onPageChange={setAdminPage} filters={adminFilters} query={adminQuery} setQuery={(nextQuery) => { setAdminPage(1); setAdminQuery(nextQuery); }} onLanguageChange={(language) => updateAdminFilters((current) => ({ ...current, language, level: "all" }))} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => { void loadGenerationModels(); navigate("/admin/readings/new"); }} onManualCreate={() => { setManualDraft(createManualReadingDraft()); setManualError(""); navigate("/admin/readings/manual"); }} onHistory={() => { void loadGenerationHistory(); navigate("/admin/generation-history"); }} /></RequireAdmin>} />

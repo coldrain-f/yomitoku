@@ -1,13 +1,14 @@
 import { LogIn, LogOut } from "lucide-react";
 import { Icon } from "./ui/Icon";
-import type { Role } from "../types";
+import { useI18n } from "../lib/i18n";
+import type { ReadingLanguage, Role } from "../types";
 
 interface AppHeaderProps {
   authenticated: boolean;
   role: Role;
   totalGenerated: number;
   completeCount: number;
-  progressLanguage: string;
+  progressLanguage: ReadingLanguage;
   onHome: () => void;
   onOpenAdmin: () => void;
   onOpenStats: () => void;
@@ -27,6 +28,7 @@ export function AppHeader({
   onLogin,
   onLogout,
 }: AppHeaderProps) {
+  const { locale, setLocale, t, languageLabel } = useI18n();
   return (
     <header className="topbar">
       <button
@@ -38,22 +40,41 @@ export function AppHeader({
         <span lang="ja">読み解く</span>
       </button>
       <div className="header-actions">
+        <div className="header-locale-switch" role="group" aria-label={t("header.locale")}>
+          {(["ko", "ja"] as const).map((nextLocale) => (
+            <button
+              className={`header-locale-button${locale === nextLocale ? " is-active" : ""}`}
+              type="button"
+              aria-pressed={locale === nextLocale}
+              key={nextLocale}
+              onClick={() => setLocale(nextLocale)}
+            >
+              {t(`locale.${nextLocale}`)}
+            </button>
+          ))}
+        </div>
         {authenticated && role === "admin" ? (
           <button
             className="header-admin-link"
             type="button"
-            title="관리자 화면"
+            title={t("header.admin")}
             onClick={onOpenAdmin}
           >
-            관리자
+            {t("header.admin")}
           </button>
         ) : null}
         {authenticated ? (
           <button
             className="header-progress"
             type="button"
-            aria-label={`학습 통계: ${progressLanguage} 문제 ${totalGenerated}개 중 ${completeCount}개 풀이 완료`}
-            title={`${progressLanguage} 학습 통계`}
+            aria-label={t("header.stats", {
+              language: languageLabel(progressLanguage),
+              total: totalGenerated,
+              complete: completeCount,
+            })}
+            title={t("header.statsTitle", {
+              language: languageLabel(progressLanguage),
+            })}
             onClick={onOpenStats}
           >
             <span className="header-progress-current">{completeCount}</span>
@@ -67,8 +88,8 @@ export function AppHeader({
           <button
             className="header-icon-button header-logout-link"
             type="button"
-            aria-label="로그아웃"
-            title="로그아웃"
+            aria-label={t("header.logout")}
+            title={t("header.logout")}
             onClick={onLogout}
           >
             <Icon icon={LogOut} />
@@ -80,7 +101,7 @@ export function AppHeader({
             onClick={onLogin}
           >
             <Icon icon={LogIn} />
-            로그인
+            {t("header.login")}
           </button>
         )}
       </div>

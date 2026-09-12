@@ -6,6 +6,7 @@ import {
 import { X } from "lucide-react";
 import { Icon } from "./Icon";
 import type { DialogConfig } from "../../types";
+import { useI18n } from "../../lib/i18n";
 
 interface DialogProps {
   dialog: DialogConfig | null;
@@ -14,6 +15,7 @@ interface DialogProps {
 }
 
 export function Dialog({ dialog, onClose, children }: DialogProps) {
+  const { t } = useI18n();
   useEffect(() => {
     if (!dialog) return undefined;
     const scrollbarWidth = Math.max(
@@ -45,11 +47,11 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
     dialog.onCancel?.();
   };
   const closeLabel =
-    dialog.type === "translation" ||
-    dialog.type === "score-guide" ||
-    dialog.type === "highlights"
-      ? "닫기"
-      : "취소";
+      dialog.type === "translation" ||
+      dialog.type === "score-guide" ||
+      dialog.type === "highlights"
+      ? t("common.close")
+      : t("common.cancel");
   return (
     <div
       className="dialog-backdrop"
@@ -72,8 +74,8 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
         <button
           className="dialog-close"
           type="button"
-          aria-label="닫기"
-          title="닫기"
+          aria-label={t("common.close")}
+          title={t("common.close")}
           onClick={dismiss}
         >
           <Icon icon={X} />
@@ -86,7 +88,7 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
           <div className="dialog-context">
             {dialog.context ? <p className="dialog-context-title">{dialog.context}</p> : null}
             {dialog.contextMeta?.length ? (
-              <div className="dialog-context-meta" aria-label="문항 정보">
+              <div className="dialog-context-meta" aria-label={t("dialog.itemInfo")}>
                 {dialog.contextMeta.map((value) => (
                   <span className="badge" key={value}>{value}</span>
                 ))}
@@ -106,7 +108,7 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
               type="button"
               onClick={dialog.onReset}
             >
-              초기화
+              {t("common.reset")}
             </button>
           ) : null}
           {dialog.confirmLabel && dialog.onConfirm ? (

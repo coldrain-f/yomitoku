@@ -4,8 +4,8 @@ import { Trash2 } from "lucide-react";
 import { GoogleSignInButton } from "../features/auth/GoogleSignInButton";
 import { Icon } from "./ui/Icon";
 import { formatDate, lengthLabels } from "../lib/reading";
+import { useI18n } from "../lib/i18n";
 import {
-  languageLabels,
   generationLevelsForLanguage,
   levelsForLanguage,
   readingTopics,
@@ -91,6 +91,8 @@ export function AppDialogContent({
   onConfirmHighlightRemoval,
   onRemoveHighlight,
 }: AppDialogContentProps) {
+  const { locale, t, languageLabel, lengthLabel, topicLabel } = useI18n();
+
   if (type === "google-login") {
     return (
       <div>
@@ -112,19 +114,19 @@ export function AppDialogContent({
         <dl className="score-guide-list">
           <div>
             <dt className="badge ok">✓ 100</dt>
-            <dd>첫 제출을 권장 시간 내 통과</dd>
+            <dd>{t("score.firstOnTime")}</dd>
           </div>
           <div>
             <dt className="badge warning">✓ 90</dt>
-            <dd>첫 제출 시간 초과 통과</dd>
+            <dd>{t("score.firstTimedOut")}</dd>
           </div>
           <div>
             <dt className="badge retry">✓ 80</dt>
-            <dd>오답 후 재시도 통과</dd>
+            <dd>{t("score.retryPassed")}</dd>
           </div>
         </dl>
         <p className="score-guide-note">
-          문항별 점수 배지를 탭하면 해당 점수의 사유를 확인할 수 있습니다.
+          {t("score.note")}
         </p>
       </div>
     );
@@ -141,31 +143,31 @@ export function AppDialogContent({
           }}
         >
           <label className="sr-only" htmlFor="highlight-collection-search">
-            제목 또는 하이라이트 검색
+            {t("highlights.searchLabel")}
           </label>
           <div className="highlight-collection-search">
             <input
               id="highlight-collection-search"
               type="search"
               value={highlightQuery}
-              placeholder="제목 또는 문장 검색"
+              placeholder={t("highlights.searchPlaceholder")}
               onChange={(event) => onHighlightQueryChange(event.target.value)}
             />
             <button className="text-button" type="submit" disabled={highlightsLoading}>
-              검색
+              {t("highlights.search")}
             </button>
           </div>
           <OptionButtons
             value={highlightLanguage}
             options={[
-              { value: "all", label: "전체" },
-              { value: "ja", label: "일본어" },
-              { value: "ko", label: "한국어" },
+              { value: "all", label: t("filters.all") },
+              { value: "ja", label: languageLabel("ja") },
+              { value: "ko", label: languageLabel("ko") },
             ]}
             onChange={(language) =>
               onHighlightLanguageChange(language as "all" | ReadingLanguage)
             }
-            ariaLabel="하이라이트 언어 필터"
+            ariaLabel={t("highlights.languageAria")}
             disabled={highlightsLoading}
           />
         </form>
@@ -173,7 +175,7 @@ export function AppDialogContent({
           <div
             className="highlight-collection-loading"
             role="status"
-            aria-label="하이라이트를 불러오는 중입니다."
+            aria-label={t("highlights.loading")}
           >
             <span className="loading-spinner loading-spinner-large" aria-hidden="true" />
           </div>
@@ -185,7 +187,7 @@ export function AppDialogContent({
         ) : null}
         {!highlightsLoading && !highlightsError && highlightCollection.totalItems === 0 ? (
           <p className="highlight-collection-empty">
-            저장한 하이라이트가 없습니다. 지문에서 복습할 문장을 선택해 보세요.
+            {t("highlights.empty")}
           </p>
         ) : null}
         {!highlightsError && highlightCollection.items.map((item) => (
@@ -197,16 +199,16 @@ export function AppDialogContent({
               <div>
                 <h3>{item.title}</h3>
                 <p className="highlight-collection-summary">
-                  하이라이트 {item.highlights.length}개 · {item.lastSubmittedAt
-                    ? `최근 제출 ${formatDate(item.lastSubmittedAt)}`
-                    : `최근 저장 ${formatDate(item.lastHighlightedAt)}`}
+                  {t("highlights.count", { count: item.highlights.length })} · {item.lastSubmittedAt
+                    ? t("highlights.lastSubmitted", { date: formatDate(item.lastSubmittedAt, locale) })
+                    : t("highlights.lastSaved", { date: formatDate(item.lastHighlightedAt, locale) })}
                 </p>
               </div>
               <div className="highlight-collection-meta">
-                <span className="badge">{languageLabels[item.language]}</span>
+                <span className="badge">{languageLabel(item.language)}</span>
                 <span className="badge">{item.officialLevel}</span>
-                <span className="badge">{lengthLabels[item.lengthType]}</span>
-                <span>{item.topic}</span>
+                <span className="badge">{lengthLabel(item.lengthType)}</span>
+                <span>{topicLabel(item.topic)}</span>
               </div>
             </summary>
             <ul className="highlight-collection-list">
@@ -216,8 +218,8 @@ export function AppDialogContent({
                   <button
                     className="icon-button highlight-collection-remove"
                     type="button"
-                    aria-label={`${item.title}의 하이라이트 제거`}
-                    title="하이라이트 제거"
+                    aria-label={`${item.title}: ${t("highlights.remove")}`}
+                    title={t("highlights.remove")}
                     disabled={removingHighlightId === highlight.id}
                     onClick={() =>
                       void onRemoveHighlight(
@@ -236,14 +238,18 @@ export function AppDialogContent({
         {!highlightsError && highlightCollection.totalItems > 0 ? (
           <div className="highlight-collection-pagination">
             <span>
-              {highlightCollection.totalItems}개 문항 중 {highlightCollection.page} / {highlightCollection.totalPages}
+              {t("highlights.pageStatus", {
+                total: highlightCollection.totalItems,
+                page: highlightCollection.page,
+                pages: highlightCollection.totalPages,
+              })}
             </span>
             {highlightCollection.totalPages > 1 ? (
               <ListPagination
                 page={highlightCollection.page}
                 totalPages={highlightCollection.totalPages}
                 onChange={onHighlightPageChange}
-                ariaLabel="내 하이라이트 페이지"
+                ariaLabel={t("highlights.pagination")}
               />
             ) : null}
           </div>
@@ -256,24 +262,24 @@ export function AppDialogContent({
             aria-labelledby="highlight-removal-title"
           >
             <div className="highlight-removal-confirmation-card">
-              <p className="kicker">Remove highlight</p>
-              <h3 id="highlight-removal-title">이 하이라이트를 제거할까요?</h3>
+              <p className="kicker">{t("highlights.removeKicker")}</p>
+              <h3 id="highlight-removal-title">{t("highlights.removeTitle")}</h3>
               <p className="highlight-removal-title">{highlightRemoval.title}</p>
               <p className="highlight-removal-text" lang={highlightRemoval.language}>
                 {highlightRemoval.selectedText}
               </p>
               <div className="highlight-removal-meta">
                 <span className="badge">{highlightRemoval.officialLevel}</span>
-                <span className="badge">{lengthLabels[highlightRemoval.lengthType]}</span>
-                <span>{highlightRemoval.topic}</span>
+                <span className="badge">{lengthLabel(highlightRemoval.lengthType)}</span>
+                <span>{topicLabel(highlightRemoval.topic)}</span>
               </div>
-              <p className="highlight-removal-note">제거한 하이라이트는 복구할 수 없습니다.</p>
+              <p className="highlight-removal-note">{t("highlights.removeNote")}</p>
               <div className="highlight-removal-actions">
                 <button className="text-button" type="button" onClick={onCancelHighlightRemoval}>
-                  취소
+                  {t("common.cancel")}
                 </button>
                 <button className="primary-button danger-button" type="button" onClick={onConfirmHighlightRemoval}>
-                  제거하기
+                  {t("highlights.removeConfirm")}
                 </button>
               </div>
             </div>
@@ -287,11 +293,11 @@ export function AppDialogContent({
     return (
       <div className="dialog-filter-field">
         <div className="dialog-filter-section">
-          <span className="form-label">난이도</span>
+          <span className="form-label">{t("filters.level")}</span>
           <OptionButtons
             value={filterDraft.level}
             options={[
-              { value: "all", label: "전체" },
+              { value: "all", label: t("filters.all") },
               ...levelsForLanguage(filterDraft.language),
             ]}
             onChange={(level) =>
@@ -300,18 +306,18 @@ export function AppDialogContent({
                 level: level as ListFilters["level"],
               })
             }
-            ariaLabel="난이도 필터"
+            ariaLabel={t("filters.levelAria")}
           />
         </div>
         <div className="dialog-filter-section">
-          <span className="form-label">유형</span>
+          <span className="form-label">{t("filters.length")}</span>
           <OptionButtons
             value={filterDraft.length}
             options={[
-              { value: "all", label: "전체" },
-              ...Object.entries(lengthLabels).map(([value, label]) => ({
+              { value: "all", label: t("filters.all") },
+              ...(["short", "medium", "long"] as const).map((value) => ({
                 value,
-                label,
+                label: lengthLabel(value),
               })),
             ]}
             onChange={(length) =>
@@ -320,19 +326,19 @@ export function AppDialogContent({
                 length: length as ListFilters["length"],
               })
             }
-            ariaLabel="유형 필터"
+            ariaLabel={t("filters.lengthAria")}
           />
         </div>
         {authenticated ? (
           <>
             <div className="dialog-filter-section">
-              <span className="form-label">결과</span>
+              <span className="form-label">{t("filters.result")}</span>
               <OptionButtons
                 value={filterDraft.status}
                 options={[
-                  { value: "all", label: "전체" },
-                  { value: "unstarted", label: "미풀이" },
-                  { value: "wrong", label: "오답" },
+                  { value: "all", label: t("filters.all") },
+                  { value: "unstarted", label: t("filters.unstarted") },
+                  { value: "wrong", label: t("filters.wrong") },
                   { value: "score-100", label: "100점" },
                   { value: "score-90", label: "90점" },
                   { value: "score-80", label: "80점" },
@@ -343,17 +349,17 @@ export function AppDialogContent({
                     status: status as ListFilters["status"],
                   })
                 }
-                ariaLabel="결과 필터"
+                ariaLabel={t("filters.resultAria")}
               />
             </div>
             <div className="dialog-filter-section">
-              <span className="form-label">첫 제출 시간</span>
+              <span className="form-label">{t("filters.firstTime")}</span>
               <OptionButtons
                 value={filterDraft.firstSubmissionTime}
                 options={[
-                  { value: "all", label: "전체" },
-                  { value: "on-time", label: "시간 내" },
-                  { value: "timed-out", label: "시간 초과" },
+                  { value: "all", label: t("filters.all") },
+                  { value: "on-time", label: t("filters.onTime") },
+                  { value: "timed-out", label: t("filters.timedOut") },
                 ]}
                 onChange={(firstSubmissionTime) =>
                   setFilterDraft({
@@ -361,13 +367,13 @@ export function AppDialogContent({
                     firstSubmissionTime: firstSubmissionTime as ListFilters["firstSubmissionTime"],
                   })
                 }
-                ariaLabel="첫 제출 시간 필터"
+                ariaLabel={t("filters.timeAria")}
               />
             </div>
           </>
         ) : null}
         <label className="dialog-filter-section">
-          <span className="form-label">정렬</span>
+          <span className="form-label">{t("filters.sort")}</span>
           <select
             className="select-field"
             value={filterDraft.sort}
@@ -378,14 +384,14 @@ export function AppDialogContent({
               })
             }
           >
-            <option value="published-desc">등록일 최신순</option>
-            <option value="published-asc">등록일 오래된순</option>
-            <option value="level-asc">난이도 낮은순</option>
-            <option value="level-desc">난이도 높은순</option>
-            <option value="perceived-asc">체감 난이도 낮은순</option>
-            <option value="perceived-desc">체감 난이도 높은순</option>
-            <option value="score-desc">점수 높은순</option>
-            <option value="score-asc">점수 낮은순</option>
+            <option value="published-desc">{t("filters.publishedDesc")}</option>
+            <option value="published-asc">{t("filters.publishedAsc")}</option>
+            <option value="level-asc">{t("filters.levelAsc")}</option>
+            <option value="level-desc">{t("filters.levelDesc")}</option>
+            <option value="perceived-asc">{t("filters.perceivedAsc")}</option>
+            <option value="perceived-desc">{t("filters.perceivedDesc")}</option>
+            <option value="score-desc">{t("filters.scoreDesc")}</option>
+            <option value="score-asc">{t("filters.scoreAsc")}</option>
           </select>
         </label>
       </div>
@@ -500,12 +506,12 @@ export function AppDialogContent({
   if (type === "report") {
     return (
       <label className="dialog-report-field">
-        <span className="form-label">제보 내용</span>
+        <span className="form-label">{t("report.field")}</span>
         <textarea
           className="dialog-report-text"
           value={reportText}
           onChange={(event) => setReportText(event.target.value)}
-          placeholder="지문, 문제, 선택지에서 이상한 부분을 알려 주세요."
+          placeholder={t("report.placeholder")}
         />
         {dialogError ? (
           <span className="dialog-field-error">{dialogError}</span>
@@ -518,15 +524,15 @@ export function AppDialogContent({
     return (
       <div className="dialog-feedback-field">
         <div className="rating-group">
-          <span className="form-label">문항 품질</span>
+          <span className="form-label">{t("feedback.quality")}</span>
           <OptionButtons
             value={feedback.quality}
             options={[
-              { value: "1", label: "매우 아쉬움" },
-              { value: "2", label: "아쉬움" },
-              { value: "3", label: "보통" },
-              { value: "4", label: "좋음" },
-              { value: "5", label: "매우 좋음" },
+              { value: "1", label: t("feedback.quality1") },
+              { value: "2", label: t("feedback.quality2") },
+              { value: "3", label: t("feedback.quality3") },
+              { value: "4", label: t("feedback.quality4") },
+              { value: "5", label: t("feedback.quality5") },
             ]}
             onChange={(quality) =>
               setFeedback({
@@ -534,11 +540,11 @@ export function AppDialogContent({
                 quality: quality as FeedbackValues["quality"],
               })
             }
-            ariaLabel="문항 품질"
+            ariaLabel={t("feedback.quality")}
           />
         </div>
         <div className="rating-group">
-          <span className="form-label">체감 난이도</span>
+          <span className="form-label">{t("feedback.level")}</span>
           <OptionButtons
             value={feedback.level}
             options={generationLevelsForLanguage(feedbackLanguage)}
@@ -548,11 +554,11 @@ export function AppDialogContent({
                 level: level as FeedbackValues["level"],
               })
             }
-            ariaLabel="체감 난이도"
+            ariaLabel={t("feedback.level")}
           />
         </div>
         <label className="dialog-feedback-text-label">
-          <span className="form-label">개선 의견</span>
+          <span className="form-label">{t("feedback.comment")}</span>
           <textarea
             className="dialog-feedback-text"
             value={feedback.comment}
@@ -572,21 +578,25 @@ export function AppDialogContent({
     const choiceLabels = ["①", "②", "③", "④"];
     const translationSections = translation
       ? [
-          { label: "제목", segment: translation.title, isChoice: false },
-          { label: "지문", segment: translation.passage, isChoice: false },
+          { label: t("translation.headingTitle"), segment: translation.title, isChoice: false },
+          { label: t("translation.headingPassage"), segment: translation.passage, isChoice: false },
           ...(
             translation.questions.length
               ? translation.questions
               : [translation.question]
           ).flatMap((segment, questionIndex, questions) => [
             {
-              label: questions.length > 1 ? `문제 ${questionIndex + 1}` : "문제",
+              label: questions.length > 1
+                ? t("translation.headingQuestion", { number: questionIndex + 1 })
+                : t("translation.headingQuestionSingle"),
               segment,
               isChoice: false,
             },
             ...(translation.questionChoices?.[questionIndex] ?? []).map(
               (choice, choiceIndex) => ({
-                label: `선택지 ${choiceLabels[choiceIndex] ?? choiceIndex + 1}`,
+                label: t("translation.headingChoice", {
+                  number: choiceLabels[choiceIndex] ?? choiceIndex + 1,
+                }),
                 segment: choice,
                 isChoice: true,
               }),
@@ -598,7 +608,7 @@ export function AppDialogContent({
       <div className="translation-dialog">
         {translationLoading ? (
           <p className="translation-status" role="status">
-            문항을 번역하는 중입니다.
+            {t("translation.loading")}
           </p>
         ) : null}
         {translationError ? (
@@ -609,7 +619,7 @@ export function AppDialogContent({
         {translation ? (
           <div className="translation-comparison">
             <section className="translation-pane">
-              <h3>{languageLabels[translation.sourceLanguage]} 원문</h3>
+              <h3>{t("translation.original", { language: languageLabel(translation.sourceLanguage) })}</h3>
               <dl className="translation-sections">
                 {translationSections.map(({ label, segment, isChoice }) => (
                   <div
@@ -623,7 +633,7 @@ export function AppDialogContent({
               </dl>
             </section>
             <section className="translation-pane">
-              <h3>{languageLabels[translation.targetLanguage]} 번역</h3>
+              <h3>{t("translation.translated", { language: languageLabel(translation.targetLanguage) })}</h3>
               <dl className="translation-sections">
                 {translationSections.map(({ label, segment, isChoice }) => (
                   <div

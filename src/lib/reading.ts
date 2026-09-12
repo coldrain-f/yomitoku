@@ -27,16 +27,17 @@ export function formatTime(value = 0): string {
   ).padStart(2, "0")}`;
 }
 
-export function formatDate(value: string | Date): string {
-  return new Intl.DateTimeFormat("ko-KR", {
+export function formatDate(value: string | Date, locale: "ko" | "ja" = "ko"): string {
+  const formatted = new Intl.DateTimeFormat(locale === "ja" ? "ja-JP" : "ko-KR", {
     year: "2-digit",
     month: "2-digit",
     day: "2-digit",
     timeZone: displayTimeZone,
   })
-    .format(new Date(value))
-    .replace(/\. /g, ".")
-    .replace(/\.$/, "");
+    .format(new Date(value));
+  return locale === "ja"
+    ? formatted
+    : formatted.replace(/\. /g, ".").replace(/\.$/, "");
 }
 
 export function shuffle<T>(values: readonly T[]): T[] {

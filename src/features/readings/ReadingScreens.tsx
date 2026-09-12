@@ -23,15 +23,13 @@ import {
   formatDate,
   formatTime,
   isNew,
-  lengthLabels,
   minimumVotes,
-  perceivedLabel,
 } from "../../lib/reading";
 import {
   defaultGenerationLanguage,
-  languageLabels,
   readingLanguages,
 } from "../../lib/readingPolicy";
+import { useI18n } from "../../lib/i18n";
 import type {
   Choice,
   ListFilters,
@@ -122,6 +120,14 @@ export function ReadingListScreen({
   bookmarkingItemIds,
   onToggleBookmark,
 }: ReadingListScreenProps) {
+  const {
+    locale,
+    t,
+    languageLabel,
+    lengthLabel,
+    topicLabel,
+    perceivedLabel: localizedPerceivedLabel,
+  } = useI18n();
   const hasAdvancedFilters =
     filters.level !== "all" ||
     filters.length !== "all" ||
@@ -146,7 +152,7 @@ export function ReadingListScreen({
   };
 
   return (
-    <section className="screen screen-home" aria-label="홈">
+    <section className="screen screen-home" aria-label={t("list.home")}>
       <div className="paper flush">
         <div className="paper-head">
           <div>
@@ -154,7 +160,7 @@ export function ReadingListScreen({
           </div>
           <div className="list-head-actions">
             {active ? (
-              <p className="list-result-count">{totalItems}개 결과</p>
+              <p className="list-result-count">{t("list.resultCount", { count: totalItems })}</p>
             ) : null}
             <button
               className="text-button score-guide-button"
@@ -162,7 +168,7 @@ export function ReadingListScreen({
               onClick={onOpenScoreGuide}
             >
               <Icon icon={Info} />
-              점수 안내
+              {t("list.scoreGuide")}
             </button>
           </div>
         </div>
@@ -172,8 +178,8 @@ export function ReadingListScreen({
             <input
               className="title-search"
               type="search"
-              placeholder="제목으로 찾기"
-              aria-label="제목 검색"
+              placeholder={t("list.searchPlaceholder")}
+              aria-label={t("list.searchLabel")}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
@@ -183,7 +189,7 @@ export function ReadingListScreen({
               value={filters.language}
               options={readingLanguages.map((language) => ({
                 value: language,
-                label: languageLabels[language],
+                label: languageLabel(language),
               }))}
               onChange={(language) =>
                 setFilters({
@@ -192,7 +198,7 @@ export function ReadingListScreen({
                   level: "all",
                 })
               }
-              ariaLabel="독해 언어"
+              ariaLabel={t("list.language")}
             />
           </div>
           <div className="list-toolbar-tools">
@@ -200,9 +206,9 @@ export function ReadingListScreen({
               <button
                 className={`icon-button bookmark-filter-button${filters.bookmarked ? " is-bookmarked" : ""}`}
                 type="button"
-                aria-label="북마크 문항만 보기"
+                aria-label={t("list.bookmarkedOnly")}
                 aria-pressed={filters.bookmarked}
-                title="북마크 문항만 보기"
+                title={t("list.bookmarkedOnly")}
                 onClick={() =>
                   setFilters({ ...filters, bookmarked: !filters.bookmarked })
                 }
@@ -213,9 +219,9 @@ export function ReadingListScreen({
             <button
               className={`icon-button list-filter-button${hasAdvancedFilters ? " is-active" : ""}`}
               type="button"
-              aria-label="필터 및 정렬"
+              aria-label={t("list.filters")}
               aria-pressed={hasAdvancedFilters}
-              title="필터 및 정렬"
+              title={t("list.filters")}
               onClick={onOpenFilters}
             >
               <Icon icon={SlidersHorizontal} />
@@ -224,8 +230,8 @@ export function ReadingListScreen({
               <button
                 className="icon-button list-highlights-button"
                 type="button"
-                aria-label="내 하이라이트"
-                title="내 하이라이트"
+                aria-label={t("list.highlights")}
+                title={t("list.highlights")}
                 onClick={onOpenHighlights}
               >
                 <Icon icon={Highlighter} />
@@ -233,7 +239,7 @@ export function ReadingListScreen({
             ) : null}
           </div>
         </div>
-        {loading ? <LoadingOverlay label="목록을 불러오는 중입니다." /> : null}
+        {loading ? <LoadingOverlay label={t("list.loading")} /> : null}
         {error ? <p className="list-load-error" role="alert">{error}</p> : null}
         <div className="reading-list" aria-busy={loading}>
           {items.map((item) => {
@@ -246,22 +252,26 @@ export function ReadingListScreen({
                 <button
                   className="reading-row-launch"
                   type="button"
-                  aria-label={`${item.title} 문항 풀기`}
+                  aria-label={t("list.start", { title: item.title })}
                   onClick={() => onStart(item)}
                 />
                 <div className="reading-row-main">
                   <span className="row-title-line">
                     <span className="row-title">{item.title}</span>
                     {isNew(item) ? (
-                      <span className="badge row-new">신규</span>
+                      <span className="badge row-new">{t("list.new")}</span>
                     ) : null}
                     {authenticated ? (
                       <button
                         className={`row-bookmark-button${item.isBookmarked ? " is-bookmarked" : ""}`}
                         type="button"
-                        aria-label={item.isBookmarked ? `${item.title} 북마크 해제` : `${item.title} 북마크`}
+                        aria-label={item.isBookmarked
+                          ? t("list.removeBookmark", { title: item.title })
+                          : t("list.bookmark", { title: item.title })}
                         aria-pressed={item.isBookmarked}
-                        title={item.isBookmarked ? "북마크 해제" : "북마크"}
+                        title={item.isBookmarked
+                          ? t("list.removeBookmark", { title: item.title })
+                          : t("list.bookmark", { title: item.title })}
                         disabled={bookmarkingItemIds.has(item.id)}
                         onClick={() => onToggleBookmark(item)}
                       >
@@ -275,13 +285,13 @@ export function ReadingListScreen({
                     </span>
                     {item.perceivedVotes >= minimumVotes ? (
                       <span className="badge row-perceived">
-                        {perceivedLabel(item)}
+                        {localizedPerceivedLabel(item)}
                       </span>
                     ) : null}
                     <span className="badge">
-                      {lengthLabels[item.lengthType]}
+                      {lengthLabel(item.lengthType)}
                     </span>
-                    <span className="row-topic">{item.topic}</span>
+                    <span className="row-topic">{topicLabel(item.topic)}</span>
                   </span>
                 </div>
                 <span className="row-state">
@@ -290,8 +300,8 @@ export function ReadingListScreen({
                       <span
                         className="row-timeout-indicator"
                         role="img"
-                        aria-label="첫 제출 시간 초과"
-                        title="첫 제출 시간 초과"
+                        aria-label={t("list.firstTimedOut")}
+                        title={t("list.firstTimedOut")}
                       >
                         <Icon icon={TimerOff} />
                       </span>
@@ -299,7 +309,7 @@ export function ReadingListScreen({
                     <LearningStatusBadge itemId={item.id} progress={progress} />
                   </span>
                   <time className="row-date">
-                    {formatDate(item.publishedAt ?? item.createdAt)} · 정답률{" "}
+                    {formatDate(item.publishedAt ?? item.createdAt, locale)} · {t("list.accuracy")}{" "}
                     {item.itemAccuracy === null ? "-" : `${Math.round(item.itemAccuracy)}%`}
                   </time>
                 </span>
@@ -310,10 +320,10 @@ export function ReadingListScreen({
         </div>
         {!loading && items.length === 0 ? (
           <div className="reading-list-empty">
-            <p>조건에 맞는 지문이 없습니다.</p>
+            <p>{t("list.empty")}</p>
             <button className="text-button" type="button" onClick={reset}>
               <Icon icon={RotateCcw} />
-              필터 초기화
+              {t("list.resetFilters")}
             </button>
           </div>
         ) : (
@@ -328,14 +338,6 @@ export function ReadingListScreen({
   );
 }
 
-function scoreReasonLabel(reason: NonNullable<LearningProgress["reason"]>): string {
-  return {
-    first_submission_on_time: "첫 제출 시간 내 통과",
-    first_submission_timed_out: "첫 제출 시간 초과 통과",
-    retry_passed: "오답 후 재시도 통과",
-  }[reason];
-}
-
 function LearningStatusBadge({
   itemId,
   progress,
@@ -343,6 +345,7 @@ function LearningStatusBadge({
   itemId: string;
   progress: LearningProgress;
 }) {
+  const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   if (progress.status !== "passed" || progress.score === null || progress.reason === null) {
     return (
@@ -353,12 +356,18 @@ function LearningStatusBadge({
             : "badge row-status"
         }
       >
-        {progress.status === "wrong" ? "오답" : "미풀이"}
+        {progress.status === "wrong" ? t("progress.wrong") : t("progress.unstarted")}
       </span>
     );
   }
 
-  const detail = scoreReasonLabel(progress.reason);
+  const detail = t(
+    progress.reason === "first_submission_on_time"
+      ? "progress.firstOnTime"
+      : progress.reason === "first_submission_timed_out"
+        ? "progress.firstTimedOut"
+        : "progress.retryPassed",
+  );
   const tooltipId = `learning-score-${itemId}`;
   return (
     <span className={`row-status-popover${isOpen ? " is-open" : ""}`}>
@@ -369,7 +378,7 @@ function LearningStatusBadge({
         type="button"
         aria-describedby={tooltipId}
         aria-expanded={isOpen}
-        aria-label={`${progress.score}점, ${detail}. 상태 사유 보기`}
+        aria-label={t("progress.reason", { score: progress.score, detail })}
         onClick={() => setIsOpen((open) => !open)}
         onBlur={(event) => {
           const target = event.currentTarget;
@@ -413,7 +422,7 @@ function normalizedPassageText(value: string) {
   return value.replace(/\r\n?/g, "\n");
 }
 
-async function copyHighlightText(value: string) {
+async function copyHighlightText(value: string, errorMessage: string) {
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(value);
     return;
@@ -427,7 +436,7 @@ async function copyHighlightText(value: string) {
   input.select();
   const copied = document.execCommand("copy");
   input.remove();
-  if (!copied) throw new Error("복사하지 못했습니다.");
+  if (!copied) throw new Error(errorMessage);
 }
 
 function PassageHighlighter({
@@ -441,6 +450,7 @@ function PassageHighlighter({
   onCreateHighlight: ReadingScreenProps["onCreateHighlight"];
   onDeleteHighlight: ReadingScreenProps["onDeleteHighlight"];
 }) {
+  const { t } = useI18n();
   const passageRef = useRef<HTMLDivElement>(null);
   const actionRef = useRef<HTMLDivElement>(null);
   const floatingActionRef = useRef<HTMLButtonElement>(null);
@@ -566,7 +576,7 @@ function PassageHighlighter({
       setError(
         highlightError instanceof Error
           ? highlightError.message
-          : "하이라이트를 저장하지 못했습니다.",
+          : t("highlight.saveFailed"),
       );
     } finally {
       setIsSaving(false);
@@ -599,7 +609,7 @@ function PassageHighlighter({
       setError(
         highlightError instanceof Error
           ? highlightError.message
-          : "하이라이트를 삭제하지 못했습니다.",
+          : t("highlight.deleteFailed"),
       );
     } finally {
       setRemovingId(null);
@@ -611,13 +621,13 @@ function PassageHighlighter({
     setIsCopying(true);
     setError("");
     try {
-      await copyHighlightText(activeHighlight.highlight.selectedText);
+      await copyHighlightText(activeHighlight.highlight.selectedText, t("highlight.copyFailed"));
       setActiveHighlight(null);
     } catch (highlightError) {
       setError(
         highlightError instanceof Error
           ? highlightError.message
-          : "복사하지 못했습니다.",
+          : t("highlight.copyFailed"),
       );
     } finally {
       setIsCopying(false);
@@ -647,8 +657,8 @@ function PassageHighlighter({
           key={highlight.id}
           role="button"
           tabIndex={0}
-          title="하이라이트 도구"
-          aria-label={`하이라이트 도구: ${highlight.selectedText}`}
+          title={t("highlight.tool")}
+          aria-label={t("highlight.toolForText", { text: highlight.selectedText })}
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -694,7 +704,7 @@ function PassageHighlighter({
         >
           <button type="button" onClick={() => void createHighlight()} disabled={isSaving}>
             <Icon icon={Highlighter} />
-            {isSaving ? "Saving" : "Highlight"}
+            {isSaving ? t("highlight.saving") : t("highlight.save")}
           </button>
         </div>
       ) : null}
@@ -705,23 +715,23 @@ function PassageHighlighter({
         aria-label={
           pending
             ? isSaving
-              ? "하이라이트 저장 중"
-              : "선택한 글자 하이라이트하기"
-            : "글자를 선택하면 하이라이트할 수 있습니다"
+              ? t("highlight.savingLabel")
+              : t("highlight.selectToSave")
+            : t("highlight.selectHint")
         }
         title={
           pending
             ? isSaving
-              ? "저장 중"
-              : "하이라이트하기"
-            : "글자를 선택하세요"
+              ? t("highlight.saving")
+              : t("highlight.save")
+            : t("highlight.select")
         }
         disabled={!pending || isSaving}
         onClick={() => void createHighlight()}
       >
         <Icon icon={Highlighter} />
         <span className="sr-only">
-          {isSaving ? "저장 중" : "하이라이트"}
+          {isSaving ? t("highlight.saving") : t("highlight.saveShort")}
         </span>
       </button>
       {activeHighlight ? (
@@ -730,7 +740,7 @@ function PassageHighlighter({
           ref={actionRef}
           style={{ left: activeHighlight.left, top: activeHighlight.top }}
           role="group"
-          aria-label="하이라이트 도구"
+          aria-label={t("highlight.tool")}
         >
           <button
             className="passage-highlight-cancel"
@@ -739,11 +749,13 @@ function PassageHighlighter({
             disabled={removingId === activeHighlight.highlight.id}
           >
             <Icon icon={X} />
-            {removingId === activeHighlight.highlight.id ? "Deleting" : "Cancel"}
+            {removingId === activeHighlight.highlight.id
+              ? t("highlight.deleting")
+              : t("highlight.delete")}
           </button>
           <button type="button" onClick={() => void copyActiveHighlight()} disabled={isCopying}>
             <Icon icon={Copy} />
-            {isCopying ? "Copying" : "Copy"}
+            {isCopying ? t("highlight.copying") : t("highlight.copy")}
           </button>
         </div>
       ) : null}
@@ -767,6 +779,12 @@ export function ReadingScreen({
   onCreateHighlight,
   onDeleteHighlight,
 }: ReadingScreenProps) {
+  const {
+    t,
+    languageLabel,
+    lengthLabel,
+    perceivedLabel: localizedPerceivedLabel,
+  } = useI18n();
   const submitted = Boolean(attempt.submitted && result?.itemId === item.id);
   const questions = attempt.questions.length ? attempt.questions : item.questions;
   const explanationLanguage = item.language === "ja" ? "ko" : "ja";
@@ -778,18 +796,21 @@ export function ReadingScreen({
   return (
     <section
       className="screen screen-reading"
-      aria-label="풀이"
+      aria-label={t("reading.screen")}
       data-reading-language={item.language}
     >
       <article className="paper flush">
         <div className="paper-head">
           <div>
             <p className="kicker">
-              {languageLabels[item.language]} · {item.officialLevel} 실제
+              {t("reading.actualLevel", {
+                language: languageLabel(item.language),
+                level: item.officialLevel,
+              })}
               {item.perceivedVotes >= minimumVotes ? (
-                <> · {perceivedLabel(item)}</>
+                <> · {localizedPerceivedLabel(item)}</>
               ) : null}
-              {" · "}{lengthLabels[item.lengthType]}
+              {" · "}{lengthLabel(item.lengthType)}
             </p>
             <h1 className="title-jp">{item.title}</h1>
           </div>
@@ -797,7 +818,7 @@ export function ReadingScreen({
             <div
               className={`time-block${attempt.elapsedSeconds > item.recommendedSeconds ? " is-over" : ""}`}
             >
-              <span>권장 {formatTime(item.recommendedSeconds)}</span>
+              <span>{t("reading.recommended", { time: formatTime(item.recommendedSeconds) })}</span>
               <strong>{formatTime(attempt.elapsedSeconds)}</strong>
               <div className="progress-track">
                 <span
@@ -836,10 +857,14 @@ export function ReadingScreen({
             return (
               <div className="question-block" key={question.id}>
                 {questions.length > 1 ? (
-                  <p className="question-number">문제 {questionIndex + 1}</p>
+                  <p className="question-number">{t("reading.question", { number: questionIndex + 1 })}</p>
                 ) : null}
                 <h3>{question.question}</h3>
-                <div className="answer-list" role="radiogroup" aria-label={`문제 ${questionIndex + 1} 정답 선택`}>
+                <div
+                  className="answer-list"
+                  role="radiogroup"
+                  aria-label={t("reading.answerSelect", { number: questionIndex + 1 })}
+                >
                   {question.choices.map((choice, index) => (
                     <button
                       className={`answer-choice${choice.id === selectedChoiceId ? " is-selected" : ""}${submitted && choice.id === questionResult?.correctChoiceId ? " correct" : ""}${submitted && choice.id === selectedChoiceId && choice.id !== questionResult?.correctChoiceId ? " wrong" : ""}`}
@@ -859,11 +884,13 @@ export function ReadingScreen({
                 </div>
                 {submitted && questionResult ? (
                   <div className="answer-explanation">
-                    <strong>{correctNumber}가 정답인 이유</strong>
+                    <strong>{t("reading.correctReason", { number: correctNumber })}</strong>
                     <span lang={explanationLanguage}>{questionResult.explanation}</span>
                     {!questionResult.isCorrect && selected ? (
                       <p className="answer-choice-reason">
-                        내가 고른 {String(question.choices.indexOf(selected) + 1).padStart(2, "0")}가 오답인 이유: {" "}
+                        {t("reading.wrongReason", {
+                          number: String(question.choices.indexOf(selected) + 1).padStart(2, "0"),
+                        })}{" "}
                         <span lang={explanationLanguage}>
                           {questionResult.selectedChoiceWrongExplanation ?? wrongExplanationFallback}
                         </span>
@@ -880,7 +907,7 @@ export function ReadingScreen({
           <div className="footer-actions">
             <button className="link-button" type="button" onClick={onReport}>
               <Icon icon={MessageSquare} />
-              오류 제보
+              {t("reading.report")}
             </button>
             <div className="reading-actions">
               {!submitted ? (
@@ -891,21 +918,21 @@ export function ReadingScreen({
                   disabled={isSubmitting}
                 >
                   <Icon icon={X} />
-                  포기하기
+                  {t("reading.abandon")}
                 </button>
               ) : null}
               {submitted ? (
                 <>
                   <button className="text-button" type="button" onClick={onTranslate}>
                     <Icon icon={Languages} />
-                    번역 보기
+                    {t("reading.translation")}
                   </button>
                   <button
                     className="primary-button"
                     type="button"
                     onClick={onResult}
                   >
-                    다음으로
+                    {t("reading.next")}
                     <Icon icon={ArrowRight} />
                   </button>
                 </>
@@ -917,7 +944,7 @@ export function ReadingScreen({
                   disabled={isSubmitting}
                 >
                   <Icon icon={Check} />
-                  {isSubmitting ? "제출 중" : "제출하기"}
+                  {isSubmitting ? t("reading.submitting") : t("reading.submit")}
                 </button>
               )}
             </div>
@@ -935,6 +962,13 @@ export function ResultScreen({
   onContinue,
   onHome,
 }: ResultScreenProps) {
+  const {
+    t,
+    languageLabel,
+    lengthLabel,
+    topicLabel,
+    perceivedLabel: localizedPerceivedLabel,
+  } = useI18n();
   if (!result) return null;
   const { item, isCorrect, elapsedSeconds } = result;
   const correctCount = result.questionResults.filter((entry) => entry.isCorrect).length;
@@ -942,93 +976,101 @@ export function ResultScreen({
   const timeDifference = elapsedSeconds - item.recommendedSeconds;
   const timeDetail =
     timeDifference === 0
-      ? "권장 시간에 맞춰 풀이"
+      ? t("result.onTime")
       : timeDifference > 0
-        ? `권장보다 ${formatTime(timeDifference)} 초과`
-        : `권장보다 ${formatTime(Math.abs(timeDifference))} 빠름`;
+        ? t("result.overTime", { time: formatTime(timeDifference) })
+        : t("result.underTime", { time: formatTime(Math.abs(timeDifference)) });
 
   return (
     <section
       className="screen screen-result"
-      aria-label="결과"
+      aria-label={t("result.screen")}
       data-reading-language={item.language}
     >
       <div className="paper">
-        <p className="kicker">Result</p>
+        <p className="kicker">{t("result.screen")}</p>
         <h1 className="title-jp">{item.title}</h1>
         <div className="result-context">
-          <span className="badge">{lengthLabels[item.lengthType]}</span>
+          <span className="badge">{lengthLabel(item.lengthType)}</span>
           <span>
-            {languageLabels[item.language]} · {item.officialLevel} 실제
+            {t("reading.actualLevel", {
+              language: languageLabel(item.language),
+              level: item.officialLevel,
+            })}
             {item.perceivedVotes >= minimumVotes ? (
-              <> · {perceivedLabel(item)}</>
+              <> · {localizedPerceivedLabel(item)}</>
             ) : null}
-            {" · "}{item.topic}
+            {" · "}{topicLabel(item.topic)}
           </span>
         </div>
         <div className="result-metrics">
           <div className="result-metric">
-            <span className="result-label">결과</span>
+            <span className="result-label">{t("result.outcome")}</span>
             <strong
               className={`result-value ${isCorrect ? "is-correct" : "is-wrong"}`}
             >
-              {isCorrect ? "정답" : "오답"}
+              {isCorrect ? t("result.correct") : t("result.wrong")}
             </strong>
             {questionCount > 1 ? (
-              <div className="result-question-statuses" aria-label="문제별 정답 결과">
+              <div className="result-question-statuses" aria-label={t("result.answerCount")}>
                 {result.questionResults.map((questionResult, index) => (
                   <span
                     className={questionResult.isCorrect ? "is-correct" : "is-wrong"}
                     key={questionResult.questionId}
                   >
-                    문제 {index + 1} {questionResult.isCorrect ? "정답" : "오답"}
+                    {t("result.questionOutcome", {
+                      number: index + 1,
+                      outcome: questionResult.isCorrect ? t("result.correct") : t("result.wrong"),
+                    })}
                   </span>
                 ))}
               </div>
             ) : (
               <span className="result-answer-summary">
-                정답 <strong>{correctCount} / {questionCount}</strong>
+                {t("result.answerCount")} <strong>{correctCount} / {questionCount}</strong>
               </span>
             )}
           </div>
           <div className="result-metric">
-            <span className="result-label">권장 시간</span>
+            <span className="result-label">{t("result.recommendedTime")}</span>
             <strong className="result-value">
               {formatTime(item.recommendedSeconds)}
             </strong>
             <span className="result-detail">
-              {lengthLabels[item.lengthType]} 기준
+              {t("result.lengthBasis", { length: lengthLabel(item.lengthType) })}
             </span>
           </div>
           <div className="result-metric">
-            <span className="result-label">풀이 시간</span>
+            <span className="result-label">{t("result.elapsedTime")}</span>
             <strong className="result-value">{formatTime(elapsedSeconds)}</strong>
             <span className="result-detail">
               {timeDetail}
             </span>
           </div>
           <div className="result-metric">
-            <span className="result-label">이 문항의 정답률</span>
+            <span className="result-label">{t("result.accuracy")}</span>
             <strong className="result-value result-accuracy">
-              {result.itemAccuracy === null ? "-" : `${result.itemAccuracy}% 정답`}
+              {result.itemAccuracy === null
+                ? "-"
+                : t("result.accuracyValue", { value: result.itemAccuracy })}
             </strong>
-            <span className="result-detail">{result.challengerCount}명 도전</span>
+            <span className="result-detail">{t("result.challengers", { count: result.challengerCount })}</span>
           </div>
         </div>
         <div className="footer-actions">
           <button className="link-button" type="button" onClick={onFeedback}>
             <Icon icon={MessageSquare} />
-            문항 평가
+            {t("result.feedback")}
           </button>
           <div className="result-actions">
             <button className="text-button" type="button" onClick={onReview}>
-              해설 다시 보기
+              {t("result.review")}
             </button>
             <button className="primary-button" type="button" onClick={onContinue}>
-              {isCorrect ? "다음 문항" : "다시 풀기"}
+              {isCorrect ? t("result.nextItem") : t("result.retry")}
             </button>
             <button className="text-button" type="button" onClick={onHome}>
-              목록으로
+              {t("result.toList")}
             </button>
           </div>
         </div>
