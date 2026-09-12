@@ -22,6 +22,9 @@ import {
   ReadingScreen,
   ResultScreen,
 } from "./features/readings/ReadingScreens";
+import {
+  useHighlightCollection,
+} from "./features/readings/useHighlightCollection";
 import { useReadingList } from "./features/readings/useReadingList";
 import { StatsScreen } from "./features/statistics/StatsScreen";
 import { LoginScreen } from "./features/auth/LoginScreen";
@@ -63,7 +66,6 @@ import type {
   DialogConfig,
   FeedbackValues,
   GenerationValues,
-  HighlightCollectionPage,
   HighlightRemovalConfirmation,
   ListFilters,
   ManualReadingDraft,
@@ -97,14 +99,6 @@ const defaultAdminFilters: AdminFilters = {
 const listFiltersStorageKey = "yomitoku.list-filters";
 const adminFiltersStorageKey = "yomitoku.admin-filters";
 const readingSessionStoragePrefix = "yomitoku.reading-session:";
-const highlightCollectionPageSize = 5;
-const emptyHighlightCollection: HighlightCollectionPage = {
-  items: [],
-  page: 1,
-  pageSize: highlightCollectionPageSize,
-  totalItems: 0,
-  totalPages: 1,
-};
 
 interface StoredReadingSession {
   attemptId: string;
@@ -622,20 +616,8 @@ export default function App() {
   const [passageHighlights, setPassageHighlights] = useState<
     Record<string, PassageHighlight[]>
   >({});
-  const [highlightCollection, setHighlightCollection] =
-    useState<HighlightCollectionPage>(emptyHighlightCollection);
-  const [isHighlightCollectionLoading, setIsHighlightCollectionLoading] =
-    useState(false);
-  const [highlightCollectionError, setHighlightCollectionError] = useState("");
-  const [highlightLanguage, setHighlightLanguage] = useState<
-    "all" | ReadingLanguage
-  >("all");
-  const [highlightQuery, setHighlightQuery] = useState("");
   const [highlightRemoval, setHighlightRemoval] =
     useState<HighlightRemovalConfirmation | null>(null);
-  const [removingHighlightId, setRemovingHighlightId] = useState<string | null>(
-    null,
-  );
   const [bookmarkingItemIds, setBookmarkingItemIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -670,6 +652,20 @@ export default function App() {
     [searchParams, storedListFilters],
   );
   const query = searchParams.get("q") ?? "";
+  const {
+    collection: highlightCollection,
+    error: highlightCollectionError,
+    isLoading: isHighlightCollectionLoading,
+    language: highlightLanguage,
+    load: loadHighlightCollection,
+    open: openHighlightCollectionData,
+    query: highlightQuery,
+    remove: removeHighlight,
+    removingHighlightId,
+    reset: resetHighlightCollection,
+    setLanguage: setHighlightLanguage,
+    setQuery: setHighlightQuery,
+  } = useHighlightCollection(errorMessage);
   const {
     error: listError,
     isLoading: isListLoading,
@@ -708,7 +704,6 @@ export default function App() {
   const adminSavingRef = useRef(false);
   const submittingRef = useRef(false);
   const restoredAttemptKeyRef = useRef<string | null>(null);
-  const highlightCollectionRequestRef = useRef(0);
   const [manualError, setManualError] = useState("");
   const [generation, setGeneration] = useState<GenerationValues>({
     language: defaultGenerationLanguage,
@@ -821,47 +816,14 @@ export default function App() {
     itemId: string,
     highlightId: string,
   ) => {
-    if (removingHighlightId) return;
-    setRemovingHighlightId(highlightId);
-    setHighlightCollectionError("");
-    try {
-      await api.deleteHighlight(itemId, highlightId);
-      setHighlightCollection((current) => {
-        const removedGroup = current.items.find(
-          (item) =>
-            item.readingItemId === itemId &&
-            item.highlights.some((highlight) => highlight.id === highlightId),
-        );
-        const items = current.items.flatMap((item) => {
-          if (item.readingItemId !== itemId) return [item];
-          const highlights = item.highlights.filter(
-            (highlight) => highlight.id !== highlightId,
-          );
-          return highlights.length ? [{ ...item, highlights }] : [];
-        });
-        const totalItems = Math.max(
-          0,
-          current.totalItems - (removedGroup?.highlights.length === 1 ? 1 : 0),
-        );
-        return {
-          ...current,
-          items,
-          totalItems,
-          totalPages: Math.max(1, Math.ceil(totalItems / current.pageSize)),
-        };
-      });
-      setPassageHighlights((current) => ({
-        ...current,
-        [itemId]: (current[itemId] ?? []).filter(
-          (highlight) => highlight.id !== highlightId,
-        ),
-      }));
-      setToast(t("highlights.removeSuccess"));
-    } catch (error) {
-      setHighlightCollectionError(errorMessage(error, "highlights.removeFailed"));
-    } finally {
-      setRemovingHighlightId(null);
-    }
+    if (!(await removeHighlight(itemId, highlightId))) return;
+    setPassageHighlights((current) => ({
+      ...current,
+      [itemId]: (current[itemId] ?? []).filter(
+        (highlight) => highlight.id !== highlightId,
+      ),
+    }));
+    setToast(t("highlights.removeSuccess"));
   };
   const hydrateRestoredAttempt = (
     restored: RestoredAttempt,
@@ -1392,59 +1354,14 @@ export default function App() {
       title: t("highlights.title"),
       description: "",
     });
-  const loadHighlightCollection = ({
-    language = highlightLanguage,
-    query = highlightQuery,
-    page = highlightCollection.page,
-  }: {
-    language?: "all" | ReadingLanguage;
-    query?: string;
-    page?: number;
-  } = {}) => {
-    const requestId = highlightCollectionRequestRef.current + 1;
-    highlightCollectionRequestRef.current = requestId;
-    setHighlightCollectionError("");
-    setIsHighlightCollectionLoading(true);
-    return api
-      .highlightCollection({
-        language: language === "all" ? undefined : language,
-        query: query.trim() || undefined,
-        page,
-        pageSize: highlightCollectionPageSize,
-      })
-      .then((collection) => {
-        if (highlightCollectionRequestRef.current === requestId) {
-          setHighlightCollection(collection);
-        }
-      })
-      .catch((error: unknown) => {
-        if (highlightCollectionRequestRef.current === requestId) {
-          setHighlightCollectionError(
-            error instanceof Error
-              ? error.message
-              : t("highlights.failed"),
-          );
-        }
-      })
-      .finally(() => {
-        if (highlightCollectionRequestRef.current === requestId) {
-          setIsHighlightCollectionLoading(false);
-        }
-      });
-  };
   const openHighlightCollection = () => {
     if (!authenticated) {
       openLogin();
       return;
     }
-    setHighlightLanguage("all");
-    setHighlightQuery("");
-    setHighlightCollection(emptyHighlightCollection);
-    setHighlightCollectionError("");
-    setRemovingHighlightId(null);
     setHighlightRemoval(null);
     showHighlightCollectionDialog();
-    void loadHighlightCollection({ language: "all", query: "", page: 1 });
+    void openHighlightCollectionData();
   };
   const confirmHighlightRemoval = (itemId: string, highlightId: string) => {
     const item = highlightCollection.items.find((entry) =>
@@ -1648,9 +1565,7 @@ export default function App() {
     setResult(null);
     setStatistics(null);
     setPassageHighlights({});
-    setHighlightCollection(emptyHighlightCollection);
-    setHighlightCollectionError("");
-    setRemovingHighlightId(null);
+    resetHighlightCollection();
     setHighlightRemoval(null);
     setBookmarkingItemIds(new Set());
     if (filters.bookmarked) {
