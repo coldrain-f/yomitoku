@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import {
   Navigate,
@@ -25,6 +25,7 @@ import {
 import {
   useHighlightCollection,
 } from "./features/readings/useHighlightCollection";
+import { useReadingAttempt } from "./features/readings/useReadingAttempt";
 import { useReadingList } from "./features/readings/useReadingList";
 import { StatsScreen } from "./features/statistics/StatsScreen";
 import { LoginScreen } from "./features/auth/LoginScreen";
@@ -45,7 +46,6 @@ import {
   recordFromResult,
   type GenerationJob,
   type ReadingTranslation,
-  type RestoredAttempt,
   type Statistics,
 } from "./lib/api";
 import {
@@ -62,7 +62,6 @@ import { useI18n } from "./lib/i18n";
 import type {
   AdminFilters,
   AttemptRecord,
-  AttemptQuestionAnswer,
   DialogConfig,
   FeedbackValues,
   GenerationValues,
@@ -98,14 +97,6 @@ const defaultAdminFilters: AdminFilters = {
 };
 const listFiltersStorageKey = "yomitoku.list-filters";
 const adminFiltersStorageKey = "yomitoku.admin-filters";
-const readingSessionStoragePrefix = "yomitoku.reading-session:";
-
-interface StoredReadingSession {
-  attemptId: string;
-  itemId: string;
-  selectedChoiceId: string | null;
-  answers: AttemptQuestionAnswer[];
-}
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
 
 function normalizeReadingLanguage(value: unknown): ReadingLanguage {
@@ -147,53 +138,6 @@ function storeFilters(key: string, filters: object) {
     window.sessionStorage.setItem(key, JSON.stringify(filters));
   } catch {
     // Filter controls remain usable when browser storage is unavailable.
-  }
-}
-
-function readingSessionStorageKey(userId: string) {
-  return readingSessionStoragePrefix + userId;
-}
-
-function readStoredReadingSession(userId: string): StoredReadingSession | null {
-  try {
-    const stored = window.sessionStorage.getItem(readingSessionStorageKey(userId));
-    if (!stored) return null;
-    const parsed: unknown = JSON.parse(stored);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
-    const { attemptId, itemId, selectedChoiceId, answers } = parsed as Record<string, unknown>;
-    if (typeof attemptId !== "string" || typeof itemId !== "string") return null;
-    return {
-      attemptId,
-      itemId,
-      selectedChoiceId: typeof selectedChoiceId === "string" ? selectedChoiceId : null,
-      answers: Array.isArray(answers)
-        ? answers.flatMap((answer) => {
-            if (!answer || typeof answer !== "object" || Array.isArray(answer)) return [];
-            const { questionId, selectedChoiceId: choiceId } = answer as Record<string, unknown>;
-            return typeof questionId === "string"
-              ? [{ questionId, selectedChoiceId: typeof choiceId === "string" ? choiceId : null }]
-              : [];
-          })
-        : [],
-    };
-  } catch {
-    return null;
-  }
-}
-
-function storeReadingSession(userId: string, session: StoredReadingSession) {
-  try {
-    window.sessionStorage.setItem(readingSessionStorageKey(userId), JSON.stringify(session));
-  } catch {
-    // The attempt remains usable when browser storage is unavailable.
-  }
-}
-
-function clearReadingSession(userId: string) {
-  try {
-    window.sessionStorage.removeItem(readingSessionStorageKey(userId));
-  } catch {
-    // No action is needed when browser storage is unavailable.
   }
 }
 
@@ -689,8 +633,6 @@ export default function App() {
   const [dialog, setDialog] = useState<DialogConfig | null>(null);
   const [pendingStart, setPendingStart] = useState<ReadingItem | null>(null);
   const [toast, setToast] = useState("");
-  const [attempt, setAttempt] = useState<ReadingAttempt | null>(null);
-  const [result, setResult] = useState<ReadingResult | null>(null);
   const [translation, setTranslation] = useState<ReadingTranslation | null>(null);
   const [translationLoading, setTranslationLoading] = useState(false);
   const [translationError, setTranslationError] = useState("");
@@ -700,10 +642,7 @@ export default function App() {
   );
   const [isManualSaving, setIsManualSaving] = useState(false);
   const [isAdminSaving, setIsAdminSaving] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const adminSavingRef = useRef(false);
-  const submittingRef = useRef(false);
-  const restoredAttemptKeyRef = useRef<string | null>(null);
   const [manualError, setManualError] = useState("");
   const [generation, setGeneration] = useState<GenerationValues>({
     language: defaultGenerationLanguage,
@@ -769,7 +708,6 @@ export default function App() {
   });
   const feedbackRef = useRef(feedback);
 
-  const activeItem = items.find((item) => item.id === attempt?.itemId);
   const languageStatistics = statistics?.byLanguage?.find(
     (group) => group.key === filters.language,
   );
@@ -779,10 +717,10 @@ export default function App() {
     languageStatistics?.totalCount ?? statistics?.totalGeneratedCount ?? 0;
 
   const loadStatistics = async () => setStatistics(await api.statistics());
-  const loadPassageHighlights = async (itemId: string) => {
+  const loadPassageHighlights = useCallback(async (itemId: string) => {
     const highlights = await api.highlights(itemId);
     setPassageHighlights((current) => ({ ...current, [itemId]: highlights }));
-  };
+  }, []);
   const createPassageHighlight = async (
     itemId: string,
     startOffset: number,
@@ -825,76 +763,36 @@ export default function App() {
     }));
     setToast(t("highlights.removeSuccess"));
   };
-  const hydrateRestoredAttempt = (
-    restored: RestoredAttempt,
-    storedSession: StoredReadingSession | null,
-  ) => {
-    void loadPassageHighlights(restored.itemId).catch(() => undefined);
-    const storedAnswers = new Map(
-      (storedSession?.answers ?? []).map((answer) => [answer.questionId, answer.selectedChoiceId]),
-    );
-    const answers = restored.item.questions.map((question, index) => {
-      const validChoiceIds = new Set(question.choices.map((choice) => choice.id));
-      const restoredChoice = restored.answers.find(
-        (answer) => answer.questionId === question.id,
-      )?.selectedChoiceId;
-      const storedChoice = storedAnswers.get(question.id) ?? (
-        index === 0 ? storedSession?.selectedChoiceId : null
-      );
-      const selectedChoiceId = [restoredChoice, storedChoice].find(
-        (choiceId): choiceId is string => Boolean(choiceId && validChoiceIds.has(choiceId)),
-      ) ?? null;
-      return { questionId: question.id, selectedChoiceId };
-    });
-    const selectedChoiceId = answers[0]?.selectedChoiceId ?? null;
-    const nextAttempt: ReadingAttempt = {
-      attemptId: restored.id,
-      itemId: restored.itemId,
-      startedAt: new Date(restored.startedAt).getTime(),
-      elapsedSeconds: restored.elapsedSeconds,
-      selectedChoiceId,
-      choices: restored.item.choices,
-      submitted: restored.submitted,
-      message: "",
-      questions: restored.item.questions,
-      answers,
-    };
-    setItems((current) =>
-      current.some((item) => item.id === restored.item.id)
-        ? current.map((item) =>
-            item.id === restored.item.id ? restored.item : item,
-          )
-        : [restored.item, ...current],
-    );
-    setAttempt(nextAttempt);
-    submittingRef.current = false;
-    setIsSubmitting(false);
-    const submitted = restored.result;
-    if (!submitted) {
-      setResult(null);
-      return;
-    }
-    const nextResult: ReadingResult = {
-      itemId: restored.itemId,
-      item: restored.item,
-      choices: restored.item.choices,
-      selectedChoiceId: submitted.selectedChoiceId,
-      correctChoiceId: submitted.correctChoiceId,
-      isCorrect: submitted.isCorrect,
-      elapsedSeconds: submitted.elapsedSeconds,
-      explanation: submitted.explanation,
-      selectedChoiceWrongExplanation:
-        submitted.selectedChoiceWrongExplanation,
-      itemAccuracy: submitted.itemAccuracy,
-      challengerCount: submitted.challengerCount,
-      questionResults: submitted.questionResults,
-    };
-    setResult(nextResult);
-    setAttempts((current) => [
-      ...current.filter((entry) => entry.itemId !== restored.itemId),
-      recordFromResult(restored.item, submitted),
-    ]);
-  };
+  const recordRestoredSubmission = useCallback(
+    (item: ReadingItem, submitted: Parameters<typeof recordFromResult>[1]) => {
+      setAttempts((current) => [
+        ...current.filter((entry) => entry.itemId !== item.id),
+        recordFromResult(item, submitted),
+      ]);
+    },
+    [],
+  );
+  const {
+    attempt,
+    clearStoredSession,
+    isSubmitting,
+    resetSession,
+    result,
+    setAttempt,
+    setIsSubmitting,
+    setResult,
+    startAttempt,
+    submittingRef,
+  } = useReadingAttempt({
+    authenticated,
+    authLoading,
+    userId,
+    pathname: location.pathname,
+    setItems,
+    loadPassageHighlights,
+    onRestoredSubmission: recordRestoredSubmission,
+  });
+  const activeItem = items.find((item) => item.id === attempt?.itemId);
 
   useEffect(() => {
     let active = true;
@@ -935,46 +833,6 @@ export default function App() {
     if (!authenticated || role !== "admin") return;
     void loadGenerationModels();
   }, [authenticated, role]);
-
-  useEffect(() => {
-    if (!authenticated || !userId || !attempt) return;
-    storeReadingSession(userId, {
-      attemptId: attempt.attemptId,
-      itemId: attempt.itemId,
-      selectedChoiceId: attempt.selectedChoiceId,
-      answers: attempt.answers,
-    });
-  }, [attempt?.attemptId, attempt?.itemId, attempt?.selectedChoiceId, authenticated, userId]);
-
-  useEffect(() => {
-    if (authenticated || !userId) return;
-    clearReadingSession(userId);
-  }, [authenticated, userId]);
-
-  useEffect(() => {
-    if (!authenticated || !userId || authLoading) return;
-    const match = location.pathname.match(/^\/(?:readings|results)\/([^/]+)$/);
-    if (!match || attempt?.itemId === match[1]) return;
-    const stored = readStoredReadingSession(userId);
-    if (!stored || stored.itemId !== match[1]) return;
-    const key = `${userId}:${stored.attemptId}:${location.pathname}`;
-    if (restoredAttemptKeyRef.current === key) return;
-    restoredAttemptKeyRef.current = key;
-    let active = true;
-
-    void api
-      .attempt(stored.attemptId)
-      .then((restored) => {
-        if (!active || restored.itemId !== stored.itemId) return;
-        hydrateRestoredAttempt(restored, stored);
-      })
-      .catch(() => {
-        clearReadingSession(userId);
-      });
-    return () => {
-      active = false;
-    };
-  }, [attempt?.itemId, authLoading, authenticated, location.pathname, userId]);
 
   useEffect(() => {
     const conditions = generationJob.job?.conditions;
@@ -1139,47 +997,7 @@ export default function App() {
         closeDialog();
         void (async () => {
           try {
-            const [detail, started] = await Promise.all([
-              api.reading(item.id),
-              api.startAttempt(item.id),
-            ]);
-            void loadPassageHighlights(item.id).catch(() => undefined);
-            const readingItem: ReadingItem = {
-              ...item,
-              title: detail.title,
-              language: detail.language,
-              officialLevel: detail.officialLevel,
-              lengthType: detail.lengthType,
-              topic: detail.topic,
-              recommendedSeconds: detail.recommendedSeconds,
-              passage: detail.passage,
-              question: detail.question,
-              choices: started.choices,
-              questions: started.questions,
-            };
-            setItems((current) =>
-              current.map((currentItem) =>
-                currentItem.id === readingItem.id ? readingItem : currentItem,
-              ),
-            );
-            setResult(null);
-            submittingRef.current = false;
-            setIsSubmitting(false);
-            setAttempt({
-              attemptId: started.id,
-              itemId: item.id,
-              startedAt: Date.now(),
-              elapsedSeconds: 0,
-              selectedChoiceId: null,
-              choices: started.choices,
-              submitted: false,
-              message: "",
-              questions: started.questions,
-              answers: started.questions.map((question) => ({
-                questionId: question.id,
-                selectedChoiceId: null,
-              })),
-            });
+            await startAttempt(item);
             navigate(`/readings/${item.id}`);
           } catch (error) {
             setToast(errorMessage(error, "start.openFailed"));
@@ -1211,7 +1029,7 @@ export default function App() {
       onConfirm: () => {
         closeDialog();
         void api.abandonAttempt(attempt.attemptId);
-        if (userId) clearReadingSession(userId);
+        clearStoredSession();
         setAttempt(null);
         navigate(target);
         setToast(t("leave.completed", { target: targetLabel }));
@@ -1556,13 +1374,11 @@ export default function App() {
   const logout = () => {
     void api.logout().catch(() => undefined);
     api.clearAccessToken();
-    if (userId) clearReadingSession(userId);
-    restoredAttemptKeyRef.current = null;
+    clearStoredSession();
     setAuthenticated(false);
     setUserId(null);
     setRole("learner");
-    setAttempt(null);
-    setResult(null);
+    resetSession();
     setStatistics(null);
     setPassageHighlights({});
     resetHighlightCollection();
