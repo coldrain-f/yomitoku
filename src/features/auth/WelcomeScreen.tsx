@@ -1,4 +1,4 @@
-import { ArrowRight, Check, Highlighter, Star } from "lucide-react";
+import { ArrowRight, Check, Highlighter, MessageSquare, Star } from "lucide-react";
 import { Icon } from "../../components/ui/Icon";
 import { useI18n } from "../../lib/i18n";
 
@@ -23,40 +23,51 @@ export function WelcomeScreen({ onLogin }: WelcomeScreenProps) {
           <p className="welcome-login-note">{t("welcome.loginNote")}</p>
         </div>
         <div className="welcome-preview" aria-label={t("welcome.previewAria")}>
-          <article className="welcome-preview-card">
-            <header className="welcome-preview-head">
-              <span>{t("welcome.previewKicker")}</span>
-              <span>{t("welcome.previewMeta")}</span>
-            </header>
-            <p className="welcome-preview-passage" lang="ja">
-              {t("welcome.previewPassage")}
-            </p>
-            <p className="welcome-preview-question">{t("welcome.previewQuestion")}</p>
-            <ol className="welcome-preview-choices">
-              <li className="is-correct">
-                <span>01</span>
-                <p>{t("welcome.previewCorrectChoice")}</p>
-                <Icon icon={Check} />
-              </li>
-              <li>
-                <span>02</span>
-                <p>{t("welcome.previewWrongChoice")}</p>
-              </li>
-            </ol>
-            <footer className="welcome-preview-result">
-              <span className="welcome-preview-correct">
-                <Icon icon={Check} />
-                {t("welcome.previewCorrect")}
-              </span>
-              <span>
-                <strong>100</strong>
-                {t("welcome.previewScore")}
-              </span>
-              <span>
-                <Icon icon={Highlighter} />
-                {t("welcome.previewHighlights")}
-              </span>
-            </footer>
+          <article className="paper flush welcome-preview-card" data-reading-language="ja">
+            <div className="paper-head welcome-preview-head">
+              <div>
+                <p className="kicker">{t("welcome.previewKicker")}</p>
+                <h2 className="title-jp" lang="ja">{t("welcome.previewTitle")}</h2>
+              </div>
+              <div className="reading-meta">
+                <div className="time-block">
+                  <span>{t("welcome.previewRecommended")}</span>
+                  <strong>{t("welcome.previewElapsed")}</strong>
+                  <div className="progress-track" aria-hidden="true">
+                    <span style={{ width: "47%" }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="reading-body welcome-preview-body">
+              <div className="passage">
+                <p lang="ja">{t("welcome.previewPassage")}</p>
+              </div>
+              <div className="question-block">
+                <h3>{t("welcome.previewQuestion")}</h3>
+                <div className="answer-list">
+                  {["01", "02", "03", "04"].map((number, index) => (
+                    <div
+                      className={`answer-choice${index === 0 ? " is-selected" : ""}`}
+                      key={number}
+                    >
+                      <span className="answer-number">{number}</span>
+                      <span>{t(`welcome.previewChoice${index + 1}`)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="footer-actions welcome-preview-actions">
+                <span className="link-button">
+                  <Icon icon={MessageSquare} />
+                  {t("welcome.previewReport")}
+                </span>
+                <span className="primary-button">
+                  <Icon icon={Check} />
+                  {t("welcome.previewSubmit")}
+                </span>
+              </div>
+            </div>
           </article>
         </div>
       </div>
