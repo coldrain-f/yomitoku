@@ -26,6 +26,10 @@ import { StatsScreen } from "./features/statistics/StatsScreen";
 import { LoginScreen } from "./features/auth/LoginScreen";
 import { WelcomeScreen } from "./features/auth/WelcomeScreen";
 import { useGenerationJob } from "./features/admin/useGenerationJob";
+import {
+  useAdminReadingList,
+  useGenerationResources,
+} from "./features/admin/useAdminResources";
 import { AppDialogContent } from "./components/AppDialogContent";
 import { AppHeader } from "./components/AppHeader";
 import { Breadcrumb } from "./components/ui/Breadcrumb";
@@ -36,13 +40,10 @@ import {
   ApiError,
   recordFromResult,
   type GenerationJob,
-  type GenerationJobHistory,
-  type GenerationModelOptions,
   type ReadingListRequest,
   type ReadingTranslation,
   type RestoredAttempt,
   type Statistics,
-  type AdminReadingListRequest,
 } from "./lib/api";
 import {
   defaultGenerationLanguage,
@@ -145,23 +146,6 @@ function publicSortParameter(
     "perceived-desc": "perceived_level_desc",
     "score-asc": "score_asc",
     "score-desc": "score_desc",
-  } as const)[sort];
-}
-
-function adminSortParameter(
-  sort: AdminFilters["sort"],
-): NonNullable<AdminReadingListRequest["sort"]> {
-  return ({
-    "updated-desc": "updated_desc",
-    "updated-asc": "updated_asc",
-    "created-desc": "created_desc",
-    "created-asc": "created_asc",
-    "title-asc": "title_asc",
-    "level-asc": "level_asc",
-    "level-desc": "level_desc",
-    "perceived-asc": "perceived_level_asc",
-    "perceived-desc": "perceived_level_desc",
-    "status-asc": "status_asc",
   } as const)[sort];
 }
 
@@ -649,15 +633,10 @@ export default function App() {
   const [userId, setUserId] = useState<string | null>(null);
   const [role, setRole] = useState<Role>("learner");
   const [items, setItems] = useState<ReadingItem[]>([]);
-  const [adminItems, setAdminItems] = useState<ReadingItem[]>([]);
   const [listPage, setListPage] = useState(1);
   const [listTotalPages, setListTotalPages] = useState(1);
   const [listTotalItems, setListTotalItems] = useState(0);
   const [listError, setListError] = useState("");
-  const [adminPage, setAdminPage] = useState(1);
-  const [adminTotalPages, setAdminTotalPages] = useState(1);
-  const [adminTotalItems, setAdminTotalItems] = useState(0);
-  const [adminListError, setAdminListError] = useState("");
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [attempts, setAttempts] = useState<AttemptRecord[]>([]);
   const [passageHighlights, setPassageHighlights] = useState<
@@ -677,12 +656,10 @@ export default function App() {
   const [removingHighlightId, setRemovingHighlightId] = useState<string | null>(
     null,
   );
-  const [adminLoaded, setAdminLoaded] = useState(false);
   const [isListLoading, setIsListLoading] = useState(true);
   const [bookmarkingItemIds, setBookmarkingItemIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const [isAdminListLoading, setIsAdminListLoading] = useState(false);
   const storedListFilters = useMemo(
     () => readStoredFilters(listFiltersStorageKey, defaultListFilters),
     [searchParams],
@@ -714,18 +691,8 @@ export default function App() {
     [searchParams, storedListFilters],
   );
   const query = searchParams.get("q") ?? "";
-  const [adminQuery, setAdminQuery] = useState("");
-  const [adminFilters, setAdminFilters] = useState<AdminFilters>(() => {
-    const stored = readStoredFilters(adminFiltersStorageKey, defaultAdminFilters);
-    return {
-      ...stored,
-      language: normalizeReadingLanguage(stored.language),
-    };
-  });
   const [filterDraft, setFilterDraft] = useState(filters);
-  const [adminFilterDraft, setAdminFilterDraft] = useState(adminFilters);
   const filterDraftRef = useRef(filterDraft);
-  const adminFilterDraftRef = useRef(adminFilterDraft);
   const [dialog, setDialog] = useState<DialogConfig | null>(null);
   const [pendingStart, setPendingStart] = useState<ReadingItem | null>(null);
   const [toast, setToast] = useState("");
@@ -745,7 +712,6 @@ export default function App() {
   const submittingRef = useRef(false);
   const restoredAttemptKeyRef = useRef<string | null>(null);
   const listRequestRef = useRef(0);
-  const adminListRequestRef = useRef(0);
   const highlightCollectionRequestRef = useRef(0);
   const [manualError, setManualError] = useState("");
   const [generation, setGeneration] = useState<GenerationValues>({
@@ -757,14 +723,47 @@ export default function App() {
     generatorModel: "",
     validatorModel: "",
   });
-  const [generationModels, setGenerationModels] = useState<GenerationModelOptions | null>(null);
-  const [generationModelsError, setGenerationModelsError] = useState("");
-  const [generationHistory, setGenerationHistory] = useState<GenerationJobHistory[]>([]);
-  const [generationHistoryPage, setGenerationHistoryPage] = useState(1);
-  const [generationHistoryTotalPages, setGenerationHistoryTotalPages] = useState(1);
-  const [generationHistoryTotalItems, setGenerationHistoryTotalItems] = useState(0);
-  const [isGenerationHistoryLoading, setIsGenerationHistoryLoading] = useState(false);
-  const [generationHistoryError, setGenerationHistoryError] = useState("");
+  const {
+    error: adminListError,
+    filters: adminFilters,
+    isLoading: isAdminListLoading,
+    items: adminItems,
+    loaded: adminLoaded,
+    page: adminPage,
+    query: adminQuery,
+    replaceItem: replaceAdminItem,
+    setFilters: setAdminFilters,
+    setItems: setAdminItems,
+    setPage: setAdminPage,
+    setQuery: setAdminQuery,
+    totalItems: adminTotalItems,
+    totalPages: adminTotalPages,
+    load: loadAdminItems,
+  } = useAdminReadingList({
+    enabled: authenticated && role === "admin",
+    defaultFilters: defaultAdminFilters,
+    errorMessage,
+    normalizeFilters: (stored) => ({
+      ...stored,
+      language: normalizeReadingLanguage(stored.language),
+    }),
+    pageSize: listPageSize,
+    storageKey: adminFiltersStorageKey,
+  });
+  const [adminFilterDraft, setAdminFilterDraft] = useState(adminFilters);
+  const adminFilterDraftRef = useRef(adminFilterDraft);
+  const {
+    history: generationHistory,
+    historyError: generationHistoryError,
+    historyPage: generationHistoryPage,
+    historyTotalItems: generationHistoryTotalItems,
+    historyTotalPages: generationHistoryTotalPages,
+    isHistoryLoading: isGenerationHistoryLoading,
+    loadHistory: loadGenerationHistory,
+    loadModels: loadGenerationModels,
+    models: generationModels,
+    modelsError: generationModelsError,
+  } = useGenerationResources({ errorMessage, setGeneration });
   const [dialogError, setDialogError] = useState("");
   const generationJob = useGenerationJob(authenticated && role === "admin" ? userId : null);
   const isGenerating = generationJob.isPending || Boolean(generationJob.job?.generatedItemId);
@@ -918,76 +917,6 @@ export default function App() {
       setRemovingHighlightId(null);
     }
   };
-  const loadGenerationModels = async () => {
-    setGenerationModelsError("");
-    try {
-      const modelOptions = await api.generationModelOptions();
-      setGenerationModels(modelOptions);
-      setGeneration((current) => ({
-        ...current,
-        generatorModel: modelOptions.models.includes(current.generatorModel)
-          ? current.generatorModel
-          : modelOptions.defaultGeneratorModel,
-        validatorModel: modelOptions.models.includes(current.validatorModel)
-          ? current.validatorModel
-          : modelOptions.defaultValidatorModel,
-      }));
-    } catch (error) {
-      setGenerationModels(null);
-      setGenerationModelsError(errorMessage(error, "admin.modelsLoadFailed"));
-    }
-  };
-  const loadGenerationHistory = async (page = 1) => {
-    setIsGenerationHistoryLoading(true);
-    setGenerationHistoryError("");
-    try {
-      const response = await api.generationJobs(page);
-      setGenerationHistory(response.items);
-      setGenerationHistoryPage(response.page);
-      setGenerationHistoryTotalPages(response.totalPages);
-      setGenerationHistoryTotalItems(response.totalItems);
-    } catch (error) {
-      setGenerationHistoryError(errorMessage(error, "admin.historyLoadFailed"));
-    } finally {
-      setIsGenerationHistoryLoading(false);
-    }
-  };
-  const loadAdminItems = async (page = adminPage) => {
-    const requestId = ++adminListRequestRef.current;
-    setIsAdminListLoading(true);
-    setAdminListError("");
-    try {
-      const response = await api.listAdminReadings({
-        q: adminQuery.trim() || undefined,
-        language: adminFilters.language,
-        level: adminFilters.level === "all" ? undefined : adminFilters.level,
-        length: adminFilters.length === "all" ? undefined : adminFilters.length,
-        topic: adminFilters.topic === "all" ? undefined : adminFilters.topic,
-        status: adminFilters.status === "all" ? undefined : adminFilters.status,
-        sort: adminSortParameter(adminFilters.sort),
-        page,
-        pageSize: listPageSize,
-      });
-      if (requestId !== adminListRequestRef.current) return;
-      setAdminItems(response.items);
-      setAdminPage(response.page);
-      setAdminTotalPages(response.totalPages);
-      setAdminTotalItems(response.totalItems);
-      setAdminLoaded(true);
-    } catch (error) {
-      if (requestId === adminListRequestRef.current) {
-        setAdminListError(errorMessage(error, "admin.listLoadFailed"));
-      }
-    } finally {
-      if (requestId === adminListRequestRef.current) setIsAdminListLoading(false);
-    }
-  };
-  const replaceAdminItem = (next: ReadingItem) =>
-    setAdminItems((current) =>
-      current.some((item) => item.id === next.id)
-        ? current.map((item) => (item.id === next.id ? next : item))
-        : [next, ...current],
-    );
   const hydrateRestoredAttempt = (
     restored: RestoredAttempt,
     storedSession: StoredReadingSession | null,
@@ -1101,11 +1030,6 @@ export default function App() {
 
   useEffect(() => {
     if (!authenticated || role !== "admin") return;
-    void loadAdminItems();
-  }, [adminFilters, adminPage, adminQuery, authenticated, role]);
-
-  useEffect(() => {
-    if (!authenticated || role !== "admin") return;
     void loadGenerationModels();
   }, [authenticated, role]);
 
@@ -1202,9 +1126,6 @@ export default function App() {
   useEffect(() => {
     adminFilterDraftRef.current = adminFilterDraft;
   }, [adminFilterDraft]);
-  useEffect(() => {
-    storeFilters(adminFiltersStorageKey, adminFilters);
-  }, [adminFilters]);
   useEffect(() => {
     reportTextRef.current = reportText;
   }, [reportText]);
