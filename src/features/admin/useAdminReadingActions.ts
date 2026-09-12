@@ -46,12 +46,15 @@ export function useAdminReadingActions({
   );
 
   const saveAdminItem = useCallback(
-    async (item: ReadingItem) => {
+    async (
+      item: ReadingItem,
+      options: { clearPassageHighlights?: boolean } = {},
+    ) => {
       if (adminSavingRef.current) return null;
       adminSavingRef.current = true;
       setIsAdminSaving(true);
       try {
-        const next = await api.updateAdminReading(item);
+        const next = await api.updateAdminReading(item, options);
         replaceAdminItem(next);
         setDraft(structuredClone(next));
         return next;
@@ -106,12 +109,15 @@ export function useAdminReadingActions({
   );
 
   const publishAdminItem = useCallback(
-    async (item: ReadingItem) => {
+    async (
+      item: ReadingItem,
+      options: { clearPassageHighlights?: boolean } = {},
+    ) => {
       if (adminSavingRef.current) return null;
       adminSavingRef.current = true;
       setIsAdminSaving(true);
       try {
-        const saved = await api.updateAdminReading(item);
+        const saved = await api.updateAdminReading(item, options);
         replaceAdminItem(saved);
         setDraft(structuredClone(saved));
         const next = await api.publish(saved.id);

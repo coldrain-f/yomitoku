@@ -130,6 +130,7 @@ export interface ReadingItem {
   questions: ReadingQuestion[];
   quality: number;
   reportCount: number;
+  highlightCount?: number;
   reports: ItemReport[];
   validations: ItemValidation[];
 }

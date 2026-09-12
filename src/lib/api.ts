@@ -83,6 +83,7 @@ interface ApiReadingDetail extends ApiReadingSummary {
   qualityAverage?: number | null;
   reportCount?: number;
   challengerCount?: number;
+  highlightCount?: number;
   reports?: ItemReport[];
   validations?: ItemValidation[];
 }
@@ -365,6 +366,7 @@ function toItem(summary: ApiReadingSummary, detail?: ApiReadingDetail): ReadingI
     questions,
     quality: detail?.qualityAverage ?? 0,
     reportCount: detail?.reportCount ?? 0,
+    highlightCount: detail?.highlightCount,
     reports: detail?.reports?.map((report) => ({ ...report })) ?? [],
     validations: detail?.validations?.map((validation) => ({ ...validation })) ?? [],
   };
@@ -609,7 +611,10 @@ export const api = {
     const response = await request<ApiReadingDetail>(`/admin/reading-items/${itemId}`);
     return toItem(response, response);
   },
-  updateAdminReading: async (item: ReadingItem) => {
+  updateAdminReading: async (
+    item: ReadingItem,
+    options: { clearPassageHighlights?: boolean } = {},
+  ) => {
     const response = await request<ApiReadingDetail>(`/admin/reading-items/${item.id}`, {
       method: "PATCH",
       body: JSON.stringify({
@@ -623,6 +628,7 @@ export const api = {
         topic: item.topic,
         recommendedSeconds: item.recommendedSeconds,
         choices: item.choices.map(adminChoiceInput),
+        clearPassageHighlights: Boolean(options.clearPassageHighlights),
         questions: item.questions.map((question) => ({
           ...(isPersistedId(question.id) ? { id: question.id } : {}),
           question: question.question,

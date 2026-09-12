@@ -968,9 +968,41 @@ export default function App() {
       },
     });
   };
-  const updateAdminItem = async (item: ReadingItem) => {
+  const confirmPassageHighlightRemoval = (
+    item: ReadingItem,
+    onConfirm: () => void,
+  ) => {
+    const original = adminItems.find((entry) => entry.id === item.id);
+    const highlightCount = original?.highlightCount ?? 0;
+    if (!original || original.passage === item.passage || highlightCount === 0) {
+      return false;
+    }
+    openDialog({
+      kicker: t("admin.clearHighlightsKicker"),
+      title: t("admin.clearHighlightsTitle"),
+      description: t("admin.clearHighlightsDescription", { count: highlightCount }),
+      confirmLabel: t("admin.clearHighlightsConfirm"),
+      onConfirm: () => {
+        closeDialog();
+        onConfirm();
+      },
+    });
+    return true;
+  };
+  const updateAdminItem = async (
+    item: ReadingItem,
+    clearPassageHighlights = false,
+  ) => {
+    if (
+      !clearPassageHighlights &&
+      confirmPassageHighlightRemoval(item, () => {
+        void updateAdminItem(item, true);
+      })
+    ) {
+      return;
+    }
     try {
-      const next = await saveAdminItem(item);
+      const next = await saveAdminItem(item, { clearPassageHighlights });
       if (!next) return;
       setToast(t("admin.savedChanges"));
     } catch (error) {
@@ -1050,7 +1082,19 @@ export default function App() {
       },
     });
   };
-  const publishItem = (item: ReadingItem) =>
+  const publishItem = (item: ReadingItem) => {
+    const publish = async (clearPassageHighlights = false) => {
+      try {
+        const next = await publishAdminItem(item, { clearPassageHighlights });
+        if (!next) return;
+        await Promise.all([loadPublicItems(), loadStatistics()]);
+        setDraft(null);
+        navigate("/admin/readings/new");
+        setToast(t("admin.published"));
+      } catch (error) {
+        setToast(errorMessage(error, "admin.publishFailed"));
+      }
+    };
     openDialog({
       kicker: t("admin.publishKicker"),
       title: t("admin.publishTitle"),
@@ -1058,20 +1102,11 @@ export default function App() {
       confirmLabel: t("admin.publish"),
       onConfirm: () => {
         closeDialog();
-        void (async () => {
-          try {
-            const next = await publishAdminItem(item);
-            if (!next) return;
-            await Promise.all([loadPublicItems(), loadStatistics()]);
-            setDraft(null);
-            navigate("/admin/readings/new");
-            setToast(t("admin.published"));
-          } catch (error) {
-            setToast(errorMessage(error, "admin.publishFailed"));
-          }
-        })();
+        if (confirmPassageHighlightRemoval(item, () => void publish(true))) return;
+        void publish();
       },
     });
+  };
 
   const continueReading = () => {
     if (!result) return navigate("/");

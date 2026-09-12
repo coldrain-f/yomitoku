@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
-from sqlalchemy import case, func, select
+from sqlalchemy import case, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -15,6 +15,7 @@ from app.db.models import (
     GenerationUsageEvent,
     ItemReport,
     ItemValidation,
+    PassageHighlight,
     ReadingChoice,
     ReadingItem,
     ReadingQuestion,
@@ -259,6 +260,14 @@ async def serialize_detail(
             .order_by(ItemValidation.created_at.asc(), ItemValidation.id.asc())
         )
     )
+    highlight_count = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(PassageHighlight)
+            .where(PassageHighlight.reading_item_id == item.id)
+        )
+        or 0
+    )
     return AdminReadingItemDetail(
         **summary.model_dump(),
         passage=item.passage,
@@ -297,6 +306,7 @@ async def serialize_detail(
         ),
         report_count=int(metrics["report_count"] or 0),
         challenger_count=int(metrics["challenger_count"] or 0),
+        highlight_count=highlight_count,
         reports=[
             ItemReportDetail(
                 id=report.id,
@@ -752,9 +762,36 @@ async def update_admin_reading_item(
     current_user: Annotated[CurrentUser, Depends(require_admin)],
 ) -> AdminReadingItemDetail:
     item = await get_admin_item(session, item_id)
-    values = request.model_dump(exclude_none=True, exclude={"choices", "questions"})
+    passage_changed = request.passage is not None and request.passage != item.passage
+    if passage_changed:
+        highlight_count = int(
+            await session.scalar(
+                select(func.count())
+                .select_from(PassageHighlight)
+                .where(PassageHighlight.reading_item_id == item.id)
+            )
+            or 0
+        )
+        if highlight_count:
+            if not request.clear_passage_highlights:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={"code": "HIGHLIGHTS_REQUIRE_CONFIRMATION"},
+                )
+            await session.execute(
+                delete(PassageHighlight).where(PassageHighlight.reading_item_id == item.id)
+            )
+
+    values = request.model_dump(
+        exclude_none=True,
+        exclude={"choices", "questions", "clear_passage_highlights"},
+    )
     for key, value in values.items():
-        setattr(item, key, value.strip() if isinstance(value, str) else value)
+        setattr(
+            item,
+            key,
+            value if key == "passage" else value.strip() if isinstance(value, str) else value,
+        )
 
     if not is_level_for_language(item.language, item.official_level):
         raise HTTPException(

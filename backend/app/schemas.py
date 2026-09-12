@@ -505,6 +505,7 @@ class AdminReadingItemDetail(ReadingItemSummary):
     quality_average: float | None
     report_count: int
     challenger_count: int
+    highlight_count: int
     reports: list[ItemReportDetail]
     validations: list[ItemValidationDetail]
 
@@ -582,6 +583,7 @@ class AdminReadingItemUpdate(ApiModel):
     recommended_seconds: int | None = Field(default=None, ge=1, le=14_400)
     choices: list[ReadingChoiceInput] | None = None
     questions: list[ReadingQuestionInput] | None = None
+    clear_passage_highlights: bool = False
 
     @model_validator(mode="after")
     def validate_choices(self) -> "AdminReadingItemUpdate":
