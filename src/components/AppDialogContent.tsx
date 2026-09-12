@@ -1,7 +1,6 @@
 import { OptionButtons } from "./ui/OptionButtons";
 import { ListPagination } from "./ui/ListPagination";
 import { Trash2 } from "lucide-react";
-import { GoogleSignInButton } from "../features/auth/GoogleSignInButton";
 import { Icon } from "./ui/Icon";
 import { formatDate, lengthLabels } from "../lib/reading";
 import { useI18n } from "../lib/i18n";
@@ -35,9 +34,6 @@ interface AppDialogContentProps {
   feedbackLanguage: ReadingLanguage;
   setFeedback: StateSetter<FeedbackValues>;
   dialogError: string;
-  googleClientId: string;
-  onGoogleCredential: (credential: string) => void;
-  onGoogleError: (message: string) => void;
   translation: ReadingTranslation | null;
   translationLoading: boolean;
   translationError: string;
@@ -70,9 +66,6 @@ export function AppDialogContent({
   feedbackLanguage,
   setFeedback,
   dialogError,
-  googleClientId,
-  onGoogleCredential,
-  onGoogleError,
   translation,
   translationLoading,
   translationError,
@@ -92,21 +85,6 @@ export function AppDialogContent({
   onRemoveHighlight,
 }: AppDialogContentProps) {
   const { locale, t, languageLabel, lengthLabel, topicLabel } = useI18n();
-
-  if (type === "google-login") {
-    return (
-      <div>
-        <GoogleSignInButton
-          clientId={googleClientId}
-          onCredential={onGoogleCredential}
-          onError={onGoogleError}
-        />
-        {dialogError ? (
-          <p className="dialog-field-error">{dialogError}</p>
-        ) : null}
-      </div>
-    );
-  }
 
   if (type === "score-guide") {
     return (

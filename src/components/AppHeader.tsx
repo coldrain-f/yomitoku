@@ -1,4 +1,4 @@
-import { LogIn, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { Icon } from "./ui/Icon";
 import { useI18n } from "../lib/i18n";
 import type { ReadingLanguage, Role } from "../types";
@@ -12,7 +12,6 @@ interface AppHeaderProps {
   onHome: () => void;
   onOpenAdmin: () => void;
   onOpenStats: () => void;
-  onLogin: () => void;
   onLogout: () => void;
 }
 
@@ -25,7 +24,6 @@ export function AppHeader({
   onHome,
   onOpenAdmin,
   onOpenStats,
-  onLogin,
   onLogout,
 }: AppHeaderProps) {
   const { locale, setLocale, t, languageLabel } = useI18n();
@@ -94,16 +92,7 @@ export function AppHeader({
           >
             <Icon icon={LogOut} />
           </button>
-        ) : (
-          <button
-            className="link-button header-login-link"
-            type="button"
-            onClick={onLogin}
-          >
-            <Icon icon={LogIn} />
-            {t("header.login")}
-          </button>
-        )}
+        ) : null}
       </div>
     </header>
   );

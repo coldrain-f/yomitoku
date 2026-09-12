@@ -169,17 +169,6 @@ textarea:focus-visible {
   color: var(--ink);
 }
 
-.header-login-link {
-  min-height: auto;
-  padding: 0;
-  font-size: 13px;
-}
-
-.header-login-link [data-lucide] {
-  width: 14px;
-  height: 14px;
-}
-
 .header-progress {
   border: 0;
   background: transparent;
@@ -3174,6 +3163,51 @@ body.dialog-open {
   margin: 0;
 }
 
+.screen-login {
+  display: grid;
+  min-height: min(560px, calc(100dvh - 150px));
+  place-items: center;
+}
+
+.login-paper {
+  width: min(100%, 430px);
+  padding: clamp(30px, 6vw, 48px);
+}
+
+.login-paper .screen-title {
+  max-width: 320px;
+  margin-bottom: 12px;
+  font-size: clamp(24px, 3.4vw, 31px);
+  font-weight: 500;
+  line-height: 1.38;
+}
+
+.login-paper .body-copy {
+  max-width: 320px;
+  margin-bottom: 0;
+}
+
+.login-paper .google-sign-in {
+  justify-content: stretch;
+  margin-top: 30px;
+}
+
+.login-paper .google-sign-in > div {
+  max-width: 100%;
+}
+
+.login-error {
+  margin: 12px 0 0;
+  color: var(--danger);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.login-back {
+  margin-top: 28px;
+  color: var(--muted);
+}
+
 .dialog-feedback-field {
   margin-top: 20px;
 }
@@ -3759,7 +3793,6 @@ body.dialog-open {
   }
 
   .header-admin-link,
-  .header-login-link,
   .header-progress {
     font-size: 12px;
   }
@@ -3768,7 +3801,4 @@ body.dialog-open {
     padding: 0 5px;
   }
 
-  .header-login-link [data-lucide] {
-    display: none;
-  }
 }

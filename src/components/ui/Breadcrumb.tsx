@@ -9,6 +9,7 @@ export function Breadcrumb({ screen }: BreadcrumbProps) {
   const { t } = useI18n();
   const paths: Record<Screen, string[]> = {
     home: [t("breadcrumb.learning"), t("breadcrumb.readingList")],
+    login: [t("breadcrumb.login")],
     stats: [t("breadcrumb.learning"), t("breadcrumb.readingList"), t("breadcrumb.statistics")],
     reading: [t("breadcrumb.learning"), t("breadcrumb.readingList"), t("breadcrumb.solve")],
     result: [t("breadcrumb.learning"), t("breadcrumb.readingList"), t("breadcrumb.result")],

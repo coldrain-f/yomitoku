@@ -23,6 +23,7 @@ import {
   ResultScreen,
 } from "./features/readings/ReadingScreens";
 import { StatsScreen } from "./features/statistics/StatsScreen";
+import { LoginScreen } from "./features/auth/LoginScreen";
 import { useGenerationJob } from "./features/admin/useGenerationJob";
 import { AppDialogContent } from "./components/AppDialogContent";
 import { AppHeader } from "./components/AppHeader";
@@ -244,6 +245,7 @@ function generationProgressLabel(job: GenerationJob) {
 }
 
 function screenForPath(pathname: string): Screen {
+  if (pathname === "/login") return "login";
   if (pathname === "/statistics") return "stats";
   if (pathname.startsWith("/results/")) return "result";
   if (pathname.startsWith("/readings/")) return "reading";
@@ -1232,7 +1234,6 @@ export default function App() {
   }, [attempt?.startedAt, attempt?.submitted, screen]);
 
   const closeDialog = () => {
-    if (dialog?.type === "google-login") setPendingStart(null);
     setDialog(null);
     setDialogError("");
   };
@@ -1722,7 +1723,8 @@ export default function App() {
         ...(user.role === "admin" ? [loadAdminItems(), loadGenerationModels()] : []),
       ]);
       setPendingStart(null);
-      closeDialog();
+      setDialogError("");
+      navigate("/", { replace: true });
       setToast(t("auth.success"));
       if (itemToStart) openStartDialog(itemToStart);
     } catch (error) {
@@ -1732,13 +1734,10 @@ export default function App() {
     }
     })();
   };
-  const openLogin = () =>
-    openDialog({
-      type: "google-login",
-      kicker: t("auth.kicker"),
-      title: t("auth.title"),
-      description: t("auth.description"),
-    });
+  const openLogin = () => {
+    setDialogError("");
+    navigate("/login");
+  };
   const saveBookmark = async (item: ReadingItem) => {
     if (!authenticated) {
       openLogin();
@@ -2034,11 +2033,30 @@ export default function App() {
           onHome={goHomeFromHeader}
           onOpenAdmin={openAdminFromHeader}
           onOpenStats={openStatsFromHeader}
-          onLogin={openLogin}
           onLogout={logoutFromHeader}
         />
         <Breadcrumb screen={screen} />
         {authLoading ? <p role="status">{t("common.loading")}</p> : <Routes>
+          <Route
+            path="/login"
+            element={
+              authenticated ? (
+                <Navigate to="/" replace />
+              ) : (
+                <LoginScreen
+                  clientId={googleClientId}
+                  error={dialogError}
+                  onCredential={completeGoogleLogin}
+                  onError={setDialogError}
+                  onBack={() => {
+                    setPendingStart(null);
+                    setDialogError("");
+                    navigate("/");
+                  }}
+                />
+              )
+            }
+          />
           <Route
             path="/"
             element={<ReadingListScreen items={items} loading={isListLoading} error={listError} page={listPage} totalPages={listTotalPages} totalItems={listTotalItems} onPageChange={setListPage} authenticated={authenticated} filters={filters} setFilters={setListFilters} query={query} setQuery={setListQuery} onOpenFilters={openListFilters} onOpenHighlights={openHighlightCollection} onOpenScoreGuide={openScoreGuide} onStart={start} bookmarkingItemIds={bookmarkingItemIds} onToggleBookmark={(item) => void toggleBookmark(item)} />}
@@ -2062,7 +2080,7 @@ export default function App() {
         </nav>
       ) : null}
       <Dialog dialog={dialog} onClose={closeDialog}>
-        <AppDialogContent type={dialog?.type} authenticated={authenticated} filterDraft={filterDraft} setFilterDraft={setFilterDraft} adminFilterDraft={adminFilterDraft} setAdminFilterDraft={setAdminFilterDraft} reportText={reportText} setReportText={setReportText} feedback={feedback} feedbackLanguage={result?.item.language ?? defaultGenerationLanguage} setFeedback={setFeedback} dialogError={dialogError} googleClientId={googleClientId} onGoogleCredential={completeGoogleLogin} onGoogleError={setDialogError} translation={translation} translationLoading={translationLoading} translationError={translationError} highlightCollection={highlightCollection} highlightLanguage={highlightLanguage} highlightQuery={highlightQuery} onHighlightLanguageChange={(language) => { setHighlightLanguage(language); void loadHighlightCollection({ language, page: 1 }); }} onHighlightQueryChange={setHighlightQuery} onHighlightSearch={() => void loadHighlightCollection({ page: 1 })} onHighlightPageChange={(page) => void loadHighlightCollection({ page })} highlightsLoading={isHighlightCollectionLoading} highlightsError={highlightCollectionError} removingHighlightId={removingHighlightId} highlightRemoval={highlightRemoval} onCancelHighlightRemoval={() => setHighlightRemoval(null)} onConfirmHighlightRemoval={() => { if (!highlightRemoval) return; setHighlightRemoval(null); void removeHighlightFromCollection(highlightRemoval.readingItemId, highlightRemoval.highlightId); }} onRemoveHighlight={confirmHighlightRemoval} />
+        <AppDialogContent type={dialog?.type} authenticated={authenticated} filterDraft={filterDraft} setFilterDraft={setFilterDraft} adminFilterDraft={adminFilterDraft} setAdminFilterDraft={setAdminFilterDraft} reportText={reportText} setReportText={setReportText} feedback={feedback} feedbackLanguage={result?.item.language ?? defaultGenerationLanguage} setFeedback={setFeedback} dialogError={dialogError} translation={translation} translationLoading={translationLoading} translationError={translationError} highlightCollection={highlightCollection} highlightLanguage={highlightLanguage} highlightQuery={highlightQuery} onHighlightLanguageChange={(language) => { setHighlightLanguage(language); void loadHighlightCollection({ language, page: 1 }); }} onHighlightQueryChange={setHighlightQuery} onHighlightSearch={() => void loadHighlightCollection({ page: 1 })} onHighlightPageChange={(page) => void loadHighlightCollection({ page })} highlightsLoading={isHighlightCollectionLoading} highlightsError={highlightCollectionError} removingHighlightId={removingHighlightId} highlightRemoval={highlightRemoval} onCancelHighlightRemoval={() => setHighlightRemoval(null)} onConfirmHighlightRemoval={() => { if (!highlightRemoval) return; setHighlightRemoval(null); void removeHighlightFromCollection(highlightRemoval.readingItemId, highlightRemoval.highlightId); }} onRemoveHighlight={confirmHighlightRemoval} />
       </Dialog>
       {toast ? <div className="toast is-visible" role="status">{toast}</div> : null}
     </main>

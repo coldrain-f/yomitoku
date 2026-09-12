@@ -266,7 +266,6 @@ export interface DialogConfig {
     | "admin-filter"
     | "report"
     | "feedback"
-    | "google-login"
     | "translation"
     | "score-guide"
     | "highlights";
@@ -283,6 +282,7 @@ export interface DialogConfig {
 
 export type Screen =
   | "home"
+  | "login"
   | "stats"
   | "reading"
   | "result"

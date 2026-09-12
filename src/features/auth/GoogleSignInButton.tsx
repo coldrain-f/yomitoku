@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useI18n } from "../../lib/i18n";
 
 interface GoogleCredentialResponse {
   credential: string;
@@ -54,7 +55,7 @@ function loadGoogleIdentityServices(): Promise<GoogleIdentityServices> {
   return new Promise((resolve, reject) => {
     const resolveGoogle = () => {
       if (window.google) resolve(window.google);
-      else reject(new Error("Google 로그인 도구를 불러오지 못했습니다."));
+      else reject(new Error());
     };
     script.addEventListener("load", resolveGoogle, { once: true });
     script.addEventListener(
@@ -76,6 +77,7 @@ export function GoogleSignInButton({
   onCredential,
   onError,
 }: GoogleSignInButtonProps) {
+  const { locale, t } = useI18n();
   const rootRef = useRef<HTMLDivElement>(null);
   const credentialHandler = useRef(onCredential);
 
@@ -85,7 +87,7 @@ export function GoogleSignInButton({
 
   useEffect(() => {
     if (!clientId) {
-      onError("Google 로그인 설정이 아직 준비되지 않았습니다.");
+      onError(t("auth.googleSetupFailed"));
       return undefined;
     }
     let active = true;
@@ -105,22 +107,22 @@ export function GoogleSignInButton({
           size: "large",
           text: "signin_with",
           shape: "rectangular",
-          locale: "ko",
+          locale,
           width: 300,
         });
       })
       .catch((error: unknown) => {
         if (!active) return;
         const message =
-          error instanceof Error
+          error instanceof Error && error.message
             ? error.message
-            : "Google 로그인 도구를 불러오지 못했습니다.";
+            : t("auth.googleLoadFailed");
         onError(message);
       });
     return () => {
       active = false;
     };
-  }, [clientId, onError]);
+  }, [clientId, locale, onError, t]);
 
   return (
     <div className="google-sign-in" ref={rootRef} />
