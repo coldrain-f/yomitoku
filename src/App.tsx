@@ -22,6 +22,7 @@ import {
   ReadingScreen,
   ResultScreen,
 } from "./features/readings/ReadingScreens";
+import { useReadingList } from "./features/readings/useReadingList";
 import { StatsScreen } from "./features/statistics/StatsScreen";
 import { LoginScreen } from "./features/auth/LoginScreen";
 import { WelcomeScreen } from "./features/auth/WelcomeScreen";
@@ -40,7 +41,6 @@ import {
   ApiError,
   recordFromResult,
   type GenerationJob,
-  type ReadingListRequest,
   type ReadingTranslation,
   type RestoredAttempt,
   type Statistics,
@@ -132,21 +132,6 @@ function normalizeFirstSubmissionTimeFilter(
   return ["all", "on-time", "timed-out"].includes(value as string)
     ? value as ListFilters["firstSubmissionTime"]
     : "all";
-}
-
-function publicSortParameter(
-  sort: ListFilters["sort"],
-): NonNullable<ReadingListRequest["sort"]> {
-  return ({
-    "published-desc": "published_desc",
-    "published-asc": "published_asc",
-    "level-asc": "level_asc",
-    "level-desc": "level_desc",
-    "perceived-asc": "perceived_level_asc",
-    "perceived-desc": "perceived_level_desc",
-    "score-asc": "score_asc",
-    "score-desc": "score_desc",
-  } as const)[sort];
 }
 
 function readStoredFilters<T extends object>(key: string, fallback: T): T {
@@ -632,11 +617,6 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [role, setRole] = useState<Role>("learner");
-  const [items, setItems] = useState<ReadingItem[]>([]);
-  const [listPage, setListPage] = useState(1);
-  const [listTotalPages, setListTotalPages] = useState(1);
-  const [listTotalItems, setListTotalItems] = useState(0);
-  const [listError, setListError] = useState("");
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [attempts, setAttempts] = useState<AttemptRecord[]>([]);
   const [passageHighlights, setPassageHighlights] = useState<
@@ -656,7 +636,6 @@ export default function App() {
   const [removingHighlightId, setRemovingHighlightId] = useState<string | null>(
     null,
   );
-  const [isListLoading, setIsListLoading] = useState(true);
   const [bookmarkingItemIds, setBookmarkingItemIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -691,6 +670,24 @@ export default function App() {
     [searchParams, storedListFilters],
   );
   const query = searchParams.get("q") ?? "";
+  const {
+    error: listError,
+    isLoading: isListLoading,
+    items,
+    load: loadPublicItems,
+    page: listPage,
+    setItems,
+    setPage: setListPage,
+    totalItems: listTotalItems,
+    totalPages: listTotalPages,
+  } = useReadingList({
+    authenticated,
+    enabled: !authLoading,
+    errorMessage,
+    filters,
+    pageSize: listPageSize,
+    query,
+  });
   const [filterDraft, setFilterDraft] = useState(filters);
   const filterDraftRef = useRef(filterDraft);
   const [dialog, setDialog] = useState<DialogConfig | null>(null);
@@ -711,7 +708,6 @@ export default function App() {
   const adminSavingRef = useRef(false);
   const submittingRef = useRef(false);
   const restoredAttemptKeyRef = useRef<string | null>(null);
-  const listRequestRef = useRef(0);
   const highlightCollectionRequestRef = useRef(0);
   const [manualError, setManualError] = useState("");
   const [generation, setGeneration] = useState<GenerationValues>({
@@ -787,56 +783,6 @@ export default function App() {
   const totalGenerated =
     languageStatistics?.totalCount ?? statistics?.totalGeneratedCount ?? 0;
 
-  const loadPublicItems = async (page = listPage) => {
-    const requestId = ++listRequestRef.current;
-    setIsListLoading(true);
-    setListError("");
-    try {
-      const response = await api.listReadings({
-        q: query.trim() || undefined,
-        language: filters.language,
-        level: filters.level === "all" ? undefined : filters.level,
-        length: filters.length === "all" ? undefined : filters.length,
-        status:
-          !authenticated || filters.status === "all" ? undefined : filters.status,
-        time:
-          !authenticated || filters.firstSubmissionTime === "all"
-            ? undefined
-            : filters.firstSubmissionTime,
-        bookmarked: authenticated && filters.bookmarked ? true : undefined,
-        sort:
-          !authenticated && filters.sort.startsWith("score")
-            ? "published_desc"
-            : publicSortParameter(filters.sort),
-        page,
-        pageSize: listPageSize,
-      });
-      if (requestId !== listRequestRef.current) return;
-      setItems((current) =>
-        response.items.map((item) => {
-          const loaded = current.find((entry) => entry.id === item.id);
-          return loaded?.passage
-            ? {
-                ...item,
-                passage: loaded.passage,
-                question: loaded.question,
-                choices: loaded.choices,
-                explanation: loaded.explanation,
-              }
-            : item;
-        }),
-      );
-      setListPage(response.page);
-      setListTotalPages(response.totalPages);
-      setListTotalItems(response.totalItems);
-    } catch (error) {
-      if (requestId === listRequestRef.current) {
-        setListError(errorMessage(error, "list.failed"));
-      }
-    } finally {
-      if (requestId === listRequestRef.current) setIsListLoading(false);
-    }
-  };
   const loadStatistics = async () => setStatistics(await api.statistics());
   const loadPassageHighlights = async (itemId: string) => {
     const highlights = await api.highlights(itemId);
@@ -1015,11 +961,6 @@ export default function App() {
       active = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (authLoading) return;
-    void loadPublicItems();
-  }, [authLoading, authenticated, filters, listPage, query]);
 
   useEffect(() => {
     if (!authenticated) return;
