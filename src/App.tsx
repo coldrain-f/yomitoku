@@ -793,7 +793,9 @@ export default function App() {
     [recordRestoredSubmission, restoreSubmission],
   );
   const {
+    abandonCurrentAttempt,
     attempt,
+    chooseAnswer,
     clearStoredSession,
     resetSession,
     setAttempt,
@@ -801,6 +803,7 @@ export default function App() {
   } = useReadingAttempt({
     authenticated,
     authLoading,
+    isReading: screen === "reading",
     userId,
     pathname: location.pathname,
     setItems,
@@ -909,19 +912,6 @@ export default function App() {
   useEffect(() => {
     feedbackRef.current = feedback;
   }, [feedback]);
-  useEffect(() => {
-    if (screen !== "reading" || !attempt || attempt.submitted) return undefined;
-    const tick = () =>
-      setAttempt((current) =>
-        current
-          ? { ...current, elapsedSeconds: Math.floor((Date.now() - current.startedAt) / 1000) }
-          : current,
-      );
-    tick();
-    const timer = window.setInterval(tick, 1000);
-    return () => window.clearInterval(timer);
-  }, [attempt?.startedAt, attempt?.submitted, screen]);
-
   const closeDialog = () => {
     setDialog(null);
     setDialogError("");
@@ -1044,9 +1034,7 @@ export default function App() {
       confirmLabel: t("leave.confirm"),
       onConfirm: () => {
         closeDialog();
-        void api.abandonAttempt(attempt.attemptId);
-        clearStoredSession();
-        setAttempt(null);
+        abandonCurrentAttempt();
         navigate(target);
         setToast(t("leave.completed", { target: targetLabel }));
       },
@@ -1661,7 +1649,7 @@ export default function App() {
               )
             }
           />
-          <Route path="/readings/:itemId" element={<RequireAuth authenticated={authenticated}><ReadingRoute items={items} attempt={attempt} result={result} onChoose={(questionId, choiceId) => setAttempt((current) => current ? { ...current, selectedChoiceId: current.questions[0]?.id === questionId ? choiceId : current.selectedChoiceId, answers: current.answers.map((answer) => answer.questionId === questionId ? { ...answer, selectedChoiceId: choiceId } : answer), message: "" } : current)} onSubmit={submit} isSubmitting={isSubmitting} onAbandon={goHome} onReport={openReport} onTranslate={openTranslation} onResult={() => result && navigate(`/results/${result.itemId}`)} highlights={attempt ? passageHighlights[attempt.itemId] ?? [] : []} onCreateHighlight={(startOffset, endOffset, selectedText) => attempt ? createPassageHighlight(attempt.itemId, startOffset, endOffset, selectedText) : Promise.reject(new Error(t("reading.noActiveAttempt")))} onDeleteHighlight={(highlightId) => attempt ? deletePassageHighlight(attempt.itemId, highlightId) : Promise.reject(new Error(t("reading.noActiveAttempt")))} /></RequireAuth>} />
+          <Route path="/readings/:itemId" element={<RequireAuth authenticated={authenticated}><ReadingRoute items={items} attempt={attempt} result={result} onChoose={chooseAnswer} onSubmit={submit} isSubmitting={isSubmitting} onAbandon={goHome} onReport={openReport} onTranslate={openTranslation} onResult={() => result && navigate(`/results/${result.itemId}`)} highlights={attempt ? passageHighlights[attempt.itemId] ?? [] : []} onCreateHighlight={(startOffset, endOffset, selectedText) => attempt ? createPassageHighlight(attempt.itemId, startOffset, endOffset, selectedText) : Promise.reject(new Error(t("reading.noActiveAttempt")))} onDeleteHighlight={(highlightId) => attempt ? deletePassageHighlight(attempt.itemId, highlightId) : Promise.reject(new Error(t("reading.noActiveAttempt")))} /></RequireAuth>} />
           <Route path="/results/:itemId" element={<RequireAuth authenticated={authenticated}><ResultRoute result={result} onFeedback={openFeedback} onReview={() => result && navigate(`/readings/${result.itemId}`)} onContinue={continueReading} onHome={goHome} /></RequireAuth>} />
           <Route path="/statistics" element={<RequireAuth authenticated={authenticated}><StatsScreen statistics={statistics} /></RequireAuth>} />
           <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} error={adminListError} page={adminPage} totalPages={adminTotalPages} totalItems={adminTotalItems} onPageChange={setAdminPage} filters={adminFilters} query={adminQuery} setQuery={(nextQuery) => { setAdminPage(1); setAdminQuery(nextQuery); }} onLanguageChange={(language) => updateAdminFilters((current) => ({ ...current, language, level: "all" }))} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => { void loadGenerationModels(); navigate("/admin/readings/new"); }} onManualCreate={() => { setManualDraft(createManualReadingDraft()); setManualError(""); navigate("/admin/readings/manual"); }} onHistory={() => { void loadGenerationHistory(); navigate("/admin/generation-history"); }} /></RequireAdmin>} />

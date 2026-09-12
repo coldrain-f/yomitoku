@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type SubmittedAttempt } from "../../lib/api";
 import type {
   AttemptQuestionAnswer,
@@ -17,6 +17,7 @@ interface StoredReadingSession {
 interface ReadingAttemptOptions {
   authenticated: boolean;
   authLoading: boolean;
+  isReading: boolean;
   userId: string | null;
   pathname: string;
   setItems: StateSetter<ReadingItem[]>;
@@ -81,6 +82,7 @@ function removeReadingSession(userId: string) {
 export function useReadingAttempt({
   authenticated,
   authLoading,
+  isReading,
   userId,
   pathname,
   setItems,
@@ -91,14 +93,41 @@ export function useReadingAttempt({
   const [attempt, setAttempt] = useState<ReadingAttempt | null>(null);
   const restoredAttemptKeyRef = useRef<string | null>(null);
 
-  const clearStoredSession = () => {
+  const clearStoredSession = useCallback(() => {
     if (userId) removeReadingSession(userId);
-  };
+  }, [userId]);
 
   const resetSession = () => {
     restoredAttemptKeyRef.current = null;
     setAttempt(null);
   };
+
+  const chooseAnswer = useCallback((questionId: string, choiceId: string) => {
+    setAttempt((current) =>
+      current
+        ? {
+            ...current,
+            selectedChoiceId:
+              current.questions[0]?.id === questionId
+                ? choiceId
+                : current.selectedChoiceId,
+            answers: current.answers.map((answer) =>
+              answer.questionId === questionId
+                ? { ...answer, selectedChoiceId: choiceId }
+                : answer,
+            ),
+            message: "",
+          }
+        : current,
+    );
+  }, []);
+
+  const abandonCurrentAttempt = useCallback(() => {
+    if (!attempt || attempt.submitted) return;
+    void api.abandonAttempt(attempt.attemptId);
+    clearStoredSession();
+    setAttempt(null);
+  }, [attempt, clearStoredSession]);
 
   const startAttempt = async (item: ReadingItem) => {
     const [detail, started] = await Promise.all([
@@ -163,6 +192,22 @@ export function useReadingAttempt({
     if (authenticated || !userId) return;
     removeReadingSession(userId);
   }, [authenticated, userId]);
+
+  useEffect(() => {
+    if (!isReading || !attempt || attempt.submitted) return undefined;
+    const tick = () =>
+      setAttempt((current) =>
+        current
+          ? {
+              ...current,
+              elapsedSeconds: Math.floor((Date.now() - current.startedAt) / 1000),
+            }
+          : current,
+      );
+    tick();
+    const timer = window.setInterval(tick, 1_000);
+    return () => window.clearInterval(timer);
+  }, [attempt?.startedAt, attempt?.submitted, isReading]);
 
   useEffect(() => {
     if (!authenticated || !userId || authLoading) return;
@@ -238,7 +283,9 @@ export function useReadingAttempt({
   ]);
 
   return {
+    abandonCurrentAttempt,
     attempt,
+    chooseAnswer,
     clearStoredSession,
     resetSession,
     setAttempt,
