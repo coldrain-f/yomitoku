@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, type GenerationJob } from "../../lib/api";
+import { useI18n } from "../../lib/i18n";
 import type { GenerationValues } from "../../types";
 
 type Operation =
@@ -28,6 +29,7 @@ function restore(owner: string): Operation {
 }
 
 export function useGenerationJob(owner: string | null) {
+  const { t } = useI18n();
   const [operation, setOperation] = useState<{ owner: string; value: Operation } | null>(null);
   const [job, setJob] = useState<GenerationJob | null>(null);
   const [busy, setBusy] = useState(true);
@@ -63,7 +65,9 @@ export function useGenerationJob(owner: string | null) {
           store(owner, null);
           locked.current = false;
           setBusy(false);
-          if (next?.status === "failed") setError(next.errorDetail ?? "지문 생성에 실패했습니다.");
+          if (next?.status === "failed") {
+            setError(next.errorDetail ?? t("admin.generationFailed"));
+          }
           return;
         }
         current = { kind: "existing", jobId: next.id };
@@ -78,7 +82,7 @@ export function useGenerationJob(owner: string | null) {
           setError(failure.message);
           return;
         }
-        setError("작업 상태를 확인할 수 없습니다. 기존 작업에 다시 연결하는 중입니다.");
+        setError(t("admin.generationReconnect"));
         timer = window.setTimeout(() => void poll(), 5_000);
       }
     };
@@ -87,7 +91,7 @@ export function useGenerationJob(owner: string | null) {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [owner, operation]);
+  }, [owner, operation, t]);
 
   const start = (values: GenerationValues) => {
     if (!owner || locked.current) return;

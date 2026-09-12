@@ -60,7 +60,7 @@ function loadGoogleIdentityServices(): Promise<GoogleIdentityServices> {
     script.addEventListener("load", resolveGoogle, { once: true });
     script.addEventListener(
       "error",
-      () => reject(new Error("Google 로그인 도구를 불러오지 못했습니다.")),
+      () => reject(new Error()),
       { once: true },
     );
   });

@@ -234,15 +234,15 @@ function clearReadingSession(userId: string) {
   }
 }
 
-function generationProgressLabel(job: GenerationJob) {
-  if (job.status === "queued") return "생성 작업을 준비하는 중입니다.";
-  if (job.currentNode === "generate") return "지문과 문항을 만드는 중입니다.";
-  if (job.currentNode === "validate_schema") return "문항 형식을 확인하는 중입니다.";
-  if (job.currentNode === "verify_answer") return "정답이 하나인지 검증하는 중입니다.";
-  if (job.currentNode === "verify_quality") return "선택지와 해설 품질을 검토하는 중입니다.";
-  if (job.currentNode === "revise") return "검증 결과를 반영해 다시 만드는 중입니다.";
-  if (job.currentNode === "retry_generate") return "응답 형식을 확인하며 한 번 더 생성하는 중입니다.";
-  return "생성 결과를 정리하는 중입니다.";
+function generationProgressLabel(job: GenerationJob, t: (key: string) => string) {
+  if (job.status === "queued") return t("admin.progressQueued");
+  if (job.currentNode === "generate") return t("admin.progressGenerate");
+  if (job.currentNode === "validate_schema") return t("admin.progressValidateSchema");
+  if (job.currentNode === "verify_answer") return t("admin.progressVerifyAnswer");
+  if (job.currentNode === "verify_quality") return t("admin.progressVerifyQuality");
+  if (job.currentNode === "revise") return t("admin.progressRevise");
+  if (job.currentNode === "retry_generate") return t("admin.progressRetry");
+  return t("admin.progressFinalizing");
 }
 
 function screenForPath(pathname: string): Screen {
@@ -287,24 +287,27 @@ function createManualReadingDraft(): ManualReadingDraft {
   };
 }
 
-function validateManualReadingDraft(values: ManualReadingDraft) {
+function validateManualReadingDraft(
+  values: ManualReadingDraft,
+  t: (key: string) => string,
+) {
   if (
     !values.title.trim() ||
     !values.passage.trim() ||
     values.questions.some((question) => !question.question.trim())
   ) {
-    return "제목, 지문, 문제를 모두 입력해 주세요.";
+    return t("admin.manualMissingBasics");
   }
   const maximum =
     values.lengthType === "short" ? 1 : values.lengthType === "medium" ? 3 : 4;
-  if (values.questions.length > maximum) return "유형별 문제 수 제한을 확인해 주세요.";
+  if (values.questions.length > maximum) return t("admin.manualQuestionLimit");
   for (const question of values.questions) {
     const choices = question.choices.map((choice) => choice.text.trim());
     if (choices.some((choice) => !choice)) {
-      return "각 문제의 선택지 네 개를 모두 입력해 주세요.";
+      return t("admin.manualChoicesRequired");
     }
     if (new Set(choices).size !== choices.length) {
-      return "각 문제의 선택지는 서로 다르게 입력해 주세요.";
+      return t("admin.manualChoicesUnique");
     }
   }
   return null;
@@ -441,6 +444,7 @@ function AdminEditRoute({
     onConfirm: () => void,
   ) => void;
 }) {
+  const { t } = useI18n();
   const { itemId } = useParams();
   const item = items.find((entry) => entry.id === itemId);
   const [isSuggestingTitle, setIsSuggestingTitle] = useState(false);
@@ -473,7 +477,7 @@ function AdminEditRoute({
     const passage = draft.passage.trim();
     const draftId = draft.id;
     if (!passage) {
-      setTitleSuggestionError("지문을 먼저 입력해 주세요.");
+      setTitleSuggestionError(t("admin.passageRequired"));
       return;
     }
     const requestId = suggestionRequestRef.current + 1;
@@ -482,7 +486,7 @@ function AdminEditRoute({
     setTitleSuggestionError("");
     try {
       const { title } = await api.suggestAdminTitle(passage, draft.language);
-      if (!title.trim()) throw new Error("AI가 제목을 만들지 못했습니다.");
+      if (!title.trim()) throw new Error(t("admin.titleSuggestionEmpty"));
       if (suggestionRequestRef.current !== requestId) return;
       setDraft((current) =>
         current?.id === draftId ? { ...current, title: title.trim() } : current,
@@ -492,7 +496,7 @@ function AdminEditRoute({
       setTitleSuggestionError(
         suggestionError instanceof Error
           ? suggestionError.message
-          : "AI 제목 제안에 실패했습니다.",
+          : t("admin.titleSuggestionFailed"),
       );
     } finally {
       if (suggestionRequestRef.current === requestId) setIsSuggestingTitle(false);
@@ -502,7 +506,7 @@ function AdminEditRoute({
     const passage = draft.passage.trim();
     const draftId = draft.id;
     if (!passage) {
-      setTopicSuggestionError("지문을 먼저 입력해 주세요.");
+      setTopicSuggestionError(t("admin.passageRequired"));
       return;
     }
     const requestId = suggestionRequestRef.current + 1;
@@ -512,7 +516,7 @@ function AdminEditRoute({
     try {
       const { topic } = await api.suggestAdminTopic(passage, draft.language);
       if (!readingTopics.includes(topic)) {
-        throw new Error("AI가 목록에 없는 주제를 반환했습니다.");
+        throw new Error(t("admin.topicSuggestionInvalid"));
       }
       if (suggestionRequestRef.current !== requestId) return;
       setDraft((current) =>
@@ -523,7 +527,7 @@ function AdminEditRoute({
       setTopicSuggestionError(
         suggestionError instanceof Error
           ? suggestionError.message
-          : "AI 주제 제안에 실패했습니다.",
+          : t("admin.topicSuggestionFailed"),
       );
     } finally {
       if (suggestionRequestRef.current === requestId) setIsSuggestingTopic(false);
@@ -540,7 +544,7 @@ function AdminEditRoute({
     ) {
       setExplanationSuggestionErrors((current) => ({
         ...current,
-        [questionIndex]: "지문, 문제, 선택지 네 개를 모두 입력해 주세요.",
+        [questionIndex]: t("admin.explanationRequired"),
       }));
       return;
     }
@@ -555,7 +559,7 @@ function AdminEditRoute({
         question.choices,
         draft.language,
       );
-      if (!explanation.trim()) throw new Error("AI가 해설을 만들지 못했습니다.");
+      if (!explanation.trim()) throw new Error(t("admin.explanationSuggestionEmpty"));
       if (suggestionRequestRef.current !== requestId) return;
       setDraft((current) => {
         if (!current || current.id !== draftId) return current;
@@ -580,7 +584,7 @@ function AdminEditRoute({
         [questionIndex]:
           suggestionError instanceof Error
             ? suggestionError.message
-            : "AI 해설 생성에 실패했습니다.",
+            : t("admin.explanationSuggestionFailed"),
       }));
     } finally {
       if (suggestionRequestRef.current === requestId) {
@@ -771,7 +775,7 @@ export default function App() {
   const generationJob = useGenerationJob(authenticated && role === "admin" ? userId : null);
   const isGenerating = generationJob.isPending || Boolean(generationJob.job?.generatedItemId);
   const generationProgress = generationJob.job
-    ? generationProgressLabel(generationJob.job) : "기존 생성 작업을 확인하는 중입니다.";
+    ? generationProgressLabel(generationJob.job, t) : t("admin.progressExisting");
   const [reportText, setReportText] = useState("");
   const reportTextRef = useRef(reportText);
   const [feedback, setFeedback] = useState<FeedbackValues>({
@@ -939,7 +943,7 @@ export default function App() {
     } catch (error) {
       setGenerationModels(null);
       setGenerationModelsError(
-        error instanceof Error ? error.message : "AI 모델 목록을 불러오지 못했습니다.",
+        error instanceof Error ? error.message : t("admin.modelsLoadFailed"),
       );
     }
   };
@@ -954,7 +958,7 @@ export default function App() {
       setGenerationHistoryTotalItems(response.totalItems);
     } catch (error) {
       setGenerationHistoryError(
-        error instanceof Error ? error.message : "생성 이력을 불러오지 못했습니다.",
+        error instanceof Error ? error.message : t("admin.historyLoadFailed"),
       );
     } finally {
       setIsGenerationHistoryLoading(false);
@@ -985,7 +989,7 @@ export default function App() {
     } catch (error) {
       if (requestId === adminListRequestRef.current) {
         setAdminListError(
-          error instanceof Error ? error.message : "관리 목록을 불러오지 못했습니다.",
+          error instanceof Error ? error.message : t("admin.listLoadFailed"),
         );
       }
     } finally {
@@ -1086,7 +1090,7 @@ export default function App() {
           setRole("learner");
         }
         if (!(error instanceof ApiError && error.status === 401)) {
-          setToast(error instanceof Error ? error.message : "서버에 연결할 수 없습니다.");
+          setToast(error instanceof Error ? error.message : t("common.serverConnectionFailed"));
         }
       } finally {
         if (active) setAuthLoading(false);
@@ -1105,7 +1109,7 @@ export default function App() {
   useEffect(() => {
     if (!authenticated) return;
     void loadStatistics().catch((error: unknown) =>
-      setToast(error instanceof Error ? error.message : "통계를 불러오지 못했습니다."),
+      setToast(error instanceof Error ? error.message : t("stats.failed")),
     );
   }, [authenticated]);
 
@@ -1182,7 +1186,7 @@ export default function App() {
         generationJob.clearResult();
       } catch {
         if (active) {
-          setToast("문항은 생성되었습니다. 검토 화면을 다시 불러오는 중입니다.");
+          setToast(t("admin.generatedReloading"));
           timer = window.setTimeout(() => void openResult(), 5_000);
         }
       }
@@ -1247,10 +1251,10 @@ export default function App() {
     onConfirm: () => void,
   ) =>
     openDialog({
-      kicker: "Change type",
-      title: "문제를 삭제하고 유형을 바꿀까요?",
-      description: `유형을 바꾸면 뒤의 ${removedQuestionCount}개 문제는 삭제됩니다.`,
-      confirmLabel: "삭제하고 변경",
+      kicker: t("admin.changeTypeKicker"),
+      title: t("admin.changeTypeTitle"),
+      description: t("admin.changeTypeDescription", { count: removedQuestionCount }),
+      confirmLabel: t("admin.changeTypeConfirm"),
       onConfirm: () => {
         closeDialog();
         onConfirm();
@@ -1462,10 +1466,10 @@ export default function App() {
 
   const deleteItem = (item: ReadingItem, target = "/admin/readings") =>
     openDialog({
-      kicker: "Delete item",
-      title: "문항을 삭제할까요?",
-      description: "문항과 연결된 기록을 영구 삭제합니다. 삭제한 문항은 복구할 수 없습니다.",
-      confirmLabel: "삭제하기",
+      kicker: t("admin.deleteKicker"),
+      title: t("admin.deleteTitle"),
+      description: t("admin.deleteDescription"),
+      confirmLabel: t("admin.deleteConfirm"),
       onConfirm: () => {
         closeDialog();
         void (async () => {
@@ -1476,9 +1480,9 @@ export default function App() {
             setAttempts((current) => current.filter((entry) => entry.itemId !== item.id));
             await loadStatistics();
             navigate(target);
-            setToast("문항을 삭제했습니다.");
+            setToast(t("admin.deleted"));
           } catch (error) {
-            setToast(error instanceof Error ? error.message : "문항을 삭제하지 못했습니다.");
+            setToast(error instanceof Error ? error.message : t("admin.deleteFailed"));
           }
         })();
       },
@@ -1486,14 +1490,14 @@ export default function App() {
 
   const createDraft = () =>
     openDialog({
-      kicker: "Generate reading",
-      title: "새 독해 지문을 만들까요?",
-      description: "선택한 조건으로 지문과 문항을 만든 뒤 검토 화면으로 이동합니다.",
-      confirmLabel: "지문 만들기",
+      kicker: t("admin.generateKicker"),
+      title: t("admin.generateTitle"),
+      description: t("admin.generateDescription"),
+      confirmLabel: t("admin.generateConfirm"),
       onConfirm: () => {
         closeDialog();
         if (!generation.generatorModel || !generation.validatorModel) {
-          setToast("AI 모델 목록을 불러온 뒤 다시 시도해 주세요.");
+          setToast(t("admin.modelsRequired"));
           return;
         }
         generationJob.start(generation);
@@ -1615,10 +1619,10 @@ export default function App() {
     setAdminFilterDraft(adminFilters);
     openDialog({
       type: "admin-filter",
-      kicker: "Filter management",
-      title: "문항 필터 및 정렬",
-      description: "조건을 선택한 뒤 적용해 주세요.",
-      confirmLabel: "적용하기",
+      kicker: t("admin.filterKicker"),
+      title: t("admin.filterTitle"),
+      description: t("admin.filterDescription"),
+      confirmLabel: t("admin.filterApply"),
       onConfirm: () => {
         updateAdminFilters(adminFilterDraftRef.current);
         closeDialog();
@@ -1824,11 +1828,15 @@ export default function App() {
         setDraft(structuredClone(detail));
         navigate(`/admin/readings/${detail.id}/edit`);
       } catch (error) {
-        setToast(error instanceof Error ? error.message : "문항을 불러오지 못했습니다.");
+        setToast(error instanceof Error ? error.message : t("admin.openFailed"));
       }
     })();
   };
-  const leaveEditor = (target = "/admin/readings", targetLabel = "관리 목록", afterLeave?: () => void) => {
+  const leaveEditor = (
+    target = "/admin/readings",
+    targetLabel = t("admin.management"),
+    afterLeave?: () => void,
+  ) => {
     const original = adminItems.find((item) => item.id === draft?.id);
     const snapshot = (item: ReadingItem) =>
       JSON.stringify({
@@ -1850,12 +1858,16 @@ export default function App() {
     }
     const changed = snapshot(draft) !== snapshot(original);
     openDialog({
-      kicker: changed ? "Discard changes" : "Leave editor",
-      title: changed ? "저장하지 않은 변경사항을 버릴까요?" : `${targetLabel}으로 이동할까요?`,
+      kicker: changed ? t("admin.discardChangesKicker") : t("admin.leaveEditorKicker"),
+      title: changed
+        ? t("admin.discardChangesTitle")
+        : t("admin.leaveEditorTitle", { target: targetLabel }),
       description: changed
-        ? `저장하지 않은 편집 내용은 사라지고 ${targetLabel}으로 이동합니다.`
-        : `현재 문항 편집을 닫고 ${targetLabel}으로 이동합니다.`,
-      confirmLabel: changed ? "변경사항 버리기" : "이동하기",
+        ? t("admin.discardChangesDescription", { target: targetLabel })
+        : t("admin.leaveEditorDescription", { target: targetLabel }),
+      confirmLabel: changed
+        ? t("admin.discardChangesConfirm")
+        : t("admin.leaveEditorConfirm"),
       onConfirm: () => {
         closeDialog();
         setDraft(null);
@@ -1872,16 +1884,16 @@ export default function App() {
       const next = await api.updateAdminReading(item);
       replaceAdminItem(next);
       setDraft(structuredClone(next));
-      setToast("문항 변경사항을 저장했습니다.");
+      setToast(t("admin.savedChanges"));
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "문항을 저장하지 못했습니다.");
+      setToast(error instanceof Error ? error.message : t("admin.saveFailed"));
     } finally {
       adminSavingRef.current = false;
       setIsAdminSaving(false);
     }
   };
   const createManualReading = async () => {
-    const validationError = validateManualReadingDraft(manualDraft);
+    const validationError = validateManualReadingDraft(manualDraft, t);
     if (validationError) {
       setManualError(validationError);
       return;
@@ -1894,9 +1906,9 @@ export default function App() {
       setManualDraft(createManualReadingDraft());
       setDraft(structuredClone(next));
       navigate("/admin/readings/" + next.id + "/edit");
-      setToast("문항을 검토 상태로 저장했습니다.");
+      setToast(t("admin.manualSaved"));
     } catch (error) {
-      const message = error instanceof Error ? error.message : "문항을 저장하지 못했습니다.";
+      const message = error instanceof Error ? error.message : t("admin.saveFailed");
       setManualError(message);
       setToast(message);
     } finally {
@@ -1905,7 +1917,7 @@ export default function App() {
   };
   const leaveManualCreate = (
     target = "/admin/readings",
-    targetLabel = "관리 목록",
+    targetLabel = t("admin.management"),
     afterLeave?: () => void,
   ) => {
     const hasContent =
@@ -1922,10 +1934,10 @@ export default function App() {
       return;
     }
     openDialog({
-      kicker: "Discard draft",
-      title: "작성 중인 문항을 버릴까요?",
-      description: "저장하지 않은 입력 내용은 사라지고 " + targetLabel + "으로 이동합니다.",
-      confirmLabel: "작성 내용 버리기",
+      kicker: t("admin.discardDraftKicker"),
+      title: t("admin.discardDraftTitle"),
+      description: t("admin.discardDraftDescription", { target: targetLabel }),
+      confirmLabel: t("admin.discardDraftConfirm"),
       onConfirm: () => {
         closeDialog();
         setManualDraft(createManualReadingDraft());
@@ -1936,11 +1948,23 @@ export default function App() {
     });
   };
   const changeHold = (item: ReadingItem) => {
-    const label = item.status === "published" ? "보류로 전환" : item.status === "held" ? "보류 취소" : "보류";
+    const isPublished = item.status === "published";
+    const isHeld = item.status === "held";
+    const label = isPublished
+      ? t("admin.holdTransition")
+      : isHeld
+        ? t("admin.cancelHold")
+        : t("admin.holdConfirm");
     openDialog({
-      kicker: "Change item state",
-      title: `${label}할까요?`,
-      description: item.status === "published" ? "전환하면 학습자 목록에서 이 문항을 볼 수 없습니다." : "문항의 공개 상태를 변경합니다.",
+      kicker: t("admin.changeStateKicker"),
+      title: isPublished
+        ? t("admin.holdTransitionTitle")
+        : isHeld
+          ? t("admin.holdCancelTitle")
+          : t("admin.holdTitle"),
+      description: isPublished
+        ? t("admin.holdPublishedDescription")
+        : t("admin.changeStateDescription"),
       confirmLabel: label,
       onConfirm: () => {
         closeDialog();
@@ -1950,9 +1974,9 @@ export default function App() {
             replaceAdminItem(next);
             setDraft((current) => (current?.id === next.id ? structuredClone(next) : current));
             await Promise.all([loadPublicItems(), loadStatistics()]);
-            setToast(item.status === "held" ? "문항 보류를 취소했습니다." : "문항을 보류했습니다.");
+            setToast(isHeld ? t("admin.holdCancelled") : t("admin.held"));
           } catch (error) {
-            setToast(error instanceof Error ? error.message : "상태를 변경하지 못했습니다.");
+            setToast(error instanceof Error ? error.message : t("admin.changeStateFailed"));
           }
         })();
       },
@@ -1960,10 +1984,10 @@ export default function App() {
   };
   const publishItem = (item: ReadingItem) =>
     openDialog({
-      kicker: "Publish item",
-      title: "문항을 게시할까요?",
-      description: "게시한 문항은 학습자 목록에서 바로 풀이할 수 있습니다.",
-      confirmLabel: "게시하기",
+      kicker: t("admin.publishKicker"),
+      title: t("admin.publishTitle"),
+      description: t("admin.publishDescription"),
+      confirmLabel: t("admin.publish"),
       onConfirm: () => {
         if (adminSavingRef.current) return;
         adminSavingRef.current = true;
@@ -1980,9 +2004,9 @@ export default function App() {
             await Promise.all([loadPublicItems(), loadStatistics()]);
             setDraft(null);
             navigate("/admin/readings/new");
-            setToast("문항을 게시했습니다.");
+            setToast(t("admin.published"));
           } catch (error) {
-            setToast(error instanceof Error ? error.message : "문항을 게시하지 못했습니다.");
+            setToast(error instanceof Error ? error.message : t("admin.publishFailed"));
           } finally {
             adminSavingRef.current = false;
             setIsAdminSaving(false);
@@ -2008,19 +2032,21 @@ export default function App() {
       ? leaveManualCreate(target, targetLabel, afterLeave)
       : leaveEditor(target, targetLabel, afterLeave);
   const goHomeFromHeader = () =>
-    isEditing ? leaveCurrentEditor("/", "독해 목록") : goHome();
+    isEditing ? leaveCurrentEditor("/", t("admin.readingListTarget")) : goHome();
   const openAdminFromHeader = () => {
-    if (!adminLoaded) void loadAdminItems().catch(() => setToast("관리 목록을 불러오지 못했습니다."));
+    if (!adminLoaded) {
+      void loadAdminItems().catch(() => setToast(t("admin.listLoadFailed")));
+    }
     isEditing
-      ? leaveCurrentEditor("/admin/readings", "문항 관리 화면")
-      : abandonAndNavigate("/admin/readings", "관리자 화면");
+      ? leaveCurrentEditor("/admin/readings", t("admin.managementScreen"))
+      : abandonAndNavigate("/admin/readings", t("admin.screen"));
   };
   const openStatsFromHeader = () =>
     isEditing
-      ? leaveCurrentEditor("/statistics", "학습 통계 화면")
-      : abandonAndNavigate("/statistics", "학습 통계 화면");
+      ? leaveCurrentEditor("/statistics", t("stats.title"))
+      : abandonAndNavigate("/statistics", t("stats.title"));
   const logoutFromHeader = () =>
-    isEditing ? leaveCurrentEditor("/", "로그아웃 후 독해 목록", logout) : logout();
+    isEditing ? leaveCurrentEditor("/", t("admin.logoutListTarget"), logout) : logout();
 
   return (
     <main className="app" data-screen={screen} data-role={role} data-authenticated={authenticated}>
@@ -2083,9 +2109,9 @@ export default function App() {
         </Routes>}
       </div>
       {screen === "stats" ? (
-        <nav className="scroll-controls" aria-label="통계 페이지 이동">
-          <button className="scroll-control-button" type="button" aria-label="통계 맨 위로" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}><Icon icon={ChevronUp} /></button>
-          <button className="scroll-control-button" type="button" aria-label="통계 맨 아래로" onClick={() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" })}><Icon icon={ChevronDown} /></button>
+        <nav className="scroll-controls" aria-label={t("stats.scrollNavigation")}>
+          <button className="scroll-control-button" type="button" aria-label={t("stats.scrollTop")} onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}><Icon icon={ChevronUp} /></button>
+          <button className="scroll-control-button" type="button" aria-label={t("stats.scrollBottom")} onClick={() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" })}><Icon icon={ChevronDown} /></button>
         </nav>
       ) : null}
       <Dialog dialog={dialog} onClose={closeDialog}>

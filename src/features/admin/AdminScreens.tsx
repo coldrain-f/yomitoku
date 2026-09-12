@@ -21,22 +21,19 @@ import { Icon } from "../../components/ui/Icon";
 import { ListPagination } from "../../components/ui/ListPagination";
 import { LoadingBar, LoadingOverlay } from "../../components/ui/LoadingBar";
 import { OptionButtons } from "../../components/ui/OptionButtons";
+import { useI18n } from "../../lib/i18n";
 import type {
   GenerationJobHistory,
   GenerationModelOptions,
 } from "../../lib/api";
 import {
   formatDate,
-  lengthLabels,
   minimumVotes,
-  perceivedLabel,
   statusClass,
-  statusLabel,
 } from "../../lib/reading";
 import {
   defaultGenerationLevelByLanguage,
   generationLevelsForLanguage,
-  languageLabels,
   levelsForLanguage,
   readingLanguages,
   readingTopics,
@@ -55,6 +52,8 @@ import type {
   StateSetter,
   Topic,
 } from "../../types";
+
+type Translate = (key: string, variables?: Record<string, string | number>) => string;
 
 interface AdminScreenProps {
   items: ReadingItem[];
@@ -161,23 +160,35 @@ interface GenerationHistoryScreenProps {
   onBack: () => void;
 }
 
-const generationStageLabels: Record<string, string> = {
-  generate: "문항 생성",
-  verify_answer: "정답 검증",
-  verify_quality: "품질 검증",
-};
-
-const validationRoleLabels: Record<string, string> = {
-  schema: "형식 검증",
-  answer: "정답 검증",
-  quality: "문항 품질",
-};
-
-function validationStatusLabel(status: string): string {
+function generationStageLabel(stage: string, t: Translate): string {
   return {
-    passed: "통과",
-    warning: "확인 필요",
-    failed: "실패",
+    generate: t("admin.stageGenerate"),
+    verify_answer: t("admin.stageVerifyAnswer"),
+    verify_quality: t("admin.stageVerifyQuality"),
+  }[stage] ?? stage;
+}
+
+function validationRoleLabel(role: string, t: Translate): string {
+  return {
+    schema: t("admin.validationSchema"),
+    answer: t("admin.validationAnswer"),
+    quality: t("admin.validationQuality"),
+  }[role] ?? role;
+}
+
+function validationStatusLabel(status: string, t: Translate): string {
+  return {
+    passed: t("admin.validationPassed"),
+    warning: t("admin.validationWarning"),
+    failed: t("admin.validationFailed"),
+  }[status] ?? status;
+}
+
+function itemStatusLabel(status: string, t: Translate): string {
+  return {
+    review: t("admin.statusReview"),
+    held: t("admin.statusHeld"),
+    published: t("admin.statusPublished"),
   }[status] ?? status;
 }
 
@@ -200,17 +211,20 @@ function ValidationRecords({
   validations: ItemValidation[];
   held?: boolean;
 }) {
+  const { t } = useI18n();
   const state = validationStateFor(validations);
   const records = held
     ? validations.filter((validation) => validation.status !== "passed")
     : validations;
 
   return (
-    <section className="admin-validation" aria-label={held ? "보류 사유" : "생성 검증"}>
+    <section className="admin-validation" aria-label={held ? t("admin.holdReason") : t("admin.validation")}>
       <div className="admin-section-heading">
-        <h2 className="admin-section-title">{held ? "보류 사유" : "생성 검증"}</h2>
+        <h2 className="admin-section-title">{held ? t("admin.holdReason") : t("admin.validation")}</h2>
         <span className={validationStatusClass(state)}>
-          {state === "unknown" ? "기록 없음" : `검증 ${validationStatusLabel(state)}`}
+          {state === "unknown"
+            ? t("admin.noRecords")
+            : t("admin.validationPrefix", { status: validationStatusLabel(state, t) })}
         </span>
       </div>
       {records.length ? (
@@ -220,16 +234,16 @@ function ValidationRecords({
               <div className="admin-validation-record-head">
                 <div>
                   <h3 className="admin-subsection-title">
-                    {validationRoleLabels[validation.validatorRole] ?? validation.validatorRole}
+                    {validationRoleLabel(validation.validatorRole, t)}
                   </h3>
                   <p className="admin-record-model">{validation.modelId}</p>
                 </div>
                 <div className="admin-record-meta">
                   {validation.score !== null ? (
-                    <span className="admin-validation-score">{validation.score}점</span>
+                    <span className="admin-validation-score">{t("admin.points", { score: validation.score })}</span>
                   ) : null}
                   <span className={validationStatusClass(validation.status)}>
-                    {validationStatusLabel(validation.status)}
+                    {validationStatusLabel(validation.status, t)}
                   </span>
                 </div>
               </div>
@@ -251,24 +265,24 @@ function ValidationRecords({
       ) : (
         <p className="admin-empty-detail">
           {held
-            ? "AI 검증에는 문제가 없으며, 관리자가 보류로 전환한 문항입니다."
-            : "AI 생성 문항이 아니어서 검증 기록이 없습니다."}
+            ? t("admin.noValidationHeld")
+            : t("admin.noValidation")}
         </p>
       )}
     </section>
   );
 }
 
-function generationStatusLabel(status: string): string {
+function generationStatusLabel(status: string, t: Translate): string {
   return {
-    queued: "대기",
-    generating: "생성 중",
-    retrying: "재생성 중",
-    validating: "검증 중",
-    revising: "수정 중",
-    ready_for_review: "검토 대기",
-    held: "보류",
-    failed: "실패",
+    queued: t("admin.statusQueued"),
+    generating: t("admin.statusGenerating"),
+    retrying: t("admin.statusRetrying"),
+    validating: t("admin.statusValidating"),
+    revising: t("admin.statusRevising"),
+    ready_for_review: t("admin.statusReady"),
+    held: t("admin.statusHeld"),
+    failed: t("admin.statusFailed"),
   }[status] ?? status;
 }
 
@@ -282,17 +296,17 @@ function generationStatusClass(status: string): string {
   return "";
 }
 
-function formatTokenCount(value: number | null): string {
-  return value === null ? "-" : new Intl.NumberFormat("ko-KR").format(value);
+function formatTokenCount(value: number | null, locale: "ko" | "ja"): string {
+  return value === null ? "-" : new Intl.NumberFormat(locale === "ja" ? "ja-JP" : "ko-KR").format(value);
 }
 
-function formatCost(value: number | null): string {
-  if (value === null) return "계산 불가";
+function formatCost(value: number | null, t: Translate): string {
+  if (value === null) return t("admin.costUnavailable");
   return `$${value.toFixed(value < 0.01 ? 4 : 2)}`;
 }
 
-function formatHistoryDate(value: string): string {
-  return new Intl.DateTimeFormat("ko-KR", {
+function formatHistoryDate(value: string, locale: "ko" | "ja"): string {
+  return new Intl.DateTimeFormat(locale === "ja" ? "ja-JP" : "ko-KR", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -319,6 +333,15 @@ export function AdminScreen({
   onManualCreate,
   onHistory,
 }: AdminScreenProps) {
+  const {
+    locale,
+    t,
+    languageLabel,
+    levelLabel,
+    lengthLabel,
+    topicLabel,
+    perceivedLabel: localizedPerceivedLabel,
+  } = useI18n();
   const hasAppliedFilters =
     filters.level !== "all" ||
     filters.length !== "all" ||
@@ -327,14 +350,14 @@ export function AdminScreen({
     filters.sort !== "created-desc";
 
   return (
-    <section className="screen screen-admin" aria-label="관리자 문항 관리">
+    <section className="screen screen-admin" aria-label={t("admin.management")}>
       <div className="paper flush">
         <div className="paper-head admin-paper-head">
           <div>
-            <p className="kicker">Administrator</p>
-            <h1 className="screen-title">문항 관리</h1>
+            <p className="kicker">{t("admin.kicker")}</p>
+            <h1 className="screen-title">{t("admin.management")}</h1>
           </div>
-          <p className="list-result-count">{totalItems}개 문항</p>
+          <p className="list-result-count">{t("admin.itemCount", { count: totalItems })}</p>
         </div>
         <div className="admin-toolbar">
           <div className="filter-search">
@@ -342,8 +365,8 @@ export function AdminScreen({
             <input
               className="title-search"
               type="search"
-              placeholder="제목으로 찾기"
-              aria-label="관리 문항 제목 검색"
+              placeholder={t("admin.searchPlaceholder")}
+              aria-label={t("admin.searchLabel")}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
@@ -353,28 +376,28 @@ export function AdminScreen({
               value={filters.language}
               options={readingLanguages.map((language) => ({
                 value: language,
-                label: languageLabels[language],
+                label: languageLabel(language),
               }))}
               onChange={(language) =>
                 onLanguageChange(language as ReadingLanguage)
               }
-              ariaLabel="관리 문항 언어"
+              ariaLabel={t("admin.contentLanguageAria")}
             />
           </div>
           <div className="admin-toolbar-tools">
             <button
               className={`icon-button list-filter-button${hasAppliedFilters ? " is-active" : ""}`}
               type="button"
-              aria-label="필터 및 정렬"
+              aria-label={t("admin.filter")}
               aria-pressed={hasAppliedFilters}
-              title="필터 및 정렬"
+              title={t("admin.filter")}
               onClick={onFilters}
             >
               <Icon icon={SlidersHorizontal} />
             </button>
           </div>
         </div>
-        {loading ? <LoadingOverlay label="관리 문항을 불러오는 중입니다." /> : null}
+        {loading ? <LoadingOverlay label={t("admin.loadingItems")} /> : null}
         {error ? <p className="list-load-error" role="alert">{error}</p> : null}
         <div className="admin-list" aria-busy={loading}>
           {items.map((item) => (
@@ -387,22 +410,22 @@ export function AdminScreen({
               <span>
                 <span className="admin-row-title" lang={item.language}>{item.title}</span>
                 <span className="row-meta">
-                  <span className="badge row-level">{item.officialLevel}</span>
+                  <span className="badge row-level">{levelLabel(item.officialLevel)}</span>
                   {item.perceivedVotes >= minimumVotes ? (
                     <span className="badge row-perceived">
-                      {perceivedLabel(item)} · {item.perceivedVotes}명
+                      {localizedPerceivedLabel(item)} · {t("admin.responses", { count: item.perceivedVotes })}
                     </span>
                   ) : null}
-                  <span className="badge">{lengthLabels[item.lengthType]}</span>
-                  <span className="row-topic">{item.topic}</span>
+                  <span className="badge">{lengthLabel(item.lengthType)}</span>
+                  <span className="row-topic">{topicLabel(item.topic)}</span>
                 </span>
               </span>
               <span className="admin-row-state">
                 <span className={statusClass(item.status)}>
-                  {statusLabel(item.status)}
+                  {itemStatusLabel(item.status, t)}
                 </span>
-                <time className="row-date">등록 {formatDate(item.createdAt)}</time>
-                <time className="row-date">수정 {formatDate(item.updatedAt)}</time>
+                <time className="row-date">{t("admin.created", { date: formatDate(item.createdAt, locale) })}</time>
+                <time className="row-date">{t("admin.updated", { date: formatDate(item.updatedAt, locale) })}</time>
               </span>
               <Icon icon={Pencil} />
             </button>
@@ -410,27 +433,27 @@ export function AdminScreen({
         </div>
         {!loading && items.length === 0 ? (
           <div className="reading-list-empty">
-            <p>조건에 맞는 문항이 없습니다.</p>
+            <p>{t("admin.emptyItems")}</p>
           </div>
         ) : (
           <ListPagination
             page={page}
             totalPages={totalPages}
             onChange={onPageChange}
-            ariaLabel="관리 문항 목록 페이지"
+            ariaLabel={t("admin.itemsPagination")}
           />
         )}
         <div className="home-actions admin-list-actions">
           <button className="text-button" type="button" onClick={onHistory}>
             <Icon icon={History} />
-            생성 이력
+            {t("admin.history")}
           </button>
           <button className="text-button" type="button" onClick={onManualCreate}>
             <Icon icon={Pencil} />
-            직접 등록
+            {t("admin.manualEntry")}
           </button>
           <button className="primary-button" type="button" onClick={onGenerate}>
-            <Icon icon={Plus} />새 독해 지문 생성
+            <Icon icon={Plus} />{t("admin.newReading")}
           </button>
         </div>
       </div>
@@ -449,22 +472,23 @@ export function GenerationHistoryScreen({
   onRefresh,
   onBack,
 }: GenerationHistoryScreenProps) {
+  const { locale, t, languageLabel, levelLabel, lengthLabel, topicLabel } = useI18n();
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
 
   return (
-    <section className="screen screen-generation-history" aria-label="생성 이력">
+    <section className="screen screen-generation-history" aria-label={t("admin.history")}>
       <div className="paper flush">
         <div className="paper-head admin-paper-head">
           <div>
-            <p className="kicker">Administrator</p>
-            <h1 className="screen-title">생성 이력</h1>
+            <p className="kicker">{t("admin.kicker")}</p>
+            <h1 className="screen-title">{t("admin.history")}</h1>
           </div>
           <div className="admin-head-actions">
             <button
               className="icon-button"
               type="button"
-              title="문항 관리"
-              aria-label="문항 관리"
+              title={t("admin.management")}
+              aria-label={t("admin.management")}
               onClick={onBack}
             >
               <Icon icon={ArrowLeft} />
@@ -472,8 +496,8 @@ export function GenerationHistoryScreen({
             <button
               className="icon-button"
               type="button"
-              title="새로고침"
-              aria-label="새로고침"
+              title={t("admin.refresh")}
+              aria-label={t("admin.refresh")}
               onClick={onRefresh}
               disabled={loading}
             >
@@ -482,9 +506,9 @@ export function GenerationHistoryScreen({
           </div>
         </div>
         <div className="generation-history-toolbar">
-          <span>최근 생성 작업 {totalItems}건</span>
+          <span>{t("admin.recentJobs", { count: totalItems })}</span>
         </div>
-        {loading ? <LoadingBar label="생성 이력을 불러오는 중입니다." /> : null}
+        {loading ? <LoadingBar label={t("admin.loadingHistory")} /> : null}
         {error ? <p className="generation-history-error" role="alert">{error}</p> : null}
         <div className="generation-history-list" aria-busy={loading}>
           {items.map((job) => {
@@ -504,25 +528,25 @@ export function GenerationHistoryScreen({
                 >
                   <span className="generation-history-main">
                     <span className="generation-history-title">
-                      {job.conditions.officialLevel} {lengthLabels[job.conditions.lengthType]} · {job.conditions.topic}
+                      {levelLabel(job.conditions.officialLevel)} {lengthLabel(job.conditions.lengthType)} · {topicLabel(job.conditions.topic)}
                     </span>
                     <span className="row-meta">
-                      <span className="badge row-level">{languageLabels[job.conditions.language]}</span>
+                      <span className="badge row-level">{languageLabel(job.conditions.language)}</span>
                       <span className="badge">{job.promptVersion}</span>
                       {generationAttempts > 1 ? (
-                        <span className="badge">생성 {generationAttempts}회</span>
+                        <span className="badge">{t("admin.generationCount", { count: generationAttempts })}</span>
                       ) : null}
                       {job.revisionCount > 0 ? (
-                        <span className="badge">개정 {job.revisionCount}회</span>
+                        <span className="badge">{t("admin.revisionCount", { count: job.revisionCount })}</span>
                       ) : null}
                     </span>
                   </span>
                   <span className="generation-history-state">
                     <span className={`generation-job-status ${generationStatusClass(job.status)}`}>
-                      {generationStatusLabel(job.status)}
+                      {generationStatusLabel(job.status, t)}
                     </span>
-                    <strong>{formatCost(job.actualCostUsd)}</strong>
-                    <time dateTime={job.createdAt}>{formatHistoryDate(job.createdAt)}</time>
+                    <strong>{formatCost(job.actualCostUsd, t)}</strong>
+                    <time dateTime={job.createdAt}>{formatHistoryDate(job.createdAt, locale)}</time>
                   </span>
                   <Icon icon={expanded ? ChevronUp : ChevronDown} />
                 </button>
@@ -530,27 +554,27 @@ export function GenerationHistoryScreen({
                   <div className="generation-history-detail">
                     <dl className="generation-history-summary">
                       <div>
-                        <dt>문제 생성 AI</dt>
+                        <dt>{t("admin.generatorAi")}</dt>
                         <dd>{job.generatorModel}</dd>
                       </div>
                       <div>
-                        <dt>검증 AI</dt>
+                        <dt>{t("admin.validatorAi")}</dt>
                         <dd>{job.answerValidatorModel === job.qualityValidatorModel
                           ? job.answerValidatorModel
                           : `${job.answerValidatorModel} / ${job.qualityValidatorModel}`}</dd>
                       </div>
                       <div>
-                        <dt>입력 / 출력</dt>
-                        <dd>{formatTokenCount(job.inputTokens)} / {formatTokenCount(job.outputTokens)} 토큰</dd>
+                        <dt>{t("admin.inputOutput")}</dt>
+                        <dd>{formatTokenCount(job.inputTokens, locale)} / {formatTokenCount(job.outputTokens, locale)} {t("admin.tokens")}</dd>
                       </div>
                       <div>
-                        <dt>캐시 쓰기 / 읽기</dt>
-                        <dd>{formatTokenCount(job.cacheCreationInputTokens)} / {formatTokenCount(job.cacheReadInputTokens)} 토큰</dd>
+                        <dt>{t("admin.cacheWriteRead")}</dt>
+                        <dd>{formatTokenCount(job.cacheCreationInputTokens, locale)} / {formatTokenCount(job.cacheReadInputTokens, locale)} {t("admin.tokens")}</dd>
                       </div>
                     </dl>
                     {job.conditions.keywords.length > 0 ? (
                       <div className="generation-history-keywords">
-                        <span>추가 키워드</span>
+                        <span>{t("admin.keywords")}</span>
                         <p>{job.conditions.keywords.join(" · ")}</p>
                       </div>
                     ) : null}
@@ -558,28 +582,28 @@ export function GenerationHistoryScreen({
                       <p className="generation-history-failure">{job.errorDetail}</p>
                     ) : null}
                     {job.usageComplete === false ? (
-                      <p className="generation-history-failure">일부 호출의 사용량이 미확인 상태입니다. 합계 토큰은 확인된 사용량만 포함합니다.</p>
+                      <p className="generation-history-failure">{t("admin.usageUnverified")}</p>
                     ) : null}
                     {job.usageEvents.length > 0 ? (
                       <div className="generation-usage-events">
                         <div className="generation-usage-event generation-usage-event-head" aria-hidden="true">
-                          <span>단계</span>
-                          <span>모델</span>
-                          <span>입력</span>
-                          <span>캐시 쓰기</span>
-                          <span>캐시 읽기</span>
-                          <span>출력</span>
-                          <span>비용</span>
+                          <span>{t("admin.stage")}</span>
+                          <span>{t("admin.model")}</span>
+                          <span>{t("admin.input")}</span>
+                          <span>{t("admin.cacheWrite")}</span>
+                          <span>{t("admin.cacheRead")}</span>
+                          <span>{t("admin.output")}</span>
+                          <span>{t("admin.cost")}</span>
                         </div>
                         {job.usageEvents.map((event) => (
                           <div className="generation-usage-event" key={event.eventIndex}>
-                            <span>{generationStageLabels[event.stage] ?? event.stage}</span>
+                            <span>{generationStageLabel(event.stage, t)}</span>
                             <span className="generation-usage-model">{event.modelId}</span>
-                            <span>{formatTokenCount(event.usageStatus === "unknown" || event.usageStatus === "pending" ? null : event.inputTokens)}</span>
-                            <span>{formatTokenCount(event.usageStatus === "unknown" || event.usageStatus === "pending" ? null : event.cacheCreationInputTokens)}</span>
-                            <span>{formatTokenCount(event.usageStatus === "unknown" || event.usageStatus === "pending" ? null : event.cacheReadInputTokens)}</span>
-                            <span>{formatTokenCount(event.usageStatus === "unknown" || event.usageStatus === "pending" ? null : event.outputTokens)}</span>
-                            <span title={event.stopReason ?? undefined}>{formatCost(event.actualCostUsd)}</span>
+                            <span>{formatTokenCount(event.usageStatus === "unknown" || event.usageStatus === "pending" ? null : event.inputTokens, locale)}</span>
+                            <span>{formatTokenCount(event.usageStatus === "unknown" || event.usageStatus === "pending" ? null : event.cacheCreationInputTokens, locale)}</span>
+                            <span>{formatTokenCount(event.usageStatus === "unknown" || event.usageStatus === "pending" ? null : event.cacheReadInputTokens, locale)}</span>
+                            <span>{formatTokenCount(event.usageStatus === "unknown" || event.usageStatus === "pending" ? null : event.outputTokens, locale)}</span>
+                            <span title={event.stopReason ?? undefined}>{formatCost(event.actualCostUsd, t)}</span>
                           </div>
                         ))}
                       </div>
@@ -592,14 +616,14 @@ export function GenerationHistoryScreen({
         </div>
         {!loading && items.length === 0 ? (
           <div className="reading-list-empty">
-            <p>생성 작업 이력이 없습니다.</p>
+            <p>{t("admin.emptyHistory")}</p>
           </div>
         ) : (
           <ListPagination
             page={page}
             totalPages={totalPages}
             onChange={onPageChange}
-            ariaLabel="생성 이력 페이지"
+            ariaLabel={t("admin.historyPagination")}
           />
         )}
       </div>
@@ -630,6 +654,15 @@ export function AdminEdit({
   explanationSuggestionErrors = {},
   onConfirmQuestionTruncation,
 }: AdminEditProps) {
+  const {
+    locale,
+    t,
+    languageLabel,
+    levelLabel,
+    lengthLabel,
+    topicLabel,
+    perceivedLabel: localizedPerceivedLabel,
+  } = useI18n();
   const [expandedQuestionIndex, setExpandedQuestionIndex] = useState(0);
   const isWorking =
     isSaving || isSuggestingTitle || isSuggestingTopic || suggestingExplanationIndex !== null;
@@ -739,24 +772,24 @@ export function AdminEdit({
   return (
     <section
       className={["screen", "screen-admin-edit", manual ? "screen-manual-create" : ""].filter(Boolean).join(" ")}
-      aria-label={manual ? "독해 문항 직접 등록" : "관리자 문항 편집"}
+      aria-label={manual ? t("admin.manualEntry") : t("admin.edit")}
       aria-busy={isWorking}
       data-reading-language={draft.language}
     >
       <div className="paper">
         <div className="admin-edit-heading">
           <div>
-            <p className="kicker">{manual ? "Manual entry" : "Content management"}</p>
-            <h1 className="screen-title">{manual ? "독해 문항 직접 등록" : "문항 편집"}</h1>
+            <p className="kicker">{manual ? t("admin.manualEntry") : t("admin.kicker")}</p>
+            <h1 className="screen-title">{manual ? t("admin.manualEntry") : t("admin.edit")}</h1>
           </div>
           <span className={manual ? "badge" : statusClass(item.status)}>
-            {manual ? "검토 전" : statusLabel(item.status)}
+            {manual ? t("admin.beforeReview") : itemStatusLabel(item.status, t)}
           </span>
         </div>
         <fieldset className="admin-edit-form" disabled={isWorking}>
           <div className="admin-field admin-field-wide admin-title-field">
             <div className="admin-field-label-row">
-              <span className="form-label">제목</span>
+              <span className="form-label">{t("admin.title")}</span>
               {onSuggestTitle ? (
                 <button
                   className="text-button admin-ai-suggest"
@@ -765,7 +798,7 @@ export function AdminEdit({
                   disabled={isSuggestingTitle || !draft.passage.trim()}
                 >
                   <Icon icon={Sparkles} />
-                  {isSuggestingTitle ? "제목 만드는 중" : "AI 제목 제안"}
+                  {isSuggestingTitle ? t("admin.suggestingTitle") : t("admin.suggestTitle")}
                 </button>
               ) : null}
             </div>
@@ -785,7 +818,7 @@ export function AdminEdit({
           </div>
           <div className="admin-metadata-grid">
             <label className="admin-field">
-              <span className="form-label">콘텐츠 언어</span>
+              <span className="form-label">{t("admin.contentLanguage")}</span>
               <select
                 className="select-field"
                 value={draft.language}
@@ -802,13 +835,13 @@ export function AdminEdit({
               >
                 {readingLanguages.map((language) => (
                   <option key={language} value={language}>
-                    {languageLabels[language]}
+                    {languageLabel(language)}
                   </option>
                 ))}
               </select>
             </label>
             <label className="admin-field">
-              <span className="form-label">난이도</span>
+              <span className="form-label">{t("admin.level")}</span>
               <select
                 className="select-field"
                 value={draft.officialLevel}
@@ -820,36 +853,36 @@ export function AdminEdit({
                 }
               >
                 {levelsForLanguage(draft.language).map((value) => (
-                  <option key={value}>{value}</option>
+                  <option key={value}>{levelLabel(value)}</option>
                 ))}
               </select>
             </label>
             {!manual ? <div className="admin-field admin-summary-field">
-              <span className="form-label">체감 난이도</span>
+              <span className="form-label">{t("admin.perceivedLevel")}</span>
               <div className="admin-summary-value">
-                <strong>{perceivedLabel(item)}</strong>
+                <strong>{localizedPerceivedLabel(item)}</strong>
                 <span>
-                  응답 {item.perceivedVotes}명 ·{" "}
-                  {item.perceivedVotes >= minimumVotes ? "공개" : "비공개"}
+                  {t("admin.responses", { count: item.perceivedVotes })} ·{" "}
+                  {item.perceivedVotes >= minimumVotes ? t("admin.public") : t("admin.private")}
                 </span>
               </div>
             </div> : null}
             <label className="admin-field">
-              <span className="form-label">유형</span>
+              <span className="form-label">{t("admin.length")}</span>
               <select
                 className="select-field"
                 value={draft.lengthType}
                 onChange={(event) => changeLengthType(event.target.value as LengthType)}
               >
-                {Object.entries(lengthLabels).map(([value, label]) => (
+                {(["short", "medium", "long"] as const).map((value) => (
                   <option value={value} key={value}>
-                    {label}
+                    {lengthLabel(value)}
                   </option>
                 ))}
               </select>
             </label>
             <label className="admin-field">
-              <span className="form-label">권장 시간(초)</span>
+              <span className="form-label">{t("admin.recommendedSeconds")}</span>
               <input
                 className="input-field"
                 type="number"
@@ -866,7 +899,7 @@ export function AdminEdit({
             </label>
             <div className="admin-field">
               <div className="admin-field-label-row">
-                <span className="form-label">주제</span>
+                <span className="form-label">{t("admin.topic")}</span>
                 {onSuggestTopic ? (
                   <button
                     className={
@@ -876,8 +909,8 @@ export function AdminEdit({
                     type="button"
                     onClick={onSuggestTopic}
                     disabled={isSuggestingTopic || !draft.passage.trim()}
-                    aria-label={isSuggestingTopic ? "AI 주제 제안 중" : "AI 주제 제안"}
-                    title={isSuggestingTopic ? "AI 주제 제안 중" : "AI 주제 제안"}
+                    aria-label={isSuggestingTopic ? t("admin.suggestingTopic") : t("admin.suggestTopic")}
+                    title={isSuggestingTopic ? t("admin.suggestingTopic") : t("admin.suggestTopic")}
                   >
                     <Icon icon={isSuggestingTopic ? RefreshCw : Sparkles} />
                   </button>
@@ -894,7 +927,7 @@ export function AdminEdit({
                 }
               >
                 {readingTopics.map((topic) => (
-                  <option key={topic}>{topic}</option>
+                  <option key={topic}>{topicLabel(topic)}</option>
                 ))}
               </select>
               {topicSuggestionError ? (
@@ -905,7 +938,7 @@ export function AdminEdit({
             </div>
           </div>
           <label className="admin-field admin-field-wide">
-            <span className="form-label">지문</span>
+            <span className="form-label">{t("admin.passage")}</span>
             <textarea
               className="admin-textarea"
               value={draft.passage}
@@ -917,7 +950,7 @@ export function AdminEdit({
           <section className="admin-questions-section">
             <div className="admin-options-heading">
               <span className="form-label">
-                문제 {draft.questions.length} / {questionLimit}
+                {t("admin.questionCount", { count: draft.questions.length, limit: questionLimit })}
               </span>
               {canManageMultipleQuestions ? (
                 <button
@@ -927,7 +960,7 @@ export function AdminEdit({
                   disabled={draft.questions.length >= questionLimit}
                 >
                   <Icon icon={Plus} />
-                  문제 추가
+                  {t("admin.addQuestion")}
                 </button>
               ) : null}
             </div>
@@ -946,9 +979,9 @@ export function AdminEdit({
                     }
                   >
                     <span className="admin-question-title">
-                      <strong>문제 {String(questionIndex + 1).padStart(2, "0")}</strong>
+                      <strong>{t("admin.questionNumber", { number: String(questionIndex + 1).padStart(2, "0") })}</strong>
                       <span className="admin-question-summary">
-                        {question.question.trim() || "문제를 입력해 주세요."}
+                        {question.question.trim() || t("admin.questionMissing")}
                       </span>
                     </span>
                     <span className="admin-question-toggle-meta">
@@ -958,7 +991,7 @@ export function AdminEdit({
                           (question.explanation.trim() ? " is-complete" : "")
                         }
                       >
-                        {question.explanation.trim() ? "해설 작성" : "해설 미작성"}
+                        {question.explanation.trim() ? t("admin.explanationReady") : t("admin.explanationMissing")}
                       </span>
                       <Icon
                         icon={
@@ -973,8 +1006,8 @@ export function AdminEdit({
                     <button
                       className="icon-button"
                       type="button"
-                      title={`문제 ${questionIndex + 1} 삭제`}
-                      aria-label={`문제 ${questionIndex + 1} 삭제`}
+                      title={t("admin.deleteQuestion", { number: questionIndex + 1 })}
+                      aria-label={t("admin.deleteQuestion", { number: questionIndex + 1 })}
                       onClick={() => removeQuestion(questionIndex)}
                     >
                       <Icon icon={Trash2} />
@@ -987,7 +1020,7 @@ export function AdminEdit({
                     id={`question-editor-${question.id}`}
                   >
                 <label className="admin-field admin-field-wide">
-                  <span className="form-label">문제</span>
+                  <span className="form-label">{t("admin.question")}</span>
                   <textarea
                     className="admin-textarea admin-question-textarea"
                     value={question.question}
@@ -998,9 +1031,9 @@ export function AdminEdit({
                 </label>
                 <section className="admin-options-section">
                   <div className="admin-options-heading">
-                    <span className="form-label">선택지</span>
+                    <span className="form-label">{t("admin.choices")}</span>
                     <label className="admin-answer-select">
-                      정답{" "}
+                      {t("admin.answer")}{" "}
                       <select
                         className="select-field"
                         value={question.choices.findIndex((choice) => choice.isCorrect)}
@@ -1041,7 +1074,7 @@ export function AdminEdit({
                 </section>
                 <div className="admin-field admin-field-wide">
                   <div className="admin-field-label-row">
-                    <span className="form-label">해설</span>
+                    <span className="form-label">{t("admin.explanation")}</span>
                     {onSuggestExplanation ? (
                       <button
                         className="text-button admin-ai-suggest"
@@ -1056,8 +1089,8 @@ export function AdminEdit({
                       >
                         <Icon icon={Sparkles} />
                         {suggestingExplanationIndex === questionIndex
-                          ? "해설 만드는 중"
-                          : "AI 해설 생성"}
+                          ? t("admin.suggestingExplanation")
+                          : t("admin.suggestExplanation")}
                       </button>
                     ) : null}
                   </div>
@@ -1082,32 +1115,32 @@ export function AdminEdit({
           {manual && error ? <p className="editor-error" role="alert">{error}</p> : null}
           {!manual ? <section className="admin-insights">
             <div className="admin-section-heading">
-              <h2 className="admin-section-title">문항 반응</h2>
+              <h2 className="admin-section-title">{t("admin.itemResponse")}</h2>
               <span className="admin-section-note">
-                평가 {item.perceivedVotes}명
+                {t("admin.evaluations", { count: item.perceivedVotes })}
               </span>
             </div>
             <dl className="admin-insight-list">
               <div>
-                <dt>문항 평가</dt>
-                <dd>{item.quality ? `${item.quality} / 5` : "평가 없음"}</dd>
+                <dt>{t("admin.itemQuality")}</dt>
+                <dd>{item.quality ? `${item.quality} / 5` : t("admin.noRating")}</dd>
               </div>
               <div>
-                <dt>체감 난이도</dt>
+                <dt>{t("admin.perceivedLevel")}</dt>
                 <dd>
                   {item.perceivedVotes >= minimumVotes
-                    ? `${item.perceivedLevel} · ${item.perceivedVotes}명`
-                    : `집계 중 · ${item.perceivedVotes}명`}
+                    ? `${levelLabel(item.perceivedLevel)} · ${t("admin.responses", { count: item.perceivedVotes })}`
+                    : `${localizedPerceivedLabel(item)} · ${t("admin.responses", { count: item.perceivedVotes })}`}
                 </dd>
               </div>
               <div>
-                <dt>오류 제보</dt>
+                <dt>{t("admin.errorReports")}</dt>
                 <dd>{item.reportCount}건</dd>
               </div>
             </dl>
-            <section className="admin-report-section" aria-label="오류 제보 상세">
+            <section className="admin-report-section" aria-label={t("admin.reportDetails")}>
               <div className="admin-section-heading">
-                <h3 className="admin-subsection-title">오류 제보 상세</h3>
+                <h3 className="admin-subsection-title">{t("admin.reportDetails")}</h3>
                 <span className="admin-section-note">{item.reports.length}건</span>
               </div>
               {item.reports.length ? (
@@ -1116,16 +1149,16 @@ export function AdminEdit({
                     <article className="admin-report-item" key={report.id}>
                       <div className="admin-record-meta">
                         <span className="badge">
-                          {report.status === "open" ? "접수됨" : report.status}
+                          {report.status === "open" ? t("admin.reportReceived") : report.status}
                         </span>
-                        <time className="row-date">{formatDate(report.createdAt)}</time>
+                        <time className="row-date">{formatDate(report.createdAt, locale)}</time>
                       </div>
                       <p>{report.content}</p>
                     </article>
                   ))}
                 </div>
               ) : (
-                <p className="admin-empty-detail">접수된 오류 제보가 없습니다.</p>
+                <p className="admin-empty-detail">{t("admin.emptyReports")}</p>
               )}
             </section>
           </section> : null}
@@ -1139,7 +1172,7 @@ export function AdminEdit({
               onClick={() => onBack()}
               disabled={isWorking}
             >
-              관리 목록으로
+              {t("admin.backToManagement")}
             </button>
             {!manual ? <button
               className="link-button preview-delete"
@@ -1148,27 +1181,27 @@ export function AdminEdit({
               disabled={isWorking}
             >
               <Icon icon={Trash2} />
-              삭제
+              {t("admin.delete")}
             </button> : null}
           </div>
           <div className="admin-edit-main">
             {!manual ? <button className="text-button" type="button" onClick={onHold} disabled={isWorking}>
               <Icon icon={Clock3} />
               {item.status === "held"
-                ? "보류 취소"
+                ? t("admin.cancelHold")
                 : item.status === "published"
-                  ? "보류로 전환"
-                  : "보류"}
+                  ? t("admin.switchHold")
+                  : t("admin.hold")}
             </button> : null}
             {!manual && item.status !== "published" ? (
               <button className="text-button" type="button" onClick={onPublish} disabled={isWorking}>
                 <Icon icon={Upload} />
-                게시하기
+                {t("admin.publish")}
               </button>
             ) : null}
             <button className="primary-button" type="button" onClick={onSave} disabled={isWorking}>
               <Icon icon={Save} />
-              {isSaving ? "저장 중" : manual ? "검토 문항으로 저장" : "저장하기"}
+              {isSaving ? t("admin.saving") : manual ? t("admin.saveForReview") : t("admin.save")}
             </button>
           </div>
         </div>
@@ -1189,6 +1222,7 @@ export function ManualCreateScreen({
   onSuggestExplanation,
   onConfirmQuestionTruncation,
 }: ManualCreateScreenProps) {
+  const { t } = useI18n();
   const [isSuggestingTitle, setIsSuggestingTitle] = useState(false);
   const [titleSuggestionError, setTitleSuggestionError] = useState("");
   const [isSuggestingTopic, setIsSuggestingTopic] = useState(false);
@@ -1200,20 +1234,20 @@ export function ManualCreateScreen({
   const suggestTitle = async () => {
     const passage = values.passage.trim();
     if (!passage) {
-      setTitleSuggestionError("지문을 먼저 입력해 주세요.");
+      setTitleSuggestionError(t("admin.passageRequired"));
       return;
     }
     setIsSuggestingTitle(true);
     setTitleSuggestionError("");
     try {
       const title = await onSuggestTitle(passage, values.language);
-      if (!title.trim()) throw new Error("AI가 제목을 만들지 못했습니다.");
+      if (!title.trim()) throw new Error(t("admin.titleSuggestionEmpty"));
       setValues((current) => ({ ...current, title: title.trim() }));
     } catch (suggestionError) {
       setTitleSuggestionError(
         suggestionError instanceof Error
           ? suggestionError.message
-          : "AI 제목 제안에 실패했습니다.",
+          : t("admin.titleSuggestionFailed"),
       );
     } finally {
       setIsSuggestingTitle(false);
@@ -1222,7 +1256,7 @@ export function ManualCreateScreen({
   const suggestTopic = async () => {
     const passage = values.passage.trim();
     if (!passage) {
-      setTopicSuggestionError("지문을 먼저 입력해 주세요.");
+      setTopicSuggestionError(t("admin.passageRequired"));
       return;
     }
     setIsSuggestingTopic(true);
@@ -1230,14 +1264,14 @@ export function ManualCreateScreen({
     try {
       const topic = await onSuggestTopic(passage, values.language);
       if (!readingTopics.includes(topic)) {
-        throw new Error("AI가 목록에 없는 주제를 반환했습니다.");
+        throw new Error(t("admin.topicSuggestionInvalid"));
       }
       setValues((current) => ({ ...current, topic }));
     } catch (suggestionError) {
       setTopicSuggestionError(
         suggestionError instanceof Error
           ? suggestionError.message
-          : "AI 주제 제안에 실패했습니다.",
+          : t("admin.topicSuggestionFailed"),
       );
     } finally {
       setIsSuggestingTopic(false);
@@ -1253,7 +1287,7 @@ export function ManualCreateScreen({
     ) {
       setExplanationSuggestionErrors((current) => ({
         ...current,
-        [questionIndex]: "지문, 문제, 선택지 네 개를 모두 입력해 주세요.",
+        [questionIndex]: t("admin.explanationRequired"),
       }));
       return;
     }
@@ -1266,7 +1300,7 @@ export function ManualCreateScreen({
         question.choices,
         values.language,
       );
-      if (!explanation.trim()) throw new Error("AI가 해설을 만들지 못했습니다.");
+      if (!explanation.trim()) throw new Error(t("admin.explanationSuggestionEmpty"));
       setValues((current) => ({
         ...current,
         ...(questionIndex === 0 ? { explanation: explanation.trim() } : {}),
@@ -1280,7 +1314,7 @@ export function ManualCreateScreen({
         [questionIndex]:
           suggestionError instanceof Error
             ? suggestionError.message
-            : "AI 해설 생성에 실패했습니다.",
+            : t("admin.explanationSuggestionFailed"),
       }));
     } finally {
       setSuggestingExplanationIndex(null);
@@ -1369,6 +1403,7 @@ export function GenerateScreen({
   onCreate,
   onBack,
 }: GenerateScreenProps) {
+  const { t, languageLabel, levelLabel, lengthLabel, topicLabel } = useI18n();
   const keywordInputs = values.keywords.length > 0 ? values.keywords : [""];
   const updateKeyword = (index: number, value: string) => {
     const keywords = [...keywordInputs];
@@ -1389,20 +1424,20 @@ export function GenerateScreen({
   return (
     <section
       className="screen screen-generate"
-      aria-label="지문 생성"
+      aria-label={t("admin.generateAria")}
       aria-busy={isCreating}
     >
       <div className="paper">
-        <p className="kicker">Generate</p>
-        <h1 className="screen-title">새 독해 지문 생성</h1>
+        <p className="kicker">{t("admin.kicker")}</p>
+        <h1 className="screen-title">{t("admin.generate")}</h1>
         <div className="form-grid generation-form-grid">
           <div className="form-section">
-            <span className="form-label">콘텐츠 언어</span>
+            <span className="form-label">{t("admin.contentLanguage")}</span>
             <OptionButtons
               value={values.language}
               options={readingLanguages.map((language) => ({
                 value: language,
-                label: languageLabels[language],
+                label: languageLabel(language),
               }))}
               onChange={(value) => {
                 const language = value as ReadingLanguage;
@@ -1412,32 +1447,35 @@ export function GenerateScreen({
                   level: defaultGenerationLevelByLanguage[language],
                 });
               }}
-              ariaLabel="콘텐츠 언어"
+              ariaLabel={t("admin.contentLanguage")}
               disabled={isCreating}
             />
           </div>
           <div className="form-section">
-            <span className="form-label">난이도</span>
+            <span className="form-label">{t("admin.level")}</span>
             <OptionButtons
               value={values.level}
-              options={generationLevelsForLanguage(values.language)}
+              options={generationLevelsForLanguage(values.language).map((value) => ({
+                value,
+                label: levelLabel(value),
+              }))}
               onChange={(level) =>
                 setValues({
                   ...values,
                   level: level as DifficultyLevel,
                 })
               }
-              ariaLabel="난이도"
+              ariaLabel={t("admin.level")}
               disabled={isCreating}
             />
           </div>
           <div className="form-section">
-            <span className="form-label">유형</span>
+            <span className="form-label">{t("admin.length")}</span>
             <OptionButtons
               value={values.length}
-              options={Object.entries(lengthLabels).map(([value, label]) => ({
+              options={(["short", "medium", "long"] as const).map((value) => ({
                 value,
-                label,
+                label: lengthLabel(value),
               }))}
               onChange={(length) =>
                 setValues({
@@ -1445,13 +1483,13 @@ export function GenerateScreen({
                   length: length as LengthType,
                 })
               }
-              ariaLabel="유형"
+              ariaLabel={t("admin.length")}
               disabled={isCreating}
             />
           </div>
           <div className="form-section">
             <div className="generate-topic-field">
-              <span className="form-label">주제</span>
+              <span className="form-label">{t("admin.topic")}</span>
               <select
                 className="select-field"
                 value={values.topic}
@@ -1463,15 +1501,15 @@ export function GenerateScreen({
                   })
                 }
               >
-                <option value={recommendedTopic}>추천 (랜덤)</option>
+                <option value={recommendedTopic}>{t("admin.recommendedRandom")}</option>
                 {readingTopics.map((topic) => (
-                  <option key={topic}>{topic}</option>
+                  <option key={topic}>{topicLabel(topic)}</option>
                 ))}
               </select>
             </div>
           </div>
           <div className="form-section">
-            <span className="form-label">문제 생성 AI</span>
+            <span className="form-label">{t("admin.generatorAi")}</span>
             <select
               className="select-field"
               value={values.generatorModel}
@@ -1488,12 +1526,12 @@ export function GenerateScreen({
                   <option key={model} value={model}>{model}</option>
                 ))
               ) : (
-                <option value="">{modelError || "모델 목록을 불러오는 중입니다."}</option>
+                <option value="">{modelError || t("admin.modelsLoading")}</option>
               )}
             </select>
           </div>
           <div className="form-section">
-            <span className="form-label">검증 AI</span>
+            <span className="form-label">{t("admin.validatorAi")}</span>
             <select
               className="select-field"
               value={values.validatorModel}
@@ -1510,12 +1548,12 @@ export function GenerateScreen({
                   <option key={model} value={model}>{model}</option>
                 ))
               ) : (
-                <option value="">{modelError || "모델 목록을 불러오는 중입니다."}</option>
+                <option value="">{modelError || t("admin.modelsLoading")}</option>
               )}
             </select>
           </div>
           <div className="form-section generation-keywords-section">
-            <span className="form-label">추가 키워드</span>
+            <span className="form-label">{t("admin.keywords")}</span>
             <div className="generation-keyword-list">
               {keywordInputs.map((keyword, index) => (
                 <div className="generation-keyword-input" key={`keyword-${index}`}>
@@ -1523,8 +1561,8 @@ export function GenerateScreen({
                     className="input-field"
                     type="text"
                     value={keyword}
-                    placeholder={`키워드 ${index + 1}`}
-                    aria-label={`추가 키워드 ${index + 1}`}
+                    placeholder={t("admin.keyword", { number: index + 1 })}
+                    aria-label={t("admin.keyword", { number: index + 1 })}
                     maxLength={40}
                     disabled={isCreating}
                     onChange={(event) => updateKeyword(index, event.target.value)}
@@ -1533,8 +1571,8 @@ export function GenerateScreen({
                     <button
                       className="icon-button"
                       type="button"
-                      aria-label={`키워드 ${index + 1} 삭제`}
-                      title="키워드 삭제"
+                      aria-label={t("admin.deleteKeywordItem", { number: index + 1 })}
+                      title={t("admin.deleteKeyword")}
                       disabled={isCreating}
                       onClick={() => removeKeyword(index)}
                     >
@@ -1551,21 +1589,21 @@ export function GenerateScreen({
               onClick={addKeyword}
             >
               <Icon icon={Plus} />
-              키워드 추가
+              {t("admin.addKeyword")}
             </button>
           </div>
         </div>
         {values.language === "ja" ? (
           <div className="furigana-row">
-            <span className="form-label">후리가나</span>
+            <span className="form-label">{t("admin.furigana")}</span>
             <OptionButtons
               value="off"
               options={[
-                { value: "off", label: "미표기" },
-                { value: "on", label: "표기", disabled: true },
+                { value: "off", label: t("admin.furiganaOff") },
+                { value: "on", label: t("admin.furiganaOn"), disabled: true },
               ]}
               onChange={() => {}}
-              ariaLabel="후리가나"
+              ariaLabel={t("admin.furigana")}
               disabled={isCreating}
             />
           </div>
@@ -1576,11 +1614,11 @@ export function GenerateScreen({
         {error ? <p className="generation-error" role="alert">{error}</p> : null}
         <div className="footer-actions">
           <button className="link-button" type="button" onClick={onBack}>
-            관리 목록으로
+            {t("admin.backToManagement")}
           </button>
           <button className="primary-button" type="button" onClick={onCreate} disabled={isCreating || !modelOptions || !values.generatorModel || !values.validatorModel}>
             <Icon icon={Sparkles} />
-            {isCreating ? "지문 생성 중" : "지문 만들기"}
+            {isCreating ? t("admin.generating") : t("admin.create")}
           </button>
         </div>
       </div>
@@ -1595,26 +1633,27 @@ export function PreviewScreen({
   onDelete,
   onBack,
 }: PreviewScreenProps) {
+  const { t, languageLabel, levelLabel, lengthLabel, topicLabel } = useI18n();
   const held = item.status === "held";
 
   return (
     <section
       className="screen screen-preview"
-      aria-label="생성된 문항 검토"
+      aria-label={t("admin.previewAria")}
       data-reading-language={item.language}
     >
       <article className="paper flush">
         <div className="paper-head">
           <div>
-            <p className="kicker">Generated draft</p>
+            <p className="kicker">{t("admin.generatedDraft")}</p>
             <h1 className="title-jp" lang={item.language}>{item.title}</h1>
             <div className="preview-context">
               <span className={statusClass(item.status)}>
-                {statusLabel(item.status)}
+                {itemStatusLabel(item.status, t)}
               </span>
               <span>
-                {languageLabels[item.language]} · {item.officialLevel} · {lengthLabels[item.lengthType]} ·{" "}
-                {item.topic}
+                {languageLabel(item.language)} · {levelLabel(item.officialLevel)} · {lengthLabel(item.lengthType)} ·{" "}
+                {topicLabel(item.topic)}
               </span>
             </div>
           </div>
@@ -1627,7 +1666,7 @@ export function PreviewScreen({
           </div>
           {item.questions.map((question, questionIndex) => (
             <div className="question-block" key={question.id}>
-              {item.questions.length > 1 ? <p className="question-number">문제 {questionIndex + 1}</p> : null}
+              {item.questions.length > 1 ? <p className="question-number">{t("admin.questionNumber", { number: questionIndex + 1 })}</p> : null}
               <h3>{question.question}</h3>
               <div className="preview-answer-list">
                 {question.choices.map((choice, index) => (
@@ -1642,7 +1681,7 @@ export function PreviewScreen({
                     {choice.isCorrect ? (
                       <span className="preview-answer-key">
                         <Icon icon={Check} />
-                        정답
+                        {t("admin.correct")}
                       </span>
                     ) : null}
                   </div>
@@ -1650,10 +1689,9 @@ export function PreviewScreen({
               </div>
               <div className="answer-explanation preview-explanation">
                 <strong>
-                  {String(
-                    question.choices.findIndex((choice) => choice.isCorrect) + 1,
-                  ).padStart(2, "0")}
-                  이 정답인 이유
+                  {t("admin.correctReason", {
+                    number: String(question.choices.findIndex((choice) => choice.isCorrect) + 1).padStart(2, "0"),
+                  })}
                 </strong>
                 <span>{question.explanation}</span>
               </div>
@@ -1664,7 +1702,7 @@ export function PreviewScreen({
             <div className="preview-actions-secondary">
               {held ? (
                 <button className="link-button" type="button" onClick={onBack}>
-                  관리 목록으로
+                  {t("admin.backToManagement")}
                 </button>
               ) : null}
               <button
@@ -1673,7 +1711,7 @@ export function PreviewScreen({
                 onClick={onDelete}
               >
                 <Icon icon={Trash2} />
-                삭제
+                {t("admin.delete")}
               </button>
             </div>
             <div className="preview-actions-main">
@@ -1684,7 +1722,7 @@ export function PreviewScreen({
                 onClick={onHold}
               >
                 <Icon icon={Clock3} />
-                {held ? "보류 취소" : "보류"}
+                {held ? t("admin.cancelHold") : t("admin.hold")}
               </button>
               <button
                 className="primary-button"
@@ -1692,7 +1730,7 @@ export function PreviewScreen({
                 onClick={onPublish}
               >
                 <Icon icon={Upload} />
-                게시하기
+                {t("admin.publish")}
               </button>
             </div>
           </div>

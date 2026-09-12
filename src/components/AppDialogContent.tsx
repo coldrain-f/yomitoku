@@ -2,7 +2,7 @@ import { OptionButtons } from "./ui/OptionButtons";
 import { ListPagination } from "./ui/ListPagination";
 import { Trash2 } from "lucide-react";
 import { Icon } from "./ui/Icon";
-import { formatDate, lengthLabels } from "../lib/reading";
+import { formatDate } from "../lib/reading";
 import { useI18n } from "../lib/i18n";
 import {
   generationLevelsForLanguage,
@@ -320,9 +320,9 @@ export function AppDialogContent({
                   { value: "all", label: t("filters.all") },
                   { value: "unstarted", label: t("filters.unstarted") },
                   { value: "wrong", label: t("filters.wrong") },
-                  { value: "score-100", label: "100점" },
-                  { value: "score-90", label: "90점" },
-                  { value: "score-80", label: "80점" },
+                  { value: "score-100", label: t("common.score", { score: 100 }) },
+                  { value: "score-90", label: t("common.score", { score: 90 }) },
+                  { value: "score-80", label: t("common.score", { score: 80 }) },
                 ]}
                 onChange={(status) =>
                   setFilterDraft({
@@ -383,12 +383,15 @@ export function AppDialogContent({
     return (
       <div className="dialog-admin-filter-field">
         <div className="dialog-filter-section">
-          <span className="form-label">난이도</span>
+          <span className="form-label">{t("filters.level")}</span>
           <OptionButtons
             value={adminFilterDraft.level}
             options={[
-              { value: "all", label: "전체" },
-              ...levelsForLanguage(adminFilterDraft.language),
+              { value: "all", label: t("filters.all") },
+              ...levelsForLanguage(adminFilterDraft.language).map((value) => ({
+                value,
+                label: levelLabel(value),
+              })),
             ]}
             onChange={(level) =>
               setAdminFilterDraft({
@@ -396,18 +399,18 @@ export function AppDialogContent({
                 level: level as AdminFilters["level"],
               })
             }
-            ariaLabel="난이도 필터"
+            ariaLabel={t("filters.levelAria")}
           />
         </div>
         <div className="dialog-filter-section">
-          <span className="form-label">유형</span>
+          <span className="form-label">{t("filters.length")}</span>
           <OptionButtons
             value={adminFilterDraft.length}
             options={[
-              { value: "all", label: "전체" },
-              ...Object.entries(lengthLabels).map(([value, label]) => ({
+              { value: "all", label: t("filters.all") },
+              ...(["short", "medium", "long"] as const).map((value) => ({
                 value,
-                label,
+                label: lengthLabel(value),
               })),
             ]}
             onChange={(length) =>
@@ -416,11 +419,11 @@ export function AppDialogContent({
                 length: length as AdminFilters["length"],
               })
             }
-            ariaLabel="유형 필터"
+            ariaLabel={t("filters.lengthAria")}
           />
         </div>
         <label className="dialog-filter-section">
-          <span className="form-label">주제</span>
+          <span className="form-label">{t("admin.topic")}</span>
           <select
             className="select-field"
             value={adminFilterDraft.topic}
@@ -431,21 +434,21 @@ export function AppDialogContent({
               })
             }
           >
-            <option value="all">전체</option>
+            <option value="all">{t("filters.all")}</option>
             {readingTopics.map((topic) => (
-              <option key={topic}>{topic}</option>
+              <option key={topic}>{topicLabel(topic)}</option>
             ))}
           </select>
         </label>
         <div className="dialog-filter-section">
-          <span className="form-label">상태</span>
+          <span className="form-label">{t("admin.status")}</span>
           <OptionButtons
             value={adminFilterDraft.status}
             options={[
-              { value: "all", label: "전체" },
-              { value: "review", label: "검토 중" },
-              { value: "held", label: "보류" },
-              { value: "published", label: "게시" },
+              { value: "all", label: t("filters.all") },
+              { value: "review", label: t("admin.statusReview") },
+              { value: "held", label: t("admin.statusHeld") },
+              { value: "published", label: t("admin.statusPublished") },
             ]}
             onChange={(status) =>
               setAdminFilterDraft({
@@ -453,11 +456,11 @@ export function AppDialogContent({
                 status: status as AdminFilters["status"],
               })
             }
-            ariaLabel="상태 필터"
+            ariaLabel={t("admin.statusAria")}
           />
         </div>
         <label className="dialog-filter-section">
-          <span className="form-label">정렬</span>
+          <span className="form-label">{t("filters.sort")}</span>
           <select
             className="select-field"
             value={adminFilterDraft.sort}
@@ -468,16 +471,16 @@ export function AppDialogContent({
               })
             }
           >
-            <option value="created-desc">등록일 최신순</option>
-            <option value="created-asc">등록일 오래된순</option>
-            <option value="updated-desc">수정일 최신순</option>
-            <option value="updated-asc">수정일 오래된순</option>
-            <option value="title-asc">제목 가나다순</option>
-            <option value="level-asc">난이도 낮은순</option>
-            <option value="level-desc">난이도 높은순</option>
-            <option value="perceived-asc">체감 난이도 낮은순</option>
-            <option value="perceived-desc">체감 난이도 높은순</option>
-            <option value="status-asc">상태순</option>
+            <option value="created-desc">{t("admin.createdDesc")}</option>
+            <option value="created-asc">{t("admin.createdAsc")}</option>
+            <option value="updated-desc">{t("admin.updatedDesc")}</option>
+            <option value="updated-asc">{t("admin.updatedAsc")}</option>
+            <option value="title-asc">{t("admin.titleAsc")}</option>
+            <option value="level-asc">{t("filters.levelAsc")}</option>
+            <option value="level-desc">{t("filters.levelDesc")}</option>
+            <option value="perceived-asc">{t("filters.perceivedAsc")}</option>
+            <option value="perceived-desc">{t("filters.perceivedDesc")}</option>
+            <option value="status-asc">{t("admin.statusAsc")}</option>
           </select>
         </label>
       </div>
