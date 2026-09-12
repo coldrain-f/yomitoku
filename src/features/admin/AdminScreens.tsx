@@ -385,7 +385,7 @@ export function AdminScreen({
               onClick={() => onEdit(item)}
             >
               <span>
-                <span className="admin-row-title">{item.title}</span>
+                <span className="admin-row-title" lang={item.language}>{item.title}</span>
                 <span className="row-meta">
                   <span className="badge row-level">{item.officialLevel}</span>
                   {item.perceivedVotes >= minimumVotes ? (
@@ -1607,7 +1607,7 @@ export function PreviewScreen({
         <div className="paper-head">
           <div>
             <p className="kicker">Generated draft</p>
-            <h1 className="title-jp">{item.title}</h1>
+            <h1 className="title-jp" lang={item.language}>{item.title}</h1>
             <div className="preview-context">
               <span className={statusClass(item.status)}>
                 {statusLabel(item.status)}

@@ -257,7 +257,7 @@ export function ReadingListScreen({
                 />
                 <div className="reading-row-main">
                   <span className="row-title-line">
-                    <span className="row-title">{item.title}</span>
+                    <span className="row-title" lang={item.language}>{item.title}</span>
                     {isNew(item) ? (
                       <span className="badge row-new">{t("list.new")}</span>
                     ) : null}
@@ -812,7 +812,7 @@ export function ReadingScreen({
               ) : null}
               {" · "}{lengthLabel(item.lengthType)}
             </p>
-            <h1 className="title-jp">{item.title}</h1>
+            <h1 className="title-jp" lang={item.language}>{item.title}</h1>
           </div>
           <div className="reading-meta">
             <div
@@ -989,7 +989,7 @@ export function ResultScreen({
     >
       <div className="paper">
         <p className="kicker">{t("result.screen")}</p>
-        <h1 className="title-jp">{item.title}</h1>
+        <h1 className="title-jp" lang={item.language}>{item.title}</h1>
         <div className="result-context">
           <span className="badge">{lengthLabel(item.lengthType)}</span>
           <span>

@@ -1556,6 +1556,18 @@ fieldset.admin-edit-form {
   font-weight: 500;
 }
 
+.row-title[lang="ja"],
+.title-jp[lang="ja"],
+.admin-row-title[lang="ja"] {
+  font-family: "Yu Mincho", YuMincho, "Hiragino Mincho ProN", "Hiragino Mincho Pro", "MS PMincho", "Noto Serif JP", serif;
+}
+
+.row-title[lang="ko"],
+.title-jp[lang="ko"],
+.admin-row-title[lang="ko"] {
+  font-family: "Yu Gothic", YuGothic, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, "Malgun Gothic", Arial, sans-serif;
+}
+
 .row-new {
   min-height: 24px;
   border-color: var(--accent);
