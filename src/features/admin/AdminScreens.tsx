@@ -1002,17 +1002,16 @@ export function AdminEdit({
                       />
                     </span>
                   </button>
-                  {canManageMultipleQuestions && questionIndex > 0 ? (
-                    <button
-                      className="icon-button"
-                      type="button"
-                      title={t("admin.deleteQuestion", { number: questionIndex + 1 })}
-                      aria-label={t("admin.deleteQuestion", { number: questionIndex + 1 })}
-                      onClick={() => removeQuestion(questionIndex)}
-                    >
-                      <Icon icon={Trash2} />
-                    </button>
-                  ) : null}
+                  <button
+                    className="icon-button"
+                    type="button"
+                    title={t("admin.deleteQuestion", { number: questionIndex + 1 })}
+                    aria-label={t("admin.deleteQuestion", { number: questionIndex + 1 })}
+                    disabled={!canManageMultipleQuestions || questionIndex === 0}
+                    onClick={() => removeQuestion(questionIndex)}
+                  >
+                    <Icon icon={Trash2} />
+                  </button>
                 </div>
                 {expandedQuestionIndex === questionIndex ? (
                   <div
