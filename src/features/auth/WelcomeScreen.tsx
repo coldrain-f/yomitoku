@@ -22,29 +22,43 @@ export function WelcomeScreen({ onLogin }: WelcomeScreenProps) {
           </button>
           <p className="welcome-login-note">{t("welcome.loginNote")}</p>
         </div>
-        <ol className="welcome-journey" aria-label={t("welcome.flowTitle")}>
-          <li>
-            <span className="welcome-step-index">01</span>
-            <div>
-              <strong>{t("welcome.stepChooseTitle")}</strong>
-              <p>{t("welcome.stepChooseDescription")}</p>
-            </div>
-          </li>
-          <li>
-            <span className="welcome-step-index">02</span>
-            <div>
-              <strong>{t("welcome.stepSolveTitle")}</strong>
-              <p>{t("welcome.stepSolveDescription")}</p>
-            </div>
-          </li>
-          <li>
-            <span className="welcome-step-index">03</span>
-            <div>
-              <strong>{t("welcome.stepReviewTitle")}</strong>
-              <p>{t("welcome.stepReviewDescription")}</p>
-            </div>
-          </li>
-        </ol>
+        <div className="welcome-preview" aria-label={t("welcome.previewAria")}>
+          <article className="welcome-preview-card">
+            <header className="welcome-preview-head">
+              <span>{t("welcome.previewKicker")}</span>
+              <span>{t("welcome.previewMeta")}</span>
+            </header>
+            <p className="welcome-preview-passage" lang="ja">
+              {t("welcome.previewPassage")}
+            </p>
+            <p className="welcome-preview-question">{t("welcome.previewQuestion")}</p>
+            <ol className="welcome-preview-choices">
+              <li className="is-correct">
+                <span>01</span>
+                <p>{t("welcome.previewCorrectChoice")}</p>
+                <Icon icon={Check} />
+              </li>
+              <li>
+                <span>02</span>
+                <p>{t("welcome.previewWrongChoice")}</p>
+              </li>
+            </ol>
+            <footer className="welcome-preview-result">
+              <span className="welcome-preview-correct">
+                <Icon icon={Check} />
+                {t("welcome.previewCorrect")}
+              </span>
+              <span>
+                <strong>100</strong>
+                {t("welcome.previewScore")}
+              </span>
+              <span>
+                <Icon icon={Highlighter} />
+                {t("welcome.previewHighlights")}
+              </span>
+            </footer>
+          </article>
+        </div>
       </div>
 
       <section className="welcome-features" aria-labelledby="welcome-features-title">
