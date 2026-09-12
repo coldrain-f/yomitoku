@@ -549,12 +549,10 @@ function PassageHighlighter({
       ) {
         return;
       }
-      window.getSelection()?.removeAllRanges();
       setPending(null);
       setActiveHighlight(null);
     };
     const hideOnViewportChange = () => {
-      window.getSelection()?.removeAllRanges();
       setPending(null);
       setActiveHighlight(null);
     };
