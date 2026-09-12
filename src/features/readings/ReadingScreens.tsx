@@ -12,6 +12,7 @@ import {
   RotateCcw,
   Search,
   SlidersHorizontal,
+  Timer,
   TimerOff,
   X,
 } from "lucide-react";
@@ -966,6 +967,19 @@ export function ReadingScreen({
           </div>
         </div>
       </article>
+      <div
+        className={`reading-time-fab${
+          attempt.elapsedSeconds > item.recommendedSeconds ? " is-over" : ""
+        }`}
+        aria-label={t("reading.timeProgress", {
+          elapsed: formatTime(attempt.elapsedSeconds),
+          recommended: formatTime(item.recommendedSeconds),
+        })}
+      >
+        <Icon icon={Timer} />
+        <strong>{formatTime(attempt.elapsedSeconds)}</strong>
+        <span>/ {formatTime(item.recommendedSeconds)}</span>
+      </div>
     </section>
   );
 }

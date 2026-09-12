@@ -2556,6 +2556,10 @@ fieldset.admin-edit-form {
   display: none;
 }
 
+.reading-time-fab {
+  display: none;
+}
+
 .passage-highlight-error {
   margin: 12px 0 0;
   color: var(--danger);
@@ -3962,6 +3966,51 @@ body.dialog-open {
     place-items: center;
     box-shadow: 0 5px 16px rgba(32, 35, 33, 0.14);
     touch-action: manipulation;
+  }
+
+  .screen-reading .reading-meta {
+    display: none;
+  }
+
+  .reading-time-fab {
+    position: fixed;
+    left: max(16px, env(safe-area-inset-left));
+    bottom: max(16px, env(safe-area-inset-bottom));
+    z-index: 31;
+    display: inline-flex;
+    min-height: 42px;
+    align-items: center;
+    gap: 5px;
+    padding: 0 12px 0 10px;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    background: var(--paper-solid);
+    color: var(--muted);
+    box-shadow: 0 5px 16px rgba(32, 35, 33, 0.14);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+
+  .reading-time-fab strong {
+    color: var(--ink);
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .reading-time-fab [data-lucide] {
+    width: 16px;
+    height: 16px;
+    stroke-width: 1.8;
+  }
+
+  .reading-time-fab.is-over {
+    border-color: color-mix(in srgb, var(--danger) 45%, var(--line-strong));
+    color: var(--danger);
+  }
+
+  .reading-time-fab.is-over strong {
+    color: var(--danger);
   }
 
   .passage-highlight-fab.is-ready {
