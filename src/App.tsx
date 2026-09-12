@@ -27,6 +27,7 @@ import {
 } from "./features/readings/useHighlightCollection";
 import { useReadingAttempt } from "./features/readings/useReadingAttempt";
 import { useReadingList } from "./features/readings/useReadingList";
+import { useReadingSubmission } from "./features/readings/useReadingSubmission";
 import { StatsScreen } from "./features/statistics/StatsScreen";
 import { LoginScreen } from "./features/auth/LoginScreen";
 import { WelcomeScreen } from "./features/auth/WelcomeScreen";
@@ -773,16 +774,30 @@ export default function App() {
     [],
   );
   const {
+    isSubmitting,
+    resetSubmission,
+    result,
+    restoreSubmission,
+    submitReadingAttempt,
+    submittingRef,
+  } = useReadingSubmission();
+  const restoreAttemptSubmission = useCallback(
+    (
+      item: ReadingItem,
+      itemId: string,
+      submitted: Parameters<typeof restoreSubmission>[2],
+    ) => {
+      restoreSubmission(item, itemId, submitted);
+      if (submitted) recordRestoredSubmission(item, submitted);
+    },
+    [recordRestoredSubmission, restoreSubmission],
+  );
+  const {
     attempt,
     clearStoredSession,
-    isSubmitting,
     resetSession,
-    result,
     setAttempt,
-    setIsSubmitting,
-    setResult,
     startAttempt,
-    submittingRef,
   } = useReadingAttempt({
     authenticated,
     authLoading,
@@ -790,7 +805,8 @@ export default function App() {
     pathname: location.pathname,
     setItems,
     loadPassageHighlights,
-    onRestoredSubmission: recordRestoredSubmission,
+    onAttemptStarted: resetSubmission,
+    onAttemptRestored: restoreAttemptSubmission,
   });
   const activeItem = items.find((item) => item.id === attempt?.itemId);
 
@@ -1046,7 +1062,6 @@ export default function App() {
       setAttempt({ ...attempt, message: t("submit.selectAll") });
       return;
     }
-    const answers = attempt.answers;
     openDialog({
       kicker: t("submit.kicker"),
       title: t("submit.title"),
@@ -1054,37 +1069,15 @@ export default function App() {
       confirmLabel: t("submit.confirm"),
       onConfirm: () => {
         if (submittingRef.current) return;
-        submittingRef.current = true;
-        setIsSubmitting(true);
         closeDialog();
         void (async () => {
           try {
-            const submitted = await api.submitAttempt(
-              attempt.attemptId,
-              answers,
-              attempt.elapsedSeconds,
-            );
-            const nextResult: ReadingResult = {
-              itemId: activeItem.id,
-              item: activeItem,
-              choices: attempt.choices,
-              selectedChoiceId: submitted.selectedChoiceId,
-              correctChoiceId: submitted.correctChoiceId,
-              isCorrect: submitted.isCorrect,
-              elapsedSeconds: submitted.elapsedSeconds,
-              explanation: submitted.explanation,
-              selectedChoiceWrongExplanation: submitted.selectedChoiceWrongExplanation,
-              itemAccuracy: submitted.itemAccuracy,
-              challengerCount: submitted.challengerCount,
-              questionResults: submitted.questionResults,
-            };
-            setResult(nextResult);
+            const submitted = await submitReadingAttempt(attempt, activeItem);
+            if (!submitted) return;
             setAttempt({ ...attempt, submitted: true, elapsedSeconds: submitted.elapsedSeconds });
             setAttempts((current) => [...current, recordFromResult(activeItem, submitted)]);
             await Promise.all([loadStatistics(), loadPublicItems()]);
           } catch (error) {
-            submittingRef.current = false;
-            setIsSubmitting(false);
             setToast(errorMessage(error, "submit.failed"));
           }
         })();
@@ -1379,6 +1372,7 @@ export default function App() {
     setUserId(null);
     setRole("learner");
     resetSession();
+    resetSubmission();
     setStatistics(null);
     setPassageHighlights({});
     resetHighlightCollection();

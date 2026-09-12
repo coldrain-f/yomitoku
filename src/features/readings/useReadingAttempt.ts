@@ -4,7 +4,6 @@ import type {
   AttemptQuestionAnswer,
   ReadingAttempt,
   ReadingItem,
-  ReadingResult,
   StateSetter,
 } from "../../types";
 
@@ -22,7 +21,12 @@ interface ReadingAttemptOptions {
   pathname: string;
   setItems: StateSetter<ReadingItem[]>;
   loadPassageHighlights: (itemId: string) => Promise<void>;
-  onRestoredSubmission: (item: ReadingItem, submission: SubmittedAttempt) => void;
+  onAttemptStarted: () => void;
+  onAttemptRestored: (
+    item: ReadingItem,
+    itemId: string,
+    submission: SubmittedAttempt | null,
+  ) => void;
 }
 
 const readingSessionStoragePrefix = "yomitoku.reading-session:";
@@ -81,12 +85,10 @@ export function useReadingAttempt({
   pathname,
   setItems,
   loadPassageHighlights,
-  onRestoredSubmission,
+  onAttemptStarted,
+  onAttemptRestored,
 }: ReadingAttemptOptions) {
   const [attempt, setAttempt] = useState<ReadingAttempt | null>(null);
-  const [result, setResult] = useState<ReadingResult | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const submittingRef = useRef(false);
   const restoredAttemptKeyRef = useRef<string | null>(null);
 
   const clearStoredSession = () => {
@@ -95,10 +97,7 @@ export function useReadingAttempt({
 
   const resetSession = () => {
     restoredAttemptKeyRef.current = null;
-    submittingRef.current = false;
     setAttempt(null);
-    setResult(null);
-    setIsSubmitting(false);
   };
 
   const startAttempt = async (item: ReadingItem) => {
@@ -125,9 +124,7 @@ export function useReadingAttempt({
         currentItem.id === readingItem.id ? readingItem : currentItem,
       ),
     );
-    setResult(null);
-    submittingRef.current = false;
-    setIsSubmitting(false);
+    onAttemptStarted();
     setAttempt({
       attemptId: started.id,
       itemId: item.id,
@@ -220,28 +217,8 @@ export function useReadingAttempt({
             : [restored.item, ...current],
         );
         setAttempt(nextAttempt);
-        submittingRef.current = false;
-        setIsSubmitting(false);
         const submitted = restored.result;
-        if (!submitted) {
-          setResult(null);
-          return;
-        }
-        setResult({
-          itemId: restored.itemId,
-          item: restored.item,
-          choices: restored.item.choices,
-          selectedChoiceId: submitted.selectedChoiceId,
-          correctChoiceId: submitted.correctChoiceId,
-          isCorrect: submitted.isCorrect,
-          elapsedSeconds: submitted.elapsedSeconds,
-          explanation: submitted.explanation,
-          selectedChoiceWrongExplanation: submitted.selectedChoiceWrongExplanation,
-          itemAccuracy: submitted.itemAccuracy,
-          challengerCount: submitted.challengerCount,
-          questionResults: submitted.questionResults,
-        });
-        onRestoredSubmission(restored.item, submitted);
+        onAttemptRestored(restored.item, restored.itemId, submitted);
       })
       .catch(() => {
         removeReadingSession(userId);
@@ -254,7 +231,7 @@ export function useReadingAttempt({
     authLoading,
     authenticated,
     loadPassageHighlights,
-    onRestoredSubmission,
+    onAttemptRestored,
     pathname,
     setItems,
     userId,
@@ -263,13 +240,8 @@ export function useReadingAttempt({
   return {
     attempt,
     clearStoredSession,
-    isSubmitting,
     resetSession,
-    result,
     setAttempt,
-    setIsSubmitting,
-    setResult,
     startAttempt,
-    submittingRef,
   };
 }
