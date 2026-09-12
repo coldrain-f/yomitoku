@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowRight,
   Star,
@@ -455,7 +455,8 @@ function PassageHighlighter({
   const passageRef = useRef<HTMLDivElement>(null);
   const actionRef = useRef<HTMLDivElement>(null);
   const floatingActionRef = useRef<HTMLButtonElement>(null);
-  const lastTouchSelectionAtRef = useRef(0);
+  const selectionTimerRef = useRef<number | null>(null);
+  const preservePendingSelectionUntilRef = useRef(0);
   const [pending, setPending] = useState<PendingHighlight | null>(null);
   const [activeHighlight, setActiveHighlight] = useState<HighlightAction | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -464,55 +465,31 @@ function PassageHighlighter({
   const [error, setError] = useState("");
   const sourceText = normalizedPassageText(passage);
 
-  useEffect(() => {
-    const dismiss = (event: PointerEvent) => {
-      const target = event.target;
-      if (
-        target instanceof Node &&
-        (actionRef.current?.contains(target) ||
-          floatingActionRef.current?.contains(target))
-      ) {
-        return;
-      }
-      setPending(null);
-      setActiveHighlight(null);
-    };
-    const hideOnViewportChange = () => {
-      setPending(null);
-      setActiveHighlight(null);
-    };
-    document.addEventListener("pointerdown", dismiss);
-    window.addEventListener("scroll", hideOnViewportChange, true);
-    window.addEventListener("resize", hideOnViewportChange);
-    return () => {
-      document.removeEventListener("pointerdown", dismiss);
-      window.removeEventListener("scroll", hideOnViewportChange, true);
-      window.removeEventListener("resize", hideOnViewportChange);
-    };
-  }, []);
-
-  const captureSelection = (preferMobilePlacement = false) => {
-    if (preferMobilePlacement) {
-      lastTouchSelectionAtRef.current = Date.now();
-    } else if (Date.now() - lastTouchSelectionAtRef.current < 800) {
-      return;
+  const captureSelection = useCallback(() => {
+    if (selectionTimerRef.current !== null) {
+      window.clearTimeout(selectionTimerRef.current);
     }
-    window.setTimeout(() => {
+    selectionTimerRef.current = window.setTimeout(() => {
+      selectionTimerRef.current = null;
+      const clearPendingSelection = () => {
+        if (Date.now() < preservePendingSelectionUntilRef.current) return;
+        setPending(null);
+      };
       const root = passageRef.current;
       const selection = window.getSelection();
       if (!root || !selection || selection.rangeCount === 0 || selection.isCollapsed) {
-        setPending(null);
+        clearPendingSelection();
         return;
       }
       const range = selection.getRangeAt(0);
       if (!root.contains(range.commonAncestorContainer)) {
-        setPending(null);
+        clearPendingSelection();
         return;
       }
 
       const selectedText = normalizedPassageText(range.toString());
       if (!selectedText.trim()) {
-        setPending(null);
+        clearPendingSelection();
         return;
       }
       const beforeSelection = document.createRange();
@@ -521,7 +498,7 @@ function PassageHighlighter({
       const startOffset = normalizedPassageText(beforeSelection.toString()).length;
       const endOffset = startOffset + selectedText.length;
       if (sourceText.slice(startOffset, endOffset) !== selectedText) {
-        setPending(null);
+        clearPendingSelection();
         return;
       }
       const overlapsExistingHighlight = highlights.some(
@@ -529,11 +506,12 @@ function PassageHighlighter({
           startOffset < highlight.endOffset && highlight.startOffset < endOffset,
       );
       if (overlapsExistingHighlight) {
-        setPending(null);
+        clearPendingSelection();
         return;
       }
 
       const rectangle = range.getBoundingClientRect();
+      const preferMobilePlacement = window.matchMedia("(max-width: 760px)").matches;
       const left = Math.min(
         Math.max(rectangle.left + rectangle.width / 2, 72),
         window.innerWidth - 72,
@@ -559,6 +537,44 @@ function PassageHighlighter({
             : "above",
       });
     }, 0);
+  }, [highlights, sourceText]);
+
+  useEffect(() => {
+    const dismiss = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        (actionRef.current?.contains(target) ||
+          floatingActionRef.current?.contains(target))
+      ) {
+        return;
+      }
+      window.getSelection()?.removeAllRanges();
+      setPending(null);
+      setActiveHighlight(null);
+    };
+    const hideOnViewportChange = () => {
+      window.getSelection()?.removeAllRanges();
+      setPending(null);
+      setActiveHighlight(null);
+    };
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("selectionchange", captureSelection);
+    window.addEventListener("scroll", hideOnViewportChange, true);
+    window.addEventListener("resize", hideOnViewportChange);
+    return () => {
+      document.removeEventListener("pointerdown", dismiss);
+      document.removeEventListener("selectionchange", captureSelection);
+      window.removeEventListener("scroll", hideOnViewportChange, true);
+      window.removeEventListener("resize", hideOnViewportChange);
+      if (selectionTimerRef.current !== null) {
+        window.clearTimeout(selectionTimerRef.current);
+      }
+    };
+  }, [captureSelection]);
+
+  const preservePendingSelection = () => {
+    preservePendingSelectionUntilRef.current = Date.now() + 300;
   };
 
   const createHighlight = async () => {
@@ -685,9 +701,6 @@ function PassageHighlighter({
       <div
         className="passage passage-highlightable"
         ref={passageRef}
-        onMouseUp={() => captureSelection()}
-        onTouchEnd={() => captureSelection(true)}
-        onKeyUp={() => captureSelection()}
       >
         <p>{content}</p>
       </div>
@@ -697,6 +710,7 @@ function PassageHighlighter({
             pending.placement === "bottom" ? " passage-highlight-action-bottom" : ""
           }`}
           ref={actionRef}
+          onPointerDown={preservePendingSelection}
           style={
             pending.placement === "bottom"
               ? undefined
@@ -713,6 +727,7 @@ function PassageHighlighter({
         className={`passage-highlight-fab${pending ? " is-ready" : ""}`}
         ref={floatingActionRef}
         type="button"
+        onPointerDown={preservePendingSelection}
         aria-label={
           pending
             ? isSaving
