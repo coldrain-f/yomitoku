@@ -6,7 +6,6 @@ import {
   Routes,
   useLocation,
   useNavigate,
-  useParams,
   useSearchParams,
 } from "react-router-dom";
 import {
@@ -14,9 +13,9 @@ import {
   AdminScreen,
   GenerateScreen,
   ManualCreateScreen,
-  PreviewScreen,
 } from "./features/admin/AdminScreens";
 import { AdminEditRoute } from "./features/admin/AdminEditRoute";
+import { AdminPreviewRoute } from "./features/admin/AdminPreviewRoute";
 import { ReadingListScreen } from "./features/readings/ReadingScreens";
 import { ReadingRoute, ResultRoute } from "./features/readings/ReadingRoutes";
 import {
@@ -236,33 +235,6 @@ function RequireAdmin({
   children: ReactNode;
 }) {
   return authenticated && role === "admin" ? children : <Navigate to="/" replace />;
-}
-
-function PreviewRoute({
-  items,
-  onHold,
-  onPublish,
-  onDelete,
-  onBack,
-}: {
-  items: ReadingItem[];
-  onHold: (item: ReadingItem) => void;
-  onPublish: (item: ReadingItem) => void;
-  onDelete: (item: ReadingItem) => void;
-  onBack: () => void;
-}) {
-  const { itemId } = useParams();
-  const item = items.find((entry) => entry.id === itemId);
-  if (!item) return <Navigate to="/admin/readings" replace />;
-  return (
-    <PreviewScreen
-      item={item}
-      onHold={() => onHold(item)}
-      onPublish={() => onPublish(item)}
-      onDelete={() => onDelete(item)}
-      onBack={onBack}
-    />
-  );
 }
 
 export default function App() {
@@ -1332,7 +1304,7 @@ export default function App() {
           <Route path="/admin/readings/manual" element={<RequireAdmin authenticated={authenticated} role={role}><ManualCreateScreen values={manualDraft} setValues={setManualDraft} isSaving={isManualSaving} error={manualError} onSave={() => void createManualReading()} onBack={leaveManualCreate} onSuggestTitle={suggestTitle} onSuggestTopic={suggestTopic} onSuggestExplanation={suggestExplanation} onConfirmQuestionTruncation={confirmQuestionTruncation} /></RequireAdmin>} />
           <Route path="/admin/readings/new" element={<RequireAdmin authenticated={authenticated} role={role}><GenerateScreen values={generation} setValues={setGeneration} modelOptions={generationModels} modelError={generationModelsError} isCreating={isGenerating} progressLabel={generationProgress} error={generationJob.error} onCreate={createDraft} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
           <Route path="/admin/readings/:itemId/edit" element={<RequireAdmin authenticated={authenticated} role={role}><AdminEditRoute items={adminItems} draft={draft} setDraft={setDraft} onSave={() => draft && void updateAdminItem(draft)} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={leaveEditor} isSaving={isAdminSaving} onConfirmQuestionTruncation={confirmQuestionTruncation} onSuggestTitleRequest={suggestTitle} onSuggestTopicRequest={suggestTopic} onSuggestExplanationRequest={suggestExplanation} /></RequireAdmin>} />
-          <Route path="/admin/readings/:itemId/preview" element={<RequireAdmin authenticated={authenticated} role={role}><PreviewRoute items={adminItems} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
+          <Route path="/admin/readings/:itemId/preview" element={<RequireAdmin authenticated={authenticated} role={role}><AdminPreviewRoute items={adminItems} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>}
       </div>
