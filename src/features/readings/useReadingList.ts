@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type ReadingListRequest } from "../../lib/api";
 import type { ListFilters, ReadingItem } from "../../types";
+import { useReadingListFilters } from "./useReadingListFilters";
 
 type ErrorMessage = (error: unknown, fallbackKey: string) => string;
 
@@ -8,9 +9,7 @@ interface ReadingListOptions {
   authenticated: boolean;
   enabled: boolean;
   errorMessage: ErrorMessage;
-  filters: ListFilters;
   pageSize: number;
-  query: string;
 }
 
 function publicSortParameter(
@@ -32,9 +31,7 @@ export function useReadingList({
   authenticated,
   enabled,
   errorMessage,
-  filters,
   pageSize,
-  query,
 }: ReadingListOptions) {
   const [items, setItems] = useState<ReadingItem[]>([]);
   const [page, setPage] = useState(1);
@@ -43,6 +40,13 @@ export function useReadingList({
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const requestRef = useRef(0);
+  const {
+    clearBookmarkFilter,
+    filters,
+    query,
+    setFilters,
+    setQuery,
+  } = useReadingListFilters({ resetPage: () => setPage(1) });
 
   const load = async (requestedPage = page) => {
     const requestId = ++requestRef.current;
@@ -102,12 +106,17 @@ export function useReadingList({
 
   return {
     error,
+    clearBookmarkFilter,
+    filters,
     isLoading,
     items,
     load,
     page,
+    query,
     setItems,
+    setFilters,
     setPage,
+    setQuery,
     totalItems,
     totalPages,
   };

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import {
   Navigate,
@@ -6,7 +6,6 @@ import {
   Routes,
   useLocation,
   useNavigate,
-  useSearchParams,
 } from "react-router-dom";
 import {
   GenerationHistoryScreen,
@@ -34,6 +33,7 @@ import {
   useGenerationResources,
 } from "./features/admin/useAdminResources";
 import { useAdminReadingActions } from "./features/admin/useAdminReadingActions";
+import { useFilterDraft } from "./hooks/useFilterDraft";
 import { AppDialogContent } from "./components/AppDialogContent";
 import { AppHeader } from "./components/AppHeader";
 import { Breadcrumb } from "./components/ui/Breadcrumb";
@@ -58,83 +58,19 @@ import {
 import { formatTime } from "./lib/reading";
 import { useI18n } from "./lib/i18n";
 import type {
-  AdminFilters,
   AttemptRecord,
   DialogConfig,
   FeedbackValues,
   GenerationValues,
   HighlightRemovalConfirmation,
-  ListFilters,
   ManualReadingDraft,
   PassageHighlight,
   ReadingItem,
-  ReadingLanguage,
   Role,
   Screen,
 } from "./types";
 
-const defaultListFilters: ListFilters = {
-  language: defaultGenerationLanguage,
-  bookmarked: false,
-  level: "all",
-  length: "all",
-  status: "all",
-  firstSubmissionTime: "all",
-  sort: "published-desc",
-};
-const defaultAdminFilters: AdminFilters = {
-  language: defaultGenerationLanguage,
-  level: "all",
-  length: "all",
-  topic: "all",
-  status: "all",
-  sort: "created-desc",
-};
-const listFiltersStorageKey = "yomitoku.list-filters";
-const adminFiltersStorageKey = "yomitoku.admin-filters";
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
-
-function normalizeReadingLanguage(value: unknown): ReadingLanguage {
-  return value === "ko" ? "ko" : defaultGenerationLanguage;
-}
-
-function normalizeLearningResultFilter(value: unknown): ListFilters["status"] {
-  return ["all", "unstarted", "wrong", "score-100", "score-90", "score-80"].includes(
-    value as string,
-  )
-    ? value as ListFilters["status"]
-    : "all";
-}
-
-function normalizeFirstSubmissionTimeFilter(
-  value: unknown,
-): ListFilters["firstSubmissionTime"] {
-  return ["all", "on-time", "timed-out"].includes(value as string)
-    ? value as ListFilters["firstSubmissionTime"]
-    : "all";
-}
-
-function readStoredFilters<T extends object>(key: string, fallback: T): T {
-  try {
-    const stored = window.sessionStorage.getItem(key);
-    if (!stored) return fallback;
-    const parsed = JSON.parse(stored);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return fallback;
-    }
-    return { ...fallback, ...parsed } as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function storeFilters(key: string, filters: object) {
-  try {
-    window.sessionStorage.setItem(key, JSON.stringify(filters));
-  } catch {
-    // Filter controls remain usable when browser storage is unavailable.
-  }
-}
 
 function generationProgressLabel(job: GenerationJob, t: (key: string) => string) {
   if (job.status === "queued") return t("admin.progressQueued");
@@ -241,7 +177,6 @@ export default function App() {
   const { t, levelLabel, lengthLabel, topicLabel, errorMessage } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
   const screen = screenForPath(location.pathname);
   const {
     authenticated,
@@ -262,37 +197,6 @@ export default function App() {
   const [bookmarkingItemIds, setBookmarkingItemIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const storedListFilters = useMemo(
-    () => readStoredFilters(listFiltersStorageKey, defaultListFilters),
-    [searchParams],
-  );
-  const filters = useMemo<ListFilters>(
-    () => ({
-      language: normalizeReadingLanguage(
-        searchParams.get("language") ?? storedListFilters.language,
-      ),
-      bookmarked: searchParams.has("bookmarked")
-        ? searchParams.get("bookmarked") === "true"
-        : Boolean(storedListFilters.bookmarked),
-      level:
-        (searchParams.get("level") as ListFilters["level"] | null) ??
-        storedListFilters.level,
-      length:
-        (searchParams.get("length") as ListFilters["length"] | null) ??
-        storedListFilters.length,
-      status: normalizeLearningResultFilter(
-        searchParams.get("status") ?? storedListFilters.status,
-      ),
-      firstSubmissionTime: normalizeFirstSubmissionTimeFilter(
-        searchParams.get("time") ?? storedListFilters.firstSubmissionTime,
-      ),
-      sort:
-        (searchParams.get("sort") as ListFilters["sort"] | null) ??
-        storedListFilters.sort,
-    }),
-    [searchParams, storedListFilters],
-  );
-  const query = searchParams.get("q") ?? "";
   const {
     collection: highlightCollection,
     error: highlightCollectionError,
@@ -308,25 +212,32 @@ export default function App() {
     setQuery: setHighlightQuery,
   } = useHighlightCollection(errorMessage);
   const {
+    clearBookmarkFilter,
     error: listError,
+    filters,
     isLoading: isListLoading,
     items,
     load: loadPublicItems,
     page: listPage,
+    query,
+    setFilters: setListFilters,
     setItems,
     setPage: setListPage,
+    setQuery: setListQuery,
     totalItems: listTotalItems,
     totalPages: listTotalPages,
   } = useReadingList({
     authenticated,
     enabled: !authLoading,
     errorMessage,
-    filters,
     pageSize: listPageSize,
-    query,
   });
-  const [filterDraft, setFilterDraft] = useState(filters);
-  const filterDraftRef = useRef(filterDraft);
+  const {
+    draft: filterDraft,
+    draftRef: filterDraftRef,
+    replaceDraft: replaceFilterDraft,
+    setDraft: setFilterDraft,
+  } = useFilterDraft(filters);
   const [dialog, setDialog] = useState<DialogConfig | null>(null);
   const [pendingStart, setPendingStart] = useState<ReadingItem | null>(null);
   const [toast, setToast] = useState("");
@@ -351,23 +262,17 @@ export default function App() {
     page: adminPage,
     query: adminQuery,
     replaceItem: replaceAdminItem,
-    setFilters: setAdminFilters,
     setItems: setAdminItems,
     setPage: setAdminPage,
-    setQuery: setAdminQuery,
     totalItems: adminTotalItems,
     totalPages: adminTotalPages,
     load: loadAdminItems,
+    updateFilters: updateAdminFilters,
+    updateQuery: updateAdminQuery,
   } = useAdminReadingList({
     enabled: authenticated && role === "admin",
-    defaultFilters: defaultAdminFilters,
     errorMessage,
-    normalizeFilters: (stored) => ({
-      ...stored,
-      language: normalizeReadingLanguage(stored.language),
-    }),
     pageSize: listPageSize,
-    storageKey: adminFiltersStorageKey,
   });
   const {
     deleteAdminItem,
@@ -395,8 +300,12 @@ export default function App() {
     replaceAdminItem,
     validateManualDraft: (item) => validateManualReadingDraft(item, t),
   });
-  const [adminFilterDraft, setAdminFilterDraft] = useState(adminFilters);
-  const adminFilterDraftRef = useRef(adminFilterDraft);
+  const {
+    draft: adminFilterDraft,
+    draftRef: adminFilterDraftRef,
+    replaceDraft: replaceAdminFilterDraft,
+    setDraft: setAdminFilterDraft,
+  } = useFilterDraft(adminFilters);
   const {
     history: generationHistory,
     historyError: generationHistoryError,
@@ -592,12 +501,6 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
   useEffect(() => {
-    filterDraftRef.current = filterDraft;
-  }, [filterDraft]);
-  useEffect(() => {
-    adminFilterDraftRef.current = adminFilterDraft;
-  }, [adminFilterDraft]);
-  useEffect(() => {
     reportTextRef.current = reportText;
   }, [reportText]);
   useEffect(() => {
@@ -625,47 +528,6 @@ export default function App() {
         onConfirm();
       },
     });
-  const writeListParams = (
-    next: ListFilters & { query: string },
-    { replace = false }: { replace?: boolean } = {},
-  ) => {
-    storeFilters(listFiltersStorageKey, {
-      language: next.language,
-      bookmarked: next.bookmarked,
-      level: next.level,
-      length: next.length,
-      status: next.status,
-      firstSubmissionTime: next.firstSubmissionTime,
-      sort: next.sort,
-    });
-    const params = new URLSearchParams();
-    if (next.query) params.set("q", next.query);
-    params.set("language", next.language);
-    if (next.bookmarked) params.set("bookmarked", "true");
-    if (next.level !== "all") params.set("level", next.level);
-    if (next.length !== "all") params.set("length", next.length);
-    if (next.status !== "all") params.set("status", next.status);
-    if (next.firstSubmissionTime !== "all") {
-      params.set("time", next.firstSubmissionTime);
-    }
-    if (next.sort !== "published-desc") params.set("sort", next.sort);
-    setSearchParams(params, { replace });
-  };
-  const setListFilters = (next: ListFilters) => {
-    setListPage(1);
-    writeListParams({ ...next, query });
-  };
-  const setListQuery = (nextQuery: string) => {
-    setListPage(1);
-    writeListParams({ ...filters, query: nextQuery }, { replace: true });
-  };
-  const updateAdminFilters = (
-    next: AdminFilters | ((current: AdminFilters) => AdminFilters),
-  ) => {
-    setAdminPage(1);
-    setAdminFilters(next);
-  };
-
   const openStartDialog = (item: ReadingItem) => {
     const hasScore = item.myScore !== null;
     const hasPreviousSubmission = hasScore || item.myLatestStatus !== null;
@@ -804,7 +666,7 @@ export default function App() {
     });
 
   const openListFilters = () => {
-    setFilterDraft(filters);
+    replaceFilterDraft(filters);
     openDialog({
       type: "list-filter",
       kicker: t("filters.kicker"),
@@ -824,8 +686,7 @@ export default function App() {
           firstSubmissionTime: "all" as const,
           sort: "published-desc" as const,
         };
-        filterDraftRef.current = reset;
-        setFilterDraft(reset);
+        replaceFilterDraft(reset);
       },
     });
   };
@@ -870,7 +731,7 @@ export default function App() {
     });
   };
   const openAdminFilters = () => {
-    setAdminFilterDraft(adminFilters);
+    replaceAdminFilterDraft(adminFilters);
     openDialog({
       type: "admin-filter",
       kicker: t("admin.filterKicker"),
@@ -890,8 +751,7 @@ export default function App() {
           status: "all" as const,
           sort: "created-desc" as const,
         };
-        adminFilterDraftRef.current = reset;
-        setAdminFilterDraft(reset);
+        replaceAdminFilterDraft(reset);
       },
     });
   };
@@ -1049,9 +909,7 @@ export default function App() {
     resetHighlightCollection();
     setHighlightRemoval(null);
     setBookmarkingItemIds(new Set());
-    if (filters.bookmarked) {
-      writeListParams({ ...filters, bookmarked: false, query });
-    }
+    clearBookmarkFilter();
     navigate("/");
     setToast(t("auth.logout"));
   };
@@ -1299,7 +1157,7 @@ export default function App() {
           <Route path="/readings/:itemId" element={<RequireAuth authenticated={authenticated}><ReadingRoute items={items} attempt={attempt} result={result} onChoose={chooseAnswer} onSubmit={submit} isSubmitting={isSubmitting} onAbandon={goHome} onReport={openReport} onTranslate={openTranslation} onResult={() => result && navigate(`/results/${result.itemId}`)} highlights={attempt ? passageHighlights[attempt.itemId] ?? [] : []} onCreateHighlight={(startOffset, endOffset, selectedText) => attempt ? createPassageHighlight(attempt.itemId, startOffset, endOffset, selectedText) : Promise.reject(new Error(t("reading.noActiveAttempt")))} onDeleteHighlight={(highlightId) => attempt ? deletePassageHighlight(attempt.itemId, highlightId) : Promise.reject(new Error(t("reading.noActiveAttempt")))} /></RequireAuth>} />
           <Route path="/results/:itemId" element={<RequireAuth authenticated={authenticated}><ResultRoute result={result} onFeedback={openFeedback} onReview={() => result && navigate(`/readings/${result.itemId}`)} onContinue={continueReading} onHome={goHome} /></RequireAuth>} />
           <Route path="/statistics" element={<RequireAuth authenticated={authenticated}><StatsScreen statistics={statistics} /></RequireAuth>} />
-          <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} error={adminListError} page={adminPage} totalPages={adminTotalPages} totalItems={adminTotalItems} onPageChange={setAdminPage} filters={adminFilters} query={adminQuery} setQuery={(nextQuery) => { setAdminPage(1); setAdminQuery(nextQuery); }} onLanguageChange={(language) => updateAdminFilters((current) => ({ ...current, language, level: "all" }))} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => { void loadGenerationModels(); navigate("/admin/readings/new"); }} onManualCreate={() => { resetManualDraft(); navigate("/admin/readings/manual"); }} onHistory={() => { void loadGenerationHistory(); navigate("/admin/generation-history"); }} /></RequireAdmin>} />
+          <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} error={adminListError} page={adminPage} totalPages={adminTotalPages} totalItems={adminTotalItems} onPageChange={setAdminPage} filters={adminFilters} query={adminQuery} setQuery={updateAdminQuery} onLanguageChange={(language) => updateAdminFilters((current) => ({ ...current, language, level: "all" }))} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => { void loadGenerationModels(); navigate("/admin/readings/new"); }} onManualCreate={() => { resetManualDraft(); navigate("/admin/readings/manual"); }} onHistory={() => { void loadGenerationHistory(); navigate("/admin/generation-history"); }} /></RequireAdmin>} />
           <Route path="/admin/generation-history" element={<RequireAdmin authenticated={authenticated} role={role}><GenerationHistoryScreen items={generationHistory} loading={isGenerationHistoryLoading} error={generationHistoryError} page={generationHistoryPage} totalPages={generationHistoryTotalPages} totalItems={generationHistoryTotalItems} onPageChange={(page) => void loadGenerationHistory(page)} onRefresh={() => void loadGenerationHistory(generationHistoryPage)} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
           <Route path="/admin/readings/manual" element={<RequireAdmin authenticated={authenticated} role={role}><ManualCreateScreen values={manualDraft} setValues={setManualDraft} isSaving={isManualSaving} error={manualError} onSave={() => void createManualReading()} onBack={leaveManualCreate} onSuggestTitle={suggestTitle} onSuggestTopic={suggestTopic} onSuggestExplanation={suggestExplanation} onConfirmQuestionTruncation={confirmQuestionTruncation} /></RequireAdmin>} />
           <Route path="/admin/readings/new" element={<RequireAdmin authenticated={authenticated} role={role}><GenerateScreen values={generation} setValues={setGeneration} modelOptions={generationModels} modelError={generationModelsError} isCreating={isGenerating} progressLabel={generationProgress} error={generationJob.error} onCreate={createDraft} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />

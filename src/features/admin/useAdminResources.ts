@@ -5,17 +5,33 @@ import {
   type GenerationJobHistory,
   type GenerationModelOptions,
 } from "../../lib/api";
+import { readStoredFilters, storeFilters } from "../../lib/filterStorage";
+import { defaultGenerationLanguage } from "../../lib/readingPolicy";
 import type { AdminFilters, GenerationValues, ReadingItem } from "../../types";
 
 type ErrorMessage = (error: unknown, fallbackKey: string) => string;
 
 interface AdminReadingListOptions {
   enabled: boolean;
-  defaultFilters: AdminFilters;
   errorMessage: ErrorMessage;
-  normalizeFilters?: (filters: AdminFilters) => AdminFilters;
   pageSize: number;
-  storageKey: string;
+}
+
+const adminFiltersStorageKey = "yomitoku.admin-filters";
+const defaultAdminFilters: AdminFilters = {
+  language: defaultGenerationLanguage,
+  level: "all",
+  length: "all",
+  topic: "all",
+  status: "all",
+  sort: "created-desc",
+};
+
+function normalizeAdminFilters(filters: AdminFilters): AdminFilters {
+  return {
+    ...filters,
+    language: filters.language === "ko" ? "ko" : defaultGenerationLanguage,
+  };
 }
 
 function adminSortParameter(
@@ -35,33 +51,10 @@ function adminSortParameter(
   } as const)[sort];
 }
 
-function readStoredFilters<T extends object>(key: string, fallback: T): T {
-  try {
-    const stored = window.sessionStorage.getItem(key);
-    if (!stored) return fallback;
-    const parsed: unknown = JSON.parse(stored);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return fallback;
-    return { ...fallback, ...parsed } as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function storeFilters(key: string, filters: object) {
-  try {
-    window.sessionStorage.setItem(key, JSON.stringify(filters));
-  } catch {
-    // Filter controls remain usable when browser storage is unavailable.
-  }
-}
-
 export function useAdminReadingList({
   enabled,
-  defaultFilters,
   errorMessage,
-  normalizeFilters = (filters) => filters,
   pageSize,
-  storageKey,
 }: AdminReadingListOptions) {
   const [items, setItems] = useState<ReadingItem[]>([]);
   const [page, setPage] = useState(1);
@@ -72,7 +65,7 @@ export function useAdminReadingList({
   const [loaded, setLoaded] = useState(false);
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<AdminFilters>(() =>
-    normalizeFilters(readStoredFilters(storageKey, defaultFilters)),
+    normalizeAdminFilters(readStoredFilters(adminFiltersStorageKey, defaultAdminFilters)),
   );
   const requestRef = useRef(0);
 
@@ -115,13 +108,22 @@ export function useAdminReadingList({
     );
 
   useEffect(() => {
-    storeFilters(storageKey, filters);
-  }, [filters, storageKey]);
+    storeFilters(adminFiltersStorageKey, filters);
+  }, [filters]);
 
   useEffect(() => {
     if (!enabled) return;
     void load();
   }, [enabled, filters, page, query]);
+
+  const updateFilters = (next: SetStateAction<AdminFilters>) => {
+    setPage(1);
+    setFilters(next);
+  };
+  const updateQuery = (next: string) => {
+    setPage(1);
+    setQuery(next);
+  };
 
   return {
     error,
@@ -132,13 +134,13 @@ export function useAdminReadingList({
     page,
     query,
     replaceItem,
-    setFilters,
     setItems,
     setPage,
-    setQuery,
     totalItems,
     totalPages,
     load,
+    updateFilters,
+    updateQuery,
   };
 }
 
