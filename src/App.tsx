@@ -17,11 +17,8 @@ import {
   PreviewScreen,
 } from "./features/admin/AdminScreens";
 import { AdminEditRoute } from "./features/admin/AdminEditRoute";
-import {
-  ReadingListScreen,
-  ReadingScreen,
-  ResultScreen,
-} from "./features/readings/ReadingScreens";
+import { ReadingListScreen } from "./features/readings/ReadingScreens";
+import { ReadingRoute, ResultRoute } from "./features/readings/ReadingRoutes";
 import {
   useHighlightCollection,
 } from "./features/readings/useHighlightCollection";
@@ -71,10 +68,8 @@ import type {
   ListFilters,
   ManualReadingDraft,
   PassageHighlight,
-  ReadingAttempt,
   ReadingItem,
   ReadingLanguage,
-  ReadingResult,
   Role,
   Screen,
 } from "./types";
@@ -241,89 +236,6 @@ function RequireAdmin({
   children: ReactNode;
 }) {
   return authenticated && role === "admin" ? children : <Navigate to="/" replace />;
-}
-
-function ReadingRoute({
-  items,
-  attempt,
-  result,
-  onChoose,
-  onSubmit,
-  isSubmitting,
-  onAbandon,
-  onReport,
-  onTranslate,
-  onResult,
-  highlights,
-  onCreateHighlight,
-  onDeleteHighlight,
-}: {
-  items: ReadingItem[];
-  attempt: ReadingAttempt | null;
-  result: ReadingResult | null;
-  onChoose: (questionId: string, choiceId: string) => void;
-  onSubmit: () => void;
-  isSubmitting: boolean;
-  onAbandon: () => void;
-  onReport: () => void;
-  onTranslate: () => void;
-  onResult: () => void;
-  highlights: PassageHighlight[];
-  onCreateHighlight: (
-    startOffset: number,
-    endOffset: number,
-    selectedText: string,
-  ) => Promise<PassageHighlight>;
-  onDeleteHighlight: (highlightId: string) => Promise<void>;
-}) {
-  const { itemId } = useParams();
-  const item =
-    items.find((entry) => entry.id === itemId) ??
-    (result && result.itemId === itemId ? result.item : undefined);
-  if (!item || attempt?.itemId !== item.id) return <Navigate to="/" replace />;
-  return (
-    <ReadingScreen
-      item={item}
-      attempt={attempt}
-      result={result}
-      onChoose={onChoose}
-      onSubmit={onSubmit}
-      isSubmitting={isSubmitting}
-      onAbandon={onAbandon}
-      onReport={onReport}
-      onTranslate={onTranslate}
-      onResult={onResult}
-      highlights={highlights}
-      onCreateHighlight={onCreateHighlight}
-      onDeleteHighlight={onDeleteHighlight}
-    />
-  );
-}
-
-function ResultRoute({
-  result,
-  onFeedback,
-  onReview,
-  onContinue,
-  onHome,
-}: {
-  result: ReadingResult | null;
-  onFeedback: () => void;
-  onReview: () => void;
-  onContinue: () => void;
-  onHome: () => void;
-}) {
-  const { itemId } = useParams();
-  if (!result || result.itemId !== itemId) return <Navigate to="/" replace />;
-  return (
-    <ResultScreen
-      result={result}
-      onFeedback={onFeedback}
-      onReview={onReview}
-      onContinue={onContinue}
-      onHome={onHome}
-    />
-  );
 }
 
 function PreviewRoute({
