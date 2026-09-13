@@ -1,8 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { api } from "../../lib/api";
+import type { ErrorMessage } from "../../lib/i18n";
 import type { Choice, ManualReadingDraft, ReadingItem, ReadingLanguage, Topic } from "../../types";
-
-type ErrorMessage = (error: unknown, fallbackKey: string) => string;
 
 interface AdminReadingActionsOptions {
   createManualDraft: () => ManualReadingDraft;

@@ -7,8 +7,7 @@ import type {
 
 export type UiLocale = "ko" | "ja";
 
-export const messages: Record<UiLocale, Record<string, string>> = {
-  ko: {
+const koreanMessages = {
     "locale.ko": "한국어",
     "locale.ja": "日本語",
     "common.close": "닫기",
@@ -541,8 +540,11 @@ export const messages: Record<UiLocale, Record<string, string>> = {
     "stats.generatedBasis": "생성된 문제 기준",
     "stats.barAccuracy": "정답률",
     "stats.barAverage": "평균",
-  },
-  ja: {
+};
+
+export type TranslationKey = keyof typeof koreanMessages;
+
+const japaneseMessages = {
     "locale.ko": "한국어",
     "locale.ja": "日本語",
     "common.close": "閉じる",
@@ -1075,25 +1077,12 @@ export const messages: Record<UiLocale, Record<string, string>> = {
     "stats.generatedBasis": "生成した問題を基準",
     "stats.barAccuracy": "正答率",
     "stats.barAverage": "平均",
-  },
 };
 
-function assertTranslationKeys() {
-  const koreanKeys = Object.keys(messages.ko);
-  const japaneseKeys = new Set(Object.keys(messages.ja));
-  const missingInJapanese = koreanKeys.filter((key) => !japaneseKeys.has(key));
-  const extraInJapanese = [...japaneseKeys].filter(
-    (key) => !Object.hasOwn(messages.ko, key),
-  );
-
-  if (missingInJapanese.length || extraInJapanese.length) {
-    throw new Error(
-      `Translation keys are out of sync. Missing: ${missingInJapanese.join(", ")}; extra: ${extraInJapanese.join(", ")}`,
-    );
-  }
-}
-
-assertTranslationKeys();
+export const messages = {
+  ko: koreanMessages,
+  ja: japaneseMessages,
+} satisfies Record<UiLocale, Record<TranslationKey, string>>;
 
 export const languageNames: Record<UiLocale, Record<ReadingLanguage, string>> = {
   ko: { ja: "일본어", ko: "한국어" },

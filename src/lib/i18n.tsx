@@ -13,6 +13,7 @@ import {
   levelNames,
   messages,
   topicNames,
+  type TranslationKey,
   type UiLocale,
 } from "./i18n.messages";
 import { ApiError } from "./api";
@@ -26,11 +27,16 @@ import type {
 
 export type { UiLocale } from "./i18n.messages";
 
-type TranslationVariables = Record<string, string | number>;
+export type TranslationVariables = Record<string, string | number>;
+export type TranslationFunction = (
+  key: TranslationKey,
+  variables?: TranslationVariables,
+) => string;
+export type ErrorMessage = (error: unknown, fallbackKey: TranslationKey) => string;
 
 const localeStorageKey = "yomitoku.ui-locale";
 
-const apiErrorMessageKeys: Record<string, string> = {
+const apiErrorMessageKeys: Record<string, TranslationKey> = {
   INVALID_REQUEST: "api.invalidRequest",
   AUTHENTICATION_REQUIRED: "api.authenticationRequired",
   PERMISSION_DENIED: "api.permissionDenied",
@@ -54,23 +60,23 @@ const apiErrorMessageKeys: Record<string, string> = {
 
 function translate(
   locale: UiLocale,
-  key: string,
+  key: TranslationKey,
   variables: TranslationVariables = {},
 ) {
-  const template = messages[locale][key] ?? messages.ko[key] ?? key;
+  const template = messages[locale][key];
   return template.replace(/\{(\w+)\}/g, (_, name: string) => String(variables[name] ?? ""));
 }
 
 interface I18nContextValue {
   locale: UiLocale;
   setLocale: (locale: UiLocale) => void;
-  t: (key: string, variables?: TranslationVariables) => string;
+  t: TranslationFunction;
   languageLabel: (language: ReadingLanguage) => string;
   levelLabel: (level: DifficultyLevel) => string;
   lengthLabel: (length: LengthType) => string;
   topicLabel: (topic: Topic) => string;
   perceivedLabel: (item: Pick<ReadingItem, "perceivedVotes" | "perceivedLevel">) => string;
-  errorMessage: (error: unknown, fallbackKey: string) => string;
+  errorMessage: ErrorMessage;
 }
 
 const I18nContext = createContext<I18nContextValue | null>(null);
@@ -90,7 +96,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   }, [locale]);
 
   const t = useCallback(
-    (key: string, variables?: TranslationVariables) => translate(locale, key, variables),
+    (key: TranslationKey, variables?: TranslationVariables) => translate(locale, key, variables),
     [locale],
   );
   const value = useMemo<I18nContextValue>(

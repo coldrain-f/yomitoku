@@ -6,6 +6,13 @@ interface WelcomeScreenProps {
   onLogin: () => void;
 }
 
+const previewChoiceKeys = [
+  "welcome.previewChoice1",
+  "welcome.previewChoice2",
+  "welcome.previewChoice3",
+  "welcome.previewChoice4",
+] as const;
+
 export function WelcomeScreen({ onLogin }: WelcomeScreenProps) {
   const { t } = useI18n();
 
@@ -46,13 +53,15 @@ export function WelcomeScreen({ onLogin }: WelcomeScreenProps) {
               <div className="question-block">
                 <h3>{t("welcome.previewQuestion")}</h3>
                 <div className="answer-list">
-                  {["01", "02", "03", "04"].map((number, index) => (
+                  {previewChoiceKeys.map((key, index) => (
                     <div
                       className={`answer-choice${index === 0 ? " is-selected" : ""}`}
-                      key={number}
+                      key={key}
                     >
-                      <span className="answer-number">{number}</span>
-                      <span>{t(`welcome.previewChoice${index + 1}`)}</span>
+                      <span className="answer-number">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <span>{t(key)}</span>
                     </div>
                   ))}
                 </div>

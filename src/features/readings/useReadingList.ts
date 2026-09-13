@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type ReadingListRequest } from "../../lib/api";
+import type { ErrorMessage } from "../../lib/i18n";
 import type { ListFilters, ReadingItem } from "../../types";
 import { useReadingListFilters } from "./useReadingListFilters";
-
-type ErrorMessage = (error: unknown, fallbackKey: string) => string;
 
 interface ReadingListOptions {
   authenticated: boolean;

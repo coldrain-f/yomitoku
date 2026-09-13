@@ -1,11 +1,10 @@
 import { useRef, useState } from "react";
 import { api } from "../../lib/api";
+import type { ErrorMessage } from "../../lib/i18n";
 import type {
   HighlightCollectionPage,
   ReadingLanguage,
 } from "../../types";
-
-type ErrorMessage = (error: unknown, fallbackKey: string) => string;
 
 export const highlightCollectionPageSize = 5;
 

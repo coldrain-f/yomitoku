@@ -6,10 +6,9 @@ import {
   type GenerationModelOptions,
 } from "../../lib/api";
 import { readStoredFilters, storeFilters } from "../../lib/filterStorage";
+import type { ErrorMessage } from "../../lib/i18n";
 import { defaultGenerationLanguage } from "../../lib/readingPolicy";
 import type { AdminFilters, GenerationValues, ReadingItem } from "../../types";
-
-type ErrorMessage = (error: unknown, fallbackKey: string) => string;
 
 interface AdminReadingListOptions {
   enabled: boolean;

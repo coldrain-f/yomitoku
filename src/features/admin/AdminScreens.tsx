@@ -21,7 +21,7 @@ import { Icon } from "../../components/ui/Icon";
 import { ListPagination } from "../../components/ui/ListPagination";
 import { LoadingBar, LoadingOverlay } from "../../components/ui/LoadingBar";
 import { OptionButtons } from "../../components/ui/OptionButtons";
-import { useI18n } from "../../lib/i18n";
+import { useI18n, type TranslationFunction } from "../../lib/i18n";
 import type {
   GenerationJobHistory,
   GenerationModelOptions,
@@ -53,7 +53,7 @@ import type {
   Topic,
 } from "../../types";
 
-type Translate = (key: string, variables?: Record<string, string | number>) => string;
+type Translate = TranslationFunction;
 
 interface AdminScreenProps {
   items: ReadingItem[];

@@ -56,7 +56,7 @@ import {
   recommendedTopic,
 } from "./lib/readingPolicy";
 import { formatTime } from "./lib/reading";
-import { useI18n } from "./lib/i18n";
+import { useI18n, type TranslationFunction } from "./lib/i18n";
 import type {
   AttemptRecord,
   DialogConfig,
@@ -72,7 +72,7 @@ import type {
 
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
 
-function generationProgressLabel(job: GenerationJob, t: (key: string) => string) {
+function generationProgressLabel(job: GenerationJob, t: TranslationFunction) {
   if (job.status === "queued") return t("admin.progressQueued");
   if (job.currentNode === "generate") return t("admin.progressGenerate");
   if (job.currentNode === "validate_schema") return t("admin.progressValidateSchema");
@@ -127,7 +127,7 @@ function createManualReadingDraft(): ManualReadingDraft {
 
 function validateManualReadingDraft(
   values: ManualReadingDraft,
-  t: (key: string) => string,
+  t: TranslationFunction,
 ) {
   if (
     !values.title.trim() ||
