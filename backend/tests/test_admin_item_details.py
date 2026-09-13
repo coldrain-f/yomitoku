@@ -8,11 +8,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.api.routes.admin import (
-    get_admin_item,
-    serialize_detail,
-    update_admin_reading_item,
-)
+from app.api.routes.admin import update_admin_reading_item
 from app.core.security import CurrentUser
 from app.db.base import Base
 from app.db.models import (
@@ -25,6 +21,7 @@ from app.db.models import (
     User,
 )
 from app.schemas import AdminReadingItemUpdate
+from app.services.admin_reading_items import get_admin_item, serialize_detail
 from app.services.item_metrics import collect_item_metrics
 
 

@@ -1,10 +1,9 @@
 import math
-from datetime import UTC, datetime
 from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
-from sqlalchemy import case, delete, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -13,12 +12,6 @@ from app.core.security import CurrentUser, require_admin
 from app.db.models import (
     GenerationJob,
     GenerationUsageEvent,
-    ItemReport,
-    ItemValidation,
-    PassageHighlight,
-    ReadingChoice,
-    ReadingItem,
-    ReadingQuestion,
     User,
 )
 from app.db.session import get_session
@@ -39,91 +32,30 @@ from app.schemas import (
     GenerationJobResponse,
     GenerationModelOptionsResponse,
     GenerationUsageEventResponse,
-    ItemReportDetail,
-    ItemValidationDetail,
     LengthType,
-    ReadingChoiceInput,
     ReadingItemPage,
-    ReadingItemSummary,
     ReadingLanguage,
     ReadingLevel,
-    ReadingQuestionInput,
+)
+from app.services.admin_reading_items import (
+    AdminItemStatus,
+    create_admin_item,
+    delete_admin_item,
+    get_admin_item_detail,
+    list_admin_items,
+    update_admin_item,
+    update_admin_item_status,
 )
 from app.services.generation_jobs import ACTIVE_STATUSES
 from app.services.generation_provider import build_generation_provider
 from app.services.generation_topics import resolve_generation_topic
-from app.services.item_metrics import (
-    ItemMetrics,
-    collect_item_metrics,
-    perceived_feedback_summary_query,
-)
-from app.services.reading_policy import (
-    GENERATION_TOPICS,
-    LEVELS_BY_LANGUAGE,
-    MINIMUM_PERCEIVED_LEVEL_VOTES,
-    is_level_for_language,
-)
+from app.services.reading_policy import GENERATION_TOPICS
 from app.services.users import ensure_user
 from app.services.validation import has_choice_position_reference
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
-ItemStatus = Literal["review", "held", "published"]
 PREFERRED_GENERATION_MODEL = "claude-fable-5-1"
-MAX_QUESTIONS_BY_LENGTH: dict[LengthType, int] = {
-    "short": 1,
-    "medium": 3,
-    "long": 4,
-}
-
-
-def validate_question_count(
-    questions: list[ReadingQuestionInput], length_type: LengthType, content_source: str
-) -> None:
-    if content_source == "ai" and len(questions) != 1:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="AI 생성 문항은 문제를 하나만 가질 수 있습니다.",
-        )
-    maximum = MAX_QUESTIONS_BY_LENGTH[length_type]
-    if not 1 <= len(questions) <= maximum:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"{length_type} 유형은 문제를 1~{maximum}개 등록할 수 있습니다.",
-        )
-
-
-def validate_explanation_choice_references(
-    questions: list[ReadingQuestionInput],
-) -> None:
-    explanations = (
-        explanation
-        for question in questions
-        for explanation in (
-            question.explanation,
-            *(choice.wrong_explanation for choice in question.choices),
-        )
-    )
-    if any(has_choice_position_reference(explanation) for explanation in explanations):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=(
-                "해설에는 선택지 번호를 쓸 수 없습니다. 정답 문장과 지문의 근거를 "
-                "직접 설명해 주세요."
-            ),
-        )
-
-
-def legacy_question(
-    question: str | None,
-    explanation: str | None,
-    choices: list[ReadingChoiceInput] | None,
-) -> ReadingQuestionInput:
-    return ReadingQuestionInput(
-        question=question or "",
-        explanation=explanation or "",
-        choices=choices or [],
-    )
 
 
 def serialize_generation_job(job: GenerationJob) -> GenerationJobResponse:
@@ -192,179 +124,6 @@ def serialize_generation_job_history(
             event.usage_status == "recorded" for event in usage_events
         ),
     )
-
-
-async def get_admin_item(session: AsyncSession, item_id: UUID) -> ReadingItem:
-    item = await session.scalar(
-        select(ReadingItem)
-        .where(ReadingItem.id == item_id)
-        .options(
-            selectinload(ReadingItem.choices),
-            selectinload(ReadingItem.questions).selectinload(ReadingQuestion.choices),
-        )
-    )
-    if not item:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Item not found."
-        )
-    return item
-
-
-def serialize_summary(
-    item: ReadingItem,
-    metrics: ItemMetrics,
-) -> ReadingItemSummary:
-    perceived_level = metrics["perceived_level"]
-    vote_count = int(metrics["perceived_vote_count"] or 0)
-    return ReadingItemSummary(
-        id=item.id,
-        title=item.title,
-        language=item.language,
-        official_level=item.official_level,
-        length_type=item.length_type,
-        topic=item.topic,
-        recommended_seconds=item.recommended_seconds,
-        content_source=item.content_source,
-        status=item.status,
-        published_at=item.published_at,
-        created_at=item.created_at,
-        updated_at=item.updated_at,
-        perceived_level=perceived_level if isinstance(perceived_level, str) else None,
-        perceived_level_visible=vote_count >= MINIMUM_PERCEIVED_LEVEL_VOTES,
-        perceived_vote_count=vote_count,
-        item_accuracy=(
-            float(metrics["item_accuracy"])
-            if metrics["item_accuracy"] is not None
-            else None
-        ),
-    )
-
-
-async def serialize_detail(
-    session: AsyncSession,
-    item: ReadingItem,
-    metrics: ItemMetrics,
-) -> AdminReadingItemDetail:
-    summary = serialize_summary(item, metrics)
-    reports = list(
-        await session.scalars(
-            select(ItemReport)
-            .where(ItemReport.reading_item_id == item.id)
-            .order_by(ItemReport.created_at.desc(), ItemReport.id.desc())
-        )
-    )
-    validations = list(
-        await session.scalars(
-            select(ItemValidation)
-            .where(ItemValidation.reading_item_id == item.id)
-            .order_by(ItemValidation.created_at.asc(), ItemValidation.id.asc())
-        )
-    )
-    highlight_count = int(
-        await session.scalar(
-            select(func.count())
-            .select_from(PassageHighlight)
-            .where(PassageHighlight.reading_item_id == item.id)
-        )
-        or 0
-    )
-    return AdminReadingItemDetail(
-        **summary.model_dump(),
-        passage=item.passage,
-        question=item.question,
-        explanation=item.explanation,
-        choices=[
-            ReadingChoiceInput(
-                id=choice.id,
-                text=choice.text,
-                is_correct=choice.is_correct,
-                wrong_explanation=choice.wrong_explanation,
-            )
-            for choice in item.choices
-        ],
-        questions=[
-            ReadingQuestionInput(
-                id=question.id,
-                question=question.question,
-                explanation=question.explanation,
-                choices=[
-                    ReadingChoiceInput(
-                        id=choice.id,
-                        text=choice.text,
-                        is_correct=choice.is_correct,
-                        wrong_explanation=choice.wrong_explanation,
-                    )
-                    for choice in question.choices
-                ],
-            )
-            for question in item.questions
-        ],
-        quality_average=(
-            float(metrics["quality_average"])
-            if metrics["quality_average"] is not None
-            else None
-        ),
-        report_count=int(metrics["report_count"] or 0),
-        challenger_count=int(metrics["challenger_count"] or 0),
-        highlight_count=highlight_count,
-        reports=[
-            ItemReportDetail(
-                id=report.id,
-                content=report.content,
-                status=report.status,
-                created_at=report.created_at,
-            )
-            for report in reports
-        ],
-        validations=[
-            ItemValidationDetail(
-                validator_role=validation.validator_role,
-                model_id=validation.model_id,
-                status=validation.status,
-                score=validation.score,
-                issue_codes=validation.issue_codes,
-                evidence=validation.evidence,
-                created_at=validation.created_at,
-            )
-            for validation in validations
-        ],
-    )
-
-
-def admin_level_order_expression():
-    ranks = {
-        level: rank
-        for levels in LEVELS_BY_LANGUAGE.values()
-        for rank, level in enumerate(levels, start=1)
-    }
-    return case(ranks, value=ReadingItem.official_level, else_=0)
-
-
-def admin_sort_clauses(sort: str, feedback_summary):
-    if sort.startswith("perceived_level"):
-        visible_rank = case(
-            (
-                feedback_summary.c.perceived_vote_count
-                >= MINIMUM_PERCEIVED_LEVEL_VOTES,
-                feedback_summary.c.perceived_rank,
-            ),
-            else_=None,
-        )
-        return (
-            (visible_rank.is_(None), visible_rank.desc())
-            if sort.endswith("desc")
-            else (visible_rank.is_(None), visible_rank.asc())
-        )
-    if sort.startswith("level"):
-        level_order = admin_level_order_expression()
-        return (level_order.desc(),) if sort.endswith("desc") else (level_order.asc(),)
-    if sort.startswith("created"):
-        return (ReadingItem.created_at.desc(),) if sort.endswith("desc") else (ReadingItem.created_at.asc(),)
-    if sort.startswith("title"):
-        return (ReadingItem.title.asc(),)
-    if sort.startswith("status"):
-        return (ReadingItem.status.asc(),)
-    return (ReadingItem.updated_at.desc(),) if sort.endswith("desc") else (ReadingItem.updated_at.asc(),)
 
 
 @router.post(
@@ -614,7 +373,7 @@ async def list_admin_reading_items(
     level: ReadingLevel | None = None,
     length: LengthType | None = None,
     topic: Annotated[str | None, Query(max_length=32)] = None,
-    item_status: Annotated[ItemStatus | None, Query(alias="status")] = None,
+    item_status: Annotated[AdminItemStatus | None, Query(alias="status")] = None,
     sort: Annotated[
         Literal[
             "updated_desc",
@@ -633,60 +392,17 @@ async def list_admin_reading_items(
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=50)] = 10,
 ) -> ReadingItemPage:
-    if language and level and not is_level_for_language(language, level):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="The selected level does not belong to the content language.",
-        )
-    filters = []
-    if q:
-        filters.append(ReadingItem.title.ilike(f"%{q.strip()}%"))
-    if level:
-        filters.append(ReadingItem.official_level == level)
-    if language:
-        filters.append(ReadingItem.language == language)
-    if length:
-        filters.append(ReadingItem.length_type == length)
-    if topic:
-        filters.append(ReadingItem.topic == topic)
-    if item_status:
-        filters.append(ReadingItem.status == item_status)
-    feedback_summary = (
-        perceived_feedback_summary_query()
-        if sort.startswith("perceived_level")
-        else None
-    )
-    total_items = int(
-        await session.scalar(
-            select(func.count()).select_from(ReadingItem).where(*filters)
-        )
-        or 0
-    )
-    total_pages = max(1, math.ceil(total_items / page_size))
-    page = min(page, total_pages)
-    statement = select(ReadingItem).where(*filters)
-    if feedback_summary is not None:
-        statement = statement.outerjoin(
-            feedback_summary,
-            feedback_summary.c.reading_item_id == ReadingItem.id,
-        )
-    items = list(
-        await session.scalars(
-            statement.options(selectinload(ReadingItem.choices))
-            .order_by(*admin_sort_clauses(sort, feedback_summary))
-            .offset((page - 1) * page_size)
-            .limit(page_size)
-        )
-    )
-    metrics_by_item = await collect_item_metrics(session, [item.id for item in items])
-    return ReadingItemPage(
-        items=[
-            serialize_summary(item, metrics_by_item[item.id]) for item in items
-        ],
+    return await list_admin_items(
+        session,
+        q=q,
+        language=language,
+        level=level,
+        length=length,
+        topic=topic,
+        item_status=item_status,
+        sort=sort,
         page=page,
         page_size=page_size,
-        total_items=total_items,
-        total_pages=total_pages,
     )
 
 
@@ -696,51 +412,7 @@ async def create_admin_reading_item(
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Annotated[CurrentUser, Depends(require_admin)],
 ) -> AdminReadingItemDetail:
-    questions = request.questions or [
-        legacy_question(request.question, request.explanation, request.choices)
-    ]
-    validate_question_count(questions, request.length_type, "manual")
-    validate_explanation_choice_references(questions)
-    first_question = questions[0]
-    item = ReadingItem(
-        title=request.title.strip(),
-        passage=request.passage.strip(),
-        question=first_question.question.strip(),
-        explanation=first_question.explanation.strip(),
-        language=request.language,
-        official_level=request.official_level,
-        length_type=request.length_type,
-        topic=request.topic.strip(),
-        recommended_seconds=request.recommended_seconds,
-        content_source="manual",
-        status="review",
-    )
-    for question_index, question in enumerate(questions, start=1):
-        target_question = ReadingQuestion(
-            question=question.question.strip(),
-            explanation=question.explanation.strip(),
-            canonical_order=question_index,
-        )
-        target_question.choices = [
-            ReadingChoice(
-                reading_item=item,
-                text=choice.text.strip(),
-                canonical_order=choice_index,
-                is_correct=choice.is_correct,
-                wrong_explanation=(
-                    choice.wrong_explanation.strip()
-                    if choice.wrong_explanation
-                    else None
-                ),
-            )
-            for choice_index, choice in enumerate(question.choices, start=1)
-        ]
-        item.questions.append(target_question)
-    session.add(item)
-    await session.commit()
-    item = await get_admin_item(session, item.id)
-    metrics = await collect_item_metrics(session, [item.id])
-    return await serialize_detail(session, item, metrics[item.id])
+    return await create_admin_item(session, request)
 
 
 @router.get("/reading-items/{item_id}", response_model=AdminReadingItemDetail)
@@ -749,9 +421,7 @@ async def get_admin_reading_item(
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Annotated[CurrentUser, Depends(require_admin)],
 ) -> AdminReadingItemDetail:
-    item = await get_admin_item(session, item_id)
-    metrics = await collect_item_metrics(session, [item.id])
-    return await serialize_detail(session, item, metrics[item.id])
+    return await get_admin_item_detail(session, item_id)
 
 
 @router.patch("/reading-items/{item_id}", response_model=AdminReadingItemDetail)
@@ -761,143 +431,7 @@ async def update_admin_reading_item(
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Annotated[CurrentUser, Depends(require_admin)],
 ) -> AdminReadingItemDetail:
-    item = await get_admin_item(session, item_id)
-    passage_changed = request.passage is not None and request.passage != item.passage
-    if passage_changed:
-        highlight_count = int(
-            await session.scalar(
-                select(func.count())
-                .select_from(PassageHighlight)
-                .where(PassageHighlight.reading_item_id == item.id)
-            )
-            or 0
-        )
-        if highlight_count:
-            if not request.clear_passage_highlights:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail={"code": "HIGHLIGHTS_REQUIRE_CONFIRMATION"},
-                )
-            await session.execute(
-                delete(PassageHighlight).where(PassageHighlight.reading_item_id == item.id)
-            )
-
-    values = request.model_dump(
-        exclude_none=True,
-        exclude={"choices", "questions", "clear_passage_highlights"},
-    )
-    for key, value in values.items():
-        setattr(
-            item,
-            key,
-            value if key == "passage" else value.strip() if isinstance(value, str) else value,
-        )
-
-    if not is_level_for_language(item.language, item.official_level):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="The selected level does not belong to the content language.",
-        )
-
-    if request.questions is not None:
-        validate_question_count(request.questions, item.length_type, item.content_source)
-        validate_explanation_choice_references(request.questions)
-        existing_questions = {question.id: question for question in item.questions}
-        next_questions: list[ReadingQuestion] = []
-        for question_index, question in enumerate(request.questions, start=1):
-            target_question = (
-                existing_questions.get(question.id) if question.id else None
-            ) or ReadingQuestion()
-            target_question.question = question.question.strip()
-            target_question.explanation = question.explanation.strip()
-            target_question.canonical_order = question_index
-            existing_choices = {choice.id: choice for choice in target_question.choices}
-            next_choices: list[ReadingChoice] = []
-            for choice_index, choice in enumerate(question.choices, start=1):
-                target_choice = (
-                    existing_choices.get(choice.id) if choice.id else None
-                ) or ReadingChoice(reading_item=item)
-                target_choice.text = choice.text.strip()
-                target_choice.canonical_order = choice_index
-                target_choice.is_correct = choice.is_correct
-                target_choice.wrong_explanation = (
-                    choice.wrong_explanation.strip()
-                    if choice.wrong_explanation
-                    else None
-                )
-                next_choices.append(target_choice)
-            target_question.choices[:] = next_choices
-            next_questions.append(target_question)
-        item.questions[:] = next_questions
-        item.question = next_questions[0].question
-        item.explanation = next_questions[0].explanation
-    elif request.choices is not None:
-        validate_explanation_choice_references(
-            [
-                ReadingQuestionInput(
-                    question=item.question,
-                    explanation=(
-                        request.explanation
-                        if request.explanation is not None
-                        else item.explanation
-                    ),
-                    choices=request.choices,
-                )
-            ]
-        )
-        existing_choices = {choice.id: choice for choice in item.choices}
-        next_choices: list[ReadingChoice] = []
-        for index, choice in enumerate(request.choices, start=1):
-            existing = existing_choices.get(choice.id) if choice.id else None
-            target = existing or ReadingChoice(reading_item_id=item.id)
-            target.text = choice.text.strip()
-            target.canonical_order = index
-            target.is_correct = choice.is_correct
-            target.wrong_explanation = (
-                choice.wrong_explanation.strip() if choice.wrong_explanation else None
-            )
-            next_choices.append(target)
-        item.choices[:] = next_choices
-    elif request.explanation is not None:
-        validate_explanation_choice_references(
-            [
-                ReadingQuestionInput(
-                    question=item.question,
-                    explanation=request.explanation,
-                    choices=[
-                        ReadingChoiceInput(
-                            text=choice.text,
-                            is_correct=choice.is_correct,
-                            wrong_explanation=choice.wrong_explanation,
-                        )
-                        for choice in item.choices
-                    ],
-                )
-            ]
-        )
-
-    await session.commit()
-    item = await get_admin_item(session, item.id)
-    metrics = await collect_item_metrics(session, [item.id])
-    return await serialize_detail(session, item, metrics[item.id])
-
-
-async def update_item_status(
-    session: AsyncSession, item_id: UUID, target_status: ItemStatus
-) -> AdminReadingItemDetail:
-    item = await get_admin_item(session, item_id)
-    if target_status == "review" and item.status != "held":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Only held items can be returned to review.",
-        )
-    item.status = target_status
-    if target_status == "published" and item.published_at is None:
-        item.published_at = datetime.now(UTC)
-    await session.commit()
-    item = await get_admin_item(session, item.id)
-    metrics = await collect_item_metrics(session, [item.id])
-    return await serialize_detail(session, item, metrics[item.id])
+    return await update_admin_item(session, item_id, request)
 
 
 @router.post("/reading-items/{item_id}/publish", response_model=AdminReadingItemDetail)
@@ -906,7 +440,7 @@ async def publish_reading_item(
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Annotated[CurrentUser, Depends(require_admin)],
 ) -> AdminReadingItemDetail:
-    return await update_item_status(session, item_id, "published")
+    return await update_admin_item_status(session, item_id, "published")
 
 
 @router.post("/reading-items/{item_id}/hold", response_model=AdminReadingItemDetail)
@@ -915,7 +449,7 @@ async def hold_reading_item(
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Annotated[CurrentUser, Depends(require_admin)],
 ) -> AdminReadingItemDetail:
-    return await update_item_status(session, item_id, "held")
+    return await update_admin_item_status(session, item_id, "held")
 
 
 @router.post("/reading-items/{item_id}/unhold", response_model=AdminReadingItemDetail)
@@ -924,7 +458,7 @@ async def unhold_reading_item(
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Annotated[CurrentUser, Depends(require_admin)],
 ) -> AdminReadingItemDetail:
-    return await update_item_status(session, item_id, "review")
+    return await update_admin_item_status(session, item_id, "review")
 
 
 @router.delete("/reading-items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -933,7 +467,5 @@ async def delete_reading_item(
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Annotated[CurrentUser, Depends(require_admin)],
 ) -> Response:
-    item = await get_admin_item(session, item_id)
-    await session.delete(item)
-    await session.commit()
+    await delete_admin_item(session, item_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
