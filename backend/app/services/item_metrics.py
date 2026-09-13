@@ -1,18 +1,69 @@
 from collections import defaultdict
 from collections.abc import Iterable
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Attempt, ItemFeedback, ItemReport, ReadingItem
+from app.schemas import ReadingItemSummary
 from app.services.reading_policy import (
     LEVELS_BY_LANGUAGE,
+    MINIMUM_PERCEIVED_LEVEL_VOTES,
     is_level_for_language,
     level_rank,
 )
 
 ItemMetrics = dict[str, float | int | str | None]
+
+
+def serialize_public_summary(
+    item: ReadingItem,
+    metrics: ItemMetrics,
+    my_latest_status: Literal["correct", "wrong"] | None,
+    my_first_submission_timed_out: bool = False,
+    my_score: Literal[80, 90, 100] | None = None,
+    my_score_reason: Literal[
+        "first_submission_on_time",
+        "first_submission_timed_out",
+        "retry_passed",
+    ]
+    | None = None,
+    is_bookmarked: bool = False,
+) -> ReadingItemSummary:
+    """Build the shared learner-facing summary for a reading item."""
+    perceived_level = metrics["perceived_level"]
+    perceived_vote_count = int(metrics["perceived_vote_count"] or 0)
+    return ReadingItemSummary(
+        id=item.id,
+        title=item.title,
+        language=item.language,
+        official_level=item.official_level,
+        length_type=item.length_type,
+        topic=item.topic,
+        recommended_seconds=item.recommended_seconds,
+        content_source=item.content_source,
+        status=item.status,
+        published_at=item.published_at,
+        created_at=item.created_at,
+        updated_at=item.updated_at,
+        perceived_level=perceived_level if isinstance(perceived_level, str) else None,
+        perceived_level_visible=(
+            perceived_vote_count >= MINIMUM_PERCEIVED_LEVEL_VOTES
+        ),
+        perceived_vote_count=perceived_vote_count,
+        item_accuracy=(
+            float(metrics["item_accuracy"])
+            if metrics["item_accuracy"] is not None
+            else None
+        ),
+        my_latest_status=my_latest_status,
+        my_first_submission_timed_out=my_first_submission_timed_out,
+        my_score=my_score,
+        my_score_reason=my_score_reason,
+        is_bookmarked=is_bookmarked,
+    )
 
 
 def perceived_level_rank(value: object):

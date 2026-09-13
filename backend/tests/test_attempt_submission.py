@@ -15,9 +15,7 @@ from app.api.routes.readings import (
     create_passage_highlight,
     delete_passage_highlight,
     delete_reading_bookmark,
-    elapsed_seconds_since,
     get_attempt_state,
-    get_owned_attempt_for_update,
     list_passage_highlights,
     list_published_reading_items,
     list_user_passage_highlights,
@@ -29,6 +27,7 @@ from app.core.security import CurrentUser
 from app.db.base import Base
 from app.db.models import Attempt, ItemBookmark, ReadingChoice, ReadingItem, User
 from app.schemas import AttemptSubmitRequest, PassageHighlightCreateRequest
+from app.services.attempts import elapsed_seconds_since, get_owned_attempt_for_update
 
 
 @pytest.fixture
