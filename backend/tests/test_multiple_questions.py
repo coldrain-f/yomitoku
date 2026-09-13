@@ -4,13 +4,12 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.api.routes.admin import create_admin_reading_item
 from app.api.routes.readings import start_attempt, submit_attempt
 from app.core.security import CurrentUser
-from app.db.base import Base
-from app.db.models import ReadingChoice, ReadingItem, ReadingQuestion, User
+from app.db.models import ReadingChoice, ReadingItem, ReadingQuestion
 from app.schemas import (
     AdminReadingItemCreate,
     AttemptQuestionAnswer,
@@ -18,24 +17,12 @@ from app.schemas import (
     ReadingChoiceInput,
     ReadingQuestionInput,
 )
-
-
-@pytest.fixture
-async def sessions() -> async_sessionmaker[AsyncSession]:
-    engine = create_async_engine("sqlite+aiosqlite://")
-    async with engine.begin() as connection:
-        await connection.run_sync(Base.metadata.create_all)
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    try:
-        yield factory
-    finally:
-        await engine.dispose()
+from tests.factories import make_user
 
 
 async def make_multi_question_item(
     session: AsyncSession,
 ) -> tuple[CurrentUser, UUID, dict[UUID, UUID]]:
-    user_id = uuid4()
     item = ReadingItem(
         title="긴 글을 읽기",
         passage="한 지문으로 여러 내용을 확인합니다.",
@@ -74,9 +61,10 @@ async def make_multi_question_item(
             )
         ]
         item.questions.append(question)
-    session.add_all([User(id=user_id, role="learner"), item])
+    user = await make_user(session)
+    session.add(item)
     await session.commit()
-    return CurrentUser(id=user_id, role="learner"), item.id, correct_by_question
+    return CurrentUser(id=user.id, role="learner"), item.id, correct_by_question
 
 
 @pytest.mark.asyncio
@@ -118,9 +106,8 @@ async def test_any_wrong_answer_makes_a_multi_question_attempt_wrong(
 async def test_manual_create_stores_up_to_three_medium_questions(
     sessions: async_sessionmaker[AsyncSession],
 ) -> None:
-    user_id = uuid4()
     async with sessions() as session:
-        session.add(User(id=user_id, role="admin"))
+        user = await make_user(session, role="admin")
         await session.commit()
         result = await create_admin_reading_item(
             AdminReadingItemCreate(
@@ -147,7 +134,7 @@ async def test_manual_create_stores_up_to_three_medium_questions(
                 ],
             ),
             session,
-            CurrentUser(id=user_id, role="admin"),
+            CurrentUser(id=user.id, role="admin"),
         )
 
     assert result.content_source == "manual"

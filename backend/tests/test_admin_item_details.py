@@ -6,43 +6,27 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.api.routes.admin import update_admin_reading_item
 from app.core.security import CurrentUser
-from app.db.base import Base
 from app.db.models import (
-    GenerationJob,
     ItemReport,
     ItemValidation,
     PassageHighlight,
     ReadingChoice,
     ReadingItem,
-    User,
 )
 from app.schemas import AdminReadingItemUpdate
 from app.services.admin_reading_items import get_admin_item, serialize_detail
 from app.services.item_metrics import collect_item_metrics
-
-
-@pytest.fixture
-async def sessions() -> async_sessionmaker[AsyncSession]:
-    engine = create_async_engine("sqlite+aiosqlite://")
-    async with engine.begin() as connection:
-        await connection.run_sync(Base.metadata.create_all)
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    try:
-        yield factory
-    finally:
-        await engine.dispose()
+from tests.factories import make_generation_job, make_user
 
 
 @pytest.mark.asyncio
 async def test_admin_item_detail_includes_validation_and_report_records(
     sessions: async_sessionmaker[AsyncSession],
 ) -> None:
-    user_id = uuid4()
-    job_id = uuid4()
     item_id = uuid4()
     now = datetime(2026, 9, 5, tzinfo=UTC)
     async with sessions() as session:
@@ -67,42 +51,33 @@ async def test_admin_item_detail_includes_validation_and_report_records(
             )
             for index in range(1, 5)
         ]
-        job = GenerationJob(
-            id=job_id,
-            requested_by=user_id,
-            graph_thread_id=str(job_id),
+        user = await make_user(session, role="admin")
+        job = await make_generation_job(
+            session,
+            requested_by=user.id,
             status="ready_for_review",
             current_node="complete",
-            language="ja",
-            official_level="N2",
-            length_type="short",
-            topic="교육",
-            keywords=[],
-            generator_model="claude-fable-5-1",
-            answer_validator_model="claude-fable-5-1",
-            quality_validator_model="claude-fable-5-1",
-            prompt_version="v5",
         )
-        session.add_all([User(id=user_id, role="admin"), item, job])
+        session.add(item)
         await session.flush()
         session.add_all(
             [
                 ItemReport(
-                    user_id=user_id,
+                    user_id=user.id,
                     reading_item_id=item_id,
                     content="이 선택지는 본문 근거와 맞지 않습니다.",
                     status="open",
                     created_at=now,
                 ),
                 ItemReport(
-                    user_id=user_id,
+                    user_id=user.id,
                     reading_item_id=item_id,
                     content="해설의 표현을 확인해 주세요.",
                     status="open",
                     created_at=now + timedelta(minutes=1),
                 ),
                 ItemValidation(
-                    generation_job_id=job_id,
+                    generation_job_id=job.id,
                     reading_item_id=item_id,
                     validator_role="answer",
                     model_id="claude-fable-5-1",
@@ -114,7 +89,7 @@ async def test_admin_item_detail_includes_validation_and_report_records(
                     created_at=now,
                 ),
                 ItemValidation(
-                    generation_job_id=job_id,
+                    generation_job_id=job.id,
                     reading_item_id=item_id,
                     validator_role="quality",
                     model_id="claude-fable-5-1",
@@ -149,10 +124,10 @@ async def test_admin_item_detail_includes_validation_and_report_records(
 async def test_passage_edit_requires_confirmation_before_clearing_highlights(
     sessions: async_sessionmaker[AsyncSession],
 ) -> None:
-    user_id = uuid4()
     item_id = uuid4()
-    current_user = CurrentUser(id=user_id, role="admin")
     async with sessions() as session:
+        user = await make_user(session, role="admin")
+        current_user = CurrentUser(id=user.id, role="admin")
         item = ReadingItem(
             id=item_id,
             title="하이라이트 문항",
@@ -174,11 +149,11 @@ async def test_passage_edit_requires_confirmation_before_clearing_highlights(
             )
             for index in range(1, 5)
         ]
-        session.add_all([User(id=user_id, role="admin"), item])
+        session.add(item)
         await session.flush()
         session.add(
             PassageHighlight(
-                user_id=user_id,
+                user_id=user.id,
                 reading_item_id=item_id,
                 start_offset=0,
                 end_offset=2,

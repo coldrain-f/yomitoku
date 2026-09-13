@@ -7,7 +7,7 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
 from app.api.routes.readings import (
@@ -24,7 +24,6 @@ from app.api.routes.readings import (
     submit_attempt,
 )
 from app.core.security import CurrentUser
-from app.db.base import Base
 from app.db.models import (
     Attempt,
     ItemBookmark,
@@ -32,7 +31,6 @@ from app.db.models import (
     ItemReport,
     ReadingChoice,
     ReadingItem,
-    User,
 )
 from app.schemas import (
     AttemptSubmitRequest,
@@ -47,29 +45,17 @@ from app.services.reading_feedback import (
     create_user_report,
     upsert_user_feedback,
 )
-
-
-@pytest.fixture
-async def sessions() -> async_sessionmaker[AsyncSession]:
-    engine = create_async_engine("sqlite+aiosqlite://")
-    async with engine.begin() as connection:
-        await connection.run_sync(Base.metadata.create_all)
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    try:
-        yield factory
-    finally:
-        await engine.dispose()
+from tests.factories import make_user
 
 
 async def make_open_attempt(
     sessions: async_sessionmaker[AsyncSession],
 ) -> tuple[CurrentUser, UUID, UUID]:
-    user_id = uuid4()
     item_id = uuid4()
     attempt_id = uuid4()
     correct_choice_id = uuid4()
     async with sessions() as session:
-        session.add(User(id=user_id, role="learner"))
+        user = await make_user(session)
         item = ReadingItem(
             id=item_id,
             title="근거를 확인하기",
@@ -100,13 +86,13 @@ async def make_open_attempt(
         session.add(
             Attempt(
                 id=attempt_id,
-                user_id=user_id,
+                user_id=user.id,
                 reading_item_id=item_id,
                 started_at=datetime.now(UTC),
             )
         )
         await session.commit()
-    return CurrentUser(id=user_id, role="learner"), attempt_id, correct_choice_id
+    return CurrentUser(id=user.id, role="learner"), attempt_id, correct_choice_id
 
 
 @pytest.mark.asyncio
@@ -437,7 +423,7 @@ async def test_bookmarks_are_per_user_and_combine_with_language_filters(
     korean_item_id = uuid4()
 
     async with sessions() as session:
-        session.add(User(id=other_user.id, role="learner"))
+        await make_user(session, user_id=other_user.id)
         session.add(
             ReadingItem(
                 id=korean_item_id,

@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.security import CurrentUser
-from app.db.base import Base
-from app.db.models import GenerationJob, User
+from app.db.models import GenerationJob
 from app.schemas import GeneratedTitle, GenerationJobCreateRequest
 from app.services.admin_generation import (
     create_generation_job,
@@ -26,47 +25,21 @@ from app.services.generation_provider import (
     ModelUsage,
     ProviderResult,
 )
-
-
-@pytest.fixture
-async def sessions() -> async_sessionmaker[AsyncSession]:
-    engine = create_async_engine("sqlite+aiosqlite://")
-    async with engine.begin() as connection:
-        await connection.run_sync(Base.metadata.create_all)
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    try:
-        yield factory
-    finally:
-        await engine.dispose()
+from tests.factories import make_generation_job, make_user
 
 
 async def make_job(sessions: async_sessionmaker[AsyncSession], *, status: str = "generating") -> UUID:
-    user_id = uuid4()
-    job_id = uuid4()
     async with sessions() as session:
-        session.add(User(id=user_id, role="admin"))
-        session.add(
-            GenerationJob(
-                id=job_id,
-                requested_by=user_id,
-                graph_thread_id=str(job_id),
-                status=status,
-                current_node=status,
-                language="ja",
-                official_level="N2",
-                length_type="short",
-                topic="교육",
-                keywords=[],
-                generator_model="claude-fable-5-1",
-                answer_validator_model="claude-fable-5-1",
-                quality_validator_model="claude-fable-5-1",
-                prompt_version="v5",
-                started_at=datetime.now(UTC),
-                heartbeat_at=datetime.now(UTC),
-            )
+        user = await make_user(session, role="admin")
+        job = await make_generation_job(
+            session,
+            requested_by=user.id,
+            status=status,
+            started_at=datetime.now(UTC),
+            heartbeat_at=datetime.now(UTC),
         )
         await session.commit()
-    return job_id
+    return job.id
 
 
 @pytest.mark.asyncio
