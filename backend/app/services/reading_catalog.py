@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.core.security import CurrentUser
 from app.db.models import Attempt, ItemBookmark, ReadingItem
 from app.schemas import LengthType, ReadingItemPage, ReadingLanguage, ReadingLevel
-from app.services.attempts import (
+from app.services.attempt_progress import (
     learner_progress_for_submissions,
     learner_progress_query,
     learner_score_expression,
