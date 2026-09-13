@@ -28,6 +28,7 @@ from app.db.base import Base
 from app.db.models import Attempt, ItemBookmark, ReadingChoice, ReadingItem, User
 from app.schemas import AttemptSubmitRequest, PassageHighlightCreateRequest
 from app.services.attempts import elapsed_seconds_since, get_owned_attempt_for_update
+from app.services.learning_statistics import get_user_statistics
 
 
 @pytest.fixture
@@ -484,6 +485,39 @@ def test_highlight_offsets_do_not_split_utf16_surrogate_pairs() -> None:
 
     assert selected_text_for_offsets(passage, 1, 4) == "😀나"
     assert selected_text_for_offsets(passage, 2, 4) is None
+
+
+@pytest.mark.asyncio
+async def test_statistics_use_only_a_learner_first_submitted_attempt(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    user, attempt_id, _ = await make_open_attempt(sessions)
+
+    async with sessions() as session:
+        first = await session.get(Attempt, attempt_id)
+        assert first is not None
+        first.is_correct = True
+        first.elapsed_seconds = 42
+        first.submitted_at = first.started_at + timedelta(seconds=42)
+        session.add(
+            Attempt(
+                user_id=user.id,
+                reading_item_id=first.reading_item_id,
+                is_correct=False,
+                started_at=first.submitted_at + timedelta(seconds=1),
+                submitted_at=first.submitted_at + timedelta(seconds=70),
+                elapsed_seconds=69,
+            )
+        )
+        await session.commit()
+
+        statistics = await get_user_statistics(session, user.id)
+
+    assert statistics.completed_count == 1
+    assert statistics.total_generated_count == 1
+    assert statistics.accuracy == 100
+    assert statistics.average_elapsed_seconds == 42
+    assert next(group for group in statistics.by_language if group.key == "ja").accuracy == 100
 
 
 @pytest.mark.asyncio
