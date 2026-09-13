@@ -18,7 +18,7 @@ from app.db.models import (
     ReadingItem,
 )
 from app.schemas import AdminReadingItemUpdate
-from app.services.admin_reading_items import get_admin_item, serialize_detail
+from app.services.admin_item_queries import get_admin_item, serialize_detail
 from app.services.item_metrics import collect_item_metrics
 from tests.factories import make_generation_job, make_user
 

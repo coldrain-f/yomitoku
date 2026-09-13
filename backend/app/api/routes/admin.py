@@ -47,12 +47,14 @@ from app.services.admin_generation import (
 from app.services.admin_generation import (
     suggest_topic as suggest_topic_for_admin,
 )
-from app.services.admin_reading_items import (
+from app.services.admin_item_queries import (
     AdminItemStatus,
-    create_admin_item,
-    delete_admin_item,
     get_admin_item_detail,
     list_admin_items,
+)
+from app.services.admin_reading_items import (
+    create_admin_item,
+    delete_admin_item,
     update_admin_item,
     update_admin_item_status,
 )
