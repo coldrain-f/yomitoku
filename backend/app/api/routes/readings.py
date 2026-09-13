@@ -12,8 +12,6 @@ from app.core.security import (
     get_optional_current_user,
 )
 from app.db.models import (
-    ItemFeedback,
-    ItemReport,
     PassageHighlight,
     ReadingItem,
     ReadingQuestion,
@@ -70,7 +68,11 @@ from app.services.reading_engagement import (
     remove_item_bookmark,
     selected_text_for_offsets,
 )
-from app.services.reading_policy import is_level_for_language
+from app.services.reading_feedback import (
+    PerceivedLevelLanguageMismatchError,
+    create_user_report,
+    upsert_user_feedback,
+)
 from app.services.translation import TranslationError, translate_texts
 from app.services.users import ensure_user
 
@@ -424,33 +426,18 @@ async def upsert_feedback(
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> Response:
     item = await get_published_item(session, item_id)
-    if not is_level_for_language(item.language, request.perceived_level):
+    try:
+        await upsert_user_feedback(
+            session,
+            item=item,
+            current_user=current_user,
+            request=request,
+        )
+    except PerceivedLevelLanguageMismatchError as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="The selected level does not belong to the content language.",
-        )
-    await ensure_user(session, current_user)
-    feedback = await session.scalar(
-        select(ItemFeedback).where(
-            ItemFeedback.user_id == current_user.id,
-            ItemFeedback.reading_item_id == item_id,
-        )
-    )
-    if feedback:
-        feedback.quality_rating = request.quality_rating
-        feedback.perceived_level = request.perceived_level
-        feedback.comment = request.comment
-    else:
-        session.add(
-            ItemFeedback(
-                user_id=current_user.id,
-                reading_item_id=item_id,
-                quality_rating=request.quality_rating,
-                perceived_level=request.perceived_level,
-                comment=request.comment,
-            )
-        )
-    await session.commit()
+        ) from error
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -462,15 +449,12 @@ async def create_report(
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> dict[str, bool]:
     await get_published_item(session, item_id)
-    await ensure_user(session, current_user)
-    session.add(
-        ItemReport(
-            user_id=current_user.id,
-            reading_item_id=item_id,
-            content=request.content.strip(),
-        )
+    await create_user_report(
+        session,
+        item_id=item_id,
+        current_user=current_user,
+        request=request,
     )
-    await session.commit()
     return {"created": True}
 
 

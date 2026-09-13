@@ -25,10 +25,28 @@ from app.api.routes.readings import (
 )
 from app.core.security import CurrentUser
 from app.db.base import Base
-from app.db.models import Attempt, ItemBookmark, ReadingChoice, ReadingItem, User
-from app.schemas import AttemptSubmitRequest, PassageHighlightCreateRequest
+from app.db.models import (
+    Attempt,
+    ItemBookmark,
+    ItemFeedback,
+    ItemReport,
+    ReadingChoice,
+    ReadingItem,
+    User,
+)
+from app.schemas import (
+    AttemptSubmitRequest,
+    FeedbackRequest,
+    PassageHighlightCreateRequest,
+    ReportRequest,
+)
 from app.services.attempts import elapsed_seconds_since, get_owned_attempt_for_update
 from app.services.learning_statistics import get_user_statistics
+from app.services.reading_feedback import (
+    PerceivedLevelLanguageMismatchError,
+    create_user_report,
+    upsert_user_feedback,
+)
 
 
 @pytest.fixture
@@ -478,6 +496,61 @@ async def test_bookmarks_are_per_user_and_combine_with_language_filters(
 
     assert removed.is_bookmarked is False
     assert after_removal.items == []
+
+
+@pytest.mark.asyncio
+async def test_feedback_is_upserted_and_reports_preserve_trimmed_content(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    user, _, _ = await make_open_attempt(sessions)
+
+    async with sessions() as session:
+        item = await session.scalar(select(ReadingItem))
+        assert item is not None
+        with pytest.raises(PerceivedLevelLanguageMismatchError):
+            await upsert_user_feedback(
+                session,
+                item=item,
+                current_user=user,
+                request=FeedbackRequest(
+                    quality_rating=3,
+                    perceived_level="TOPIK 3급",
+                ),
+            )
+        await upsert_user_feedback(
+            session,
+            item=item,
+            current_user=user,
+            request=FeedbackRequest(
+                quality_rating=3,
+                perceived_level="N2",
+                comment="처음 의견",
+            ),
+        )
+        await upsert_user_feedback(
+            session,
+            item=item,
+            current_user=user,
+            request=FeedbackRequest(
+                quality_rating=5,
+                perceived_level="N1",
+                comment="수정한 의견",
+            ),
+        )
+        await create_user_report(
+            session,
+            item_id=item.id,
+            current_user=user,
+            request=ReportRequest(content="  해설을 확인해 주세요.  "),
+        )
+        feedbacks = list(await session.scalars(select(ItemFeedback)))
+        reports = list(await session.scalars(select(ItemReport)))
+
+    assert len(feedbacks) == 1
+    assert feedbacks[0].quality_rating == 5
+    assert feedbacks[0].perceived_level == "N1"
+    assert feedbacks[0].comment == "수정한 의견"
+    assert [report.content for report in reports] == ["해설을 확인해 주세요."]
 
 
 def test_highlight_offsets_do_not_split_utf16_surrogate_pairs() -> None:
