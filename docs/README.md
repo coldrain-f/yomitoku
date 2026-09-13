@@ -1,49 +1,19 @@
-# 読み解く v1 개발 명세
+# 読み解く 개발·운영 문서
 
-## 목적
+이 디렉터리는 현재 구현과 운영 기준을 설명한다. 과거의 정적 시안 전환 계획이 아니라, 로그인 이후 학습 흐름·관리자 운영·배포·QA를 기준으로 유지한다.
 
-이 문서는 현재 정적 프로토타입 전체를 `読み解く`의 첫 구현 범위(v1)로 고정한다. 디자인은 아래 파일을 기준으로 하며, 구현 중 화면이나 정책을 임의로 축소하지 않는다.
-
-- 정적 시안 화면 기준: `../../index.html`
-- 정적 시안 스타일 기준: `../../styles.css`
-- 정적 시안 상호작용 기준: `../../app.js`
-- React 구현: `..`
-
-정적 프로토타입의 더미 데이터와 브라우저 상태 전환은 실제 서비스 기능이 아니다. 실제 구현에서는 이 문서의 권한, API, 저장 규칙을 서버에서 강제한다.
-
-## 문서 구성
-
-| 문서 | 내용 |
+| 문서 | 용도 |
 | --- | --- |
-| [01-ui-and-flow-spec.md](./01-ui-and-flow-spec.md) | 화면, 다이얼로그, 권한별 노출, 상태 전환, 반응형 및 접근성 |
-| [02-data-and-api-spec.md](./02-data-and-api-spec.md) | 데이터 모델, API 계약, 통계와 체감 난이도 계산 규칙 |
-| [03-ai-operations-and-react-plan.md](./03-ai-operations-and-react-plan.md) | AI 생성 운영, 검증, 비용 통제, React 전환 계획 |
-| [04-acceptance-checklist.md](./04-acceptance-checklist.md) | 구현 완료 판정용 기능 및 품질 점검표 |
-| [05-delivery-roadmap.md](./05-delivery-roadmap.md) | Google 로그인부터 운영 배포까지의 후속 개발 순서와 완료 기준 |
-| [06-production-deployment.md](./06-production-deployment.md) | Caddy, Docker Compose, PostgreSQL 기준의 Linux 운영 서버 배포 절차 |
+| [01-ui-and-flow-spec.md](./01-ui-and-flow-spec.md) | 학습자·관리자 화면, 다국어, 모바일 UX와 상태 전이 |
+| [02-data-and-api-spec.md](./02-data-and-api-spec.md) | 현재 데이터 모델, 인증, 주요 API 계약과 집계 규칙 |
+| [03-ai-operations-and-react-plan.md](./03-ai-operations-and-react-plan.md) | AI 생성 워커·검증·비용 기록과 프론트엔드 구조 |
+| [04-acceptance-checklist.md](./04-acceptance-checklist.md) | 실제 기기 기준 QA 체크리스트와 자동 검증 명령 |
+| [05-delivery-roadmap.md](./05-delivery-roadmap.md) | 현재 운영 단계와 이후 개선 원칙 |
+| [06-production-deployment.md](./06-production-deployment.md) | Linux, Docker Compose, Caddy 운영 배포·갱신·복구 절차 |
 
-## 제품 결정
+## 유지 원칙
 
-- 이 범위는 축소된 데모가 아니라 개인용 서비스의 v1 전체 구현 범위다.
-- 비로그인 사용자는 공개 목록만 열람한다. 풀이, 개인 통계, 풀이 상태는 로그인 후에만 사용할 수 있다.
-- 관리자는 별도 로그인 화면이 아니라 Google 로그인 뒤 서버의 허용 계정 판별로 결정한다.
-- 문항 상태는 `검토 중`, `보류`, `게시`다. 보류는 데이터를 보존하는 내부 상태이고, 게시만 학습자에게 공개한다.
-- 삭제는 보관이 아닌 영구 삭제다. 삭제한 문항과 연결된 기록은 복구하지 않는다.
-- 후리가나 표기는 현재 미지원이다. 생성 화면에서는 `미표기`만 사용 가능하다.
-- 체감 난이도는 유효 평가가 10명 이상일 때만 일반 목록에 표시한다. 일반 목록에서는 응답 인원 수를 표시하지 않는다.
-- AI 문항 생성은 처음부터 LangGraph 기반의 명시적 생성·검증 워크플로로 구현한다. AI 검증 통과는 게시 승인이 아니며, 최종 게시 권한은 관리자에게만 있다.
-
-## 구현 순서
-
-1. 데이터베이스, 인증, 권한 검사, API를 먼저 구현한다.
-2. 목록, 풀이, 결과, 통계를 실제 API와 연결한다.
-3. 관리자 관리, LangGraph 생성·검증 작업, 검토 및 게시 흐름을 연결한다.
-4. 피드백, 오류 제보, 정렬, 모바일 상태를 마무리한다.
-5. [04-acceptance-checklist.md](./04-acceptance-checklist.md)를 통과한다.
-6. 현재 HTML/CSS/JavaScript의 React 1차 전환은 이 저장소에 완료했다. 실제 API를 연결하며 문서의 완료 기준을 계속 검증한다.
-
-## 명세 변경 원칙
-
-- 사용자에게 보이는 문구, 화면 배치, 상태명은 현재 HTML과 이 문서를 함께 수정해야 한다.
-- API 응답이나 DB 컬럼을 바꾸면 화면 명세와 완료 점검표도 함께 검토한다.
-- 보안과 권한 규칙은 프론트엔드 숨김 처리만으로 대체할 수 없다.
+- API 또는 DB 구조를 바꾸면 [02](./02-data-and-api-spec.md)와 [04](./04-acceptance-checklist.md)를 함께 검토한다.
+- 화면 동작·문구·접근성·반응형 레이아웃을 바꾸면 [01](./01-ui-and-flow-spec.md)과 QA 항목을 함께 갱신한다.
+- AI 모델·프롬프트·재시도 정책을 바꾸면 [03](./03-ai-operations-and-react-plan.md)와 운영 환경 변수 설명을 함께 갱신한다.
+- 운영 명령은 실제 `deploy/` Compose 파일과 `.env.production`을 기준으로 작성한다. 서버 고유 포트나 비밀값은 문서에 고정하지 않는다.

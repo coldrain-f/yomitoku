@@ -1,77 +1,45 @@
 # Yomitoku backend
 
-FastAPI API, PostgreSQL persistence, and a LangGraph worker live here. The
-The React application remains in the repository root. It reads
-`VITE_API_BASE_URL` when provided and otherwise targets `http://localhost:8001/api/v1`
-in development.
+FastAPI API, PostgreSQL, Alembic, LangGraph 생성 워커로 구성된 백엔드다. React 앱은 저장소 루트에 있다.
 
-## Start locally
+## 로컬 실행
 
-Run these commands from the repository root (`react-app`), where
-`docker-compose.yml` and `.env.example` live.
+저장소 루트(`react-app`)에서 실행한다.
 
 ```powershell
 Copy-Item .env.example .env
 docker compose up --build
 ```
 
-- API documentation: `http://localhost:8001/docs`
-- Health check: `http://localhost:8001/api/v1/health`
+- OpenAPI: `http://localhost:8001/docs`
+- Health: `http://localhost:8001/api/v1/health`
 - PostgreSQL: `localhost:5433`
 
-The default `GENERATION_PROVIDER=stub` runs the complete graph without calling
-an external model. To use Claude, set `GENERATION_PROVIDER=anthropic`, provide
-`ANTHROPIC_API_KEY`, and choose model IDs in `.env`. Keep all model keys on the
-server; they must never be exposed to the React application.
+`GENERATION_PROVIDER=stub`이 기본값이며 외부 모델을 호출하지 않는다. Claude를 사용하려면 서버 환경 변수에 `GENERATION_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, 허용 모델 ID를 설정한다. API 키와 JWT 비밀값은 React에 노출하면 안 된다.
 
-## Services
+## 서비스 경계
 
-- `db`: PostgreSQL for application and LangGraph checkpoint data.
-- `migrate`: applies Alembic migrations once before the application starts.
-- `api`: FastAPI HTTP API.
-- `worker`: claims queued generation jobs and runs the LangGraph workflow.
+- `reading_catalog`, `attempt_progress`, `attempt_views`, `attempts`: 학습 목록, 영구 점수, 풀이 응답 조립, 시도 상태 변경
+- `reading_engagement`, `reading_feedback`, `learning_statistics`: 북마크·하이라이트, 평가·제보, 개인 통계
+- `admin_item_queries`, `admin_reading_items`, `admin_generation`: 관리자 조회, 문항 변경, AI 생성 작업
+- `generation_prompts`, `generation_provider`, `anthropic_generation_provider`: 프롬프트·공통 제공자 계약·Anthropic 어댑터
 
-The worker is deliberately separate from FastAPI. Generation can take time and
-cost money, so `POST /api/v1/admin/generation-jobs` returns `202 Accepted` and
-the frontend polls the job endpoint instead of holding an HTTP request open.
-MAX_GENERATION_REVISIONS limits quality-revision loops, while
-MAX_GENERATION_OUTPUT_RETRIES=1 allows one retry only when the model output is
-truncated or cannot be parsed as structured JSON.
+라우트는 HTTP·권한 처리만 담당하고, DB 변경과 조회 규칙은 서비스에 둔다.
 
-## Google login and local development authentication
+## 인증과 권한
 
-`POST /api/v1/auth/google` receives a Google Identity Services ID token,
-verifies its signature and audience, then returns a short-lived Yomitoku
-Bearer token. Set the following values on the API server before enabling it:
+`POST /api/v1/auth/google`은 Google Identity Services ID 토큰을 검증하고 짧은 수명의 Yomitoku Bearer 토큰을 발급한다. 관리자 역할은 서버의 `ADMIN_GOOGLE_EMAILS` allowlist로만 결정한다.
 
-```text
-GOOGLE_OAUTH_CLIENT_ID=...apps.googleusercontent.com
-AUTH_JWT_SECRET=a-long-random-server-only-value
-ADMIN_GOOGLE_EMAILS=admin@example.com
+`APP_ENV=development`와 `test`에서는 `X-Dev-Role`, `X-Dev-User-Id` 개발 헤더를 사용할 수 있다. 운영 환경에서는 거부된다.
+
+## 생성 작업
+
+관리자 생성 요청은 `POST /api/v1/admin/generation-jobs`로 작업만 만들고 `202 Accepted`를 반환한다. 별도 워커가 생성·규칙 검증·정답/품질 검증·재시도를 수행하며, 프론트는 작업 상태를 조회한다. `Idempotency-Key`와 사용자별 진행 중 작업 재사용으로 중복 생성을 막는다.
+
+## 검증
+
+```powershell
+docker compose run --rm --no-deps api sh -c "pip install '.[dev]' && ruff check app tests && pytest -q"
 ```
 
-The Google Client ID must also be available to the Vite build as
-`VITE_GOOGLE_CLIENT_ID`. Register the GitHub Pages origin and local Vite origins
-in Google Cloud Console. `ADMIN_GOOGLE_EMAILS` is the server-side allowlist;
-frontend visibility never grants administrator access.
-
-In `APP_ENV=development` and `test`, protected API examples may still use
-`X-Dev-Role: admin` and optionally `X-Dev-User-Id`. These headers are rejected
-in production. The React app sends them only in Vite development mode.
-
-## Connected MVP APIs
-
-- Public reading lists support search, level, length, learning-status, sort, and pagination.
-- A reading attempt is created and shuffled by the server. Correct answers and explanations are returned only after submission.
-- Statistics, feedback, issue reports, item metrics, and administrator item CRUD are persisted in PostgreSQL.
-- Admin actions cover review, hold, unhold, publish, permanent deletion, and LangGraph generation-job polling.
-
-The local React client sends development headers only while Vite runs in development mode. See [`docs/05-delivery-roadmap.md`](../docs/05-delivery-roadmap.md) for the remaining deployment and operations work.
-
-## Production deployment
-
-`deploy/docker-compose.production.yml` runs Caddy, FastAPI, the worker, and
-PostgreSQL without exposing the API or database ports directly. It expects a
-server-only `.env.production` file based on `deploy/production.env.example`.
-Follow [`docs/06-production-deployment.md`](../docs/06-production-deployment.md)
-for DNS, HTTPS, Google configuration, backup, and update steps.
+운영 Compose, 백업, 기존 호스트 Caddy 연결은 [운영 배포 가이드](../docs/06-production-deployment.md)를 따른다.
