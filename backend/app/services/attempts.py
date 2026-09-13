@@ -1,5 +1,4 @@
 import random
-from collections.abc import Iterable
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -12,25 +11,26 @@ from app.core.security import CurrentUser
 from app.db.models import (
     Attempt,
     AttemptAnswer,
-    ReadingChoice,
     ReadingItem,
     ReadingQuestion,
 )
 from app.schemas import (
     AttemptItemDetail,
-    AttemptQuestion,
     AttemptQuestionAnswer,
-    AttemptQuestionResult,
     AttemptResult,
     AttemptStarted,
     AttemptState,
     AttemptSubmitRequest,
-    ReadingChoicePublic,
 )
 from app.services.attempt_progress import learner_progress_for_submissions
+from app.services.attempt_views import (
+    choices_for_attempt,
+    public_choices,
+    public_questions,
+    serialize_attempt_result,
+)
 from app.services.item_metrics import (
     collect_item_metrics,
-    first_submissions_by_user_item,
     serialize_public_summary,
 )
 
@@ -81,56 +81,6 @@ async def ensure_attempt_answers(
     return list(attempt.answers)
 
 
-def public_choices(choices: Iterable[ReadingChoice]) -> list[ReadingChoicePublic]:
-    return [ReadingChoicePublic(id=choice.id, text=choice.text) for choice in choices]
-
-
-def question_choices_for_attempt(
-    question: ReadingQuestion, answer: AttemptAnswer | None
-) -> list[ReadingChoice]:
-    by_id = {str(choice.id): choice for choice in question.choices}
-    ordered: list[ReadingChoice] = []
-    for choice_id in answer.choice_order if answer else []:
-        choice = by_id.pop(choice_id, None)
-        if choice:
-            ordered.append(choice)
-    return [*ordered, *by_id.values()]
-
-
-def public_questions(
-    questions: Iterable[ReadingQuestion], answers: dict[UUID, AttemptAnswer] | None = None
-) -> list[AttemptQuestion]:
-    answers = answers or {}
-    return [
-        AttemptQuestion(
-            id=question.id,
-            question=question.question,
-            choices=public_choices(
-                question_choices_for_attempt(question, answers.get(question.id))
-            ),
-        )
-        for question in questions
-    ]
-
-
-def choices_for_attempt(item: ReadingItem, attempt: Attempt) -> list[ReadingChoice]:
-    """Return the issued order, with a stable fallback for attempts created before it."""
-    first_question = item.questions[0] if item.questions else None
-    first_answer = next(iter(attempt.answers), None)
-    if first_question:
-        return question_choices_for_attempt(
-            first_question,
-            AttemptAnswer(choice_order=attempt.choice_order)
-            if attempt.choice_order
-            else first_answer,
-        )
-    by_id = {str(choice.id): choice for choice in item.choices}
-    return [
-        *[by_id.pop(choice_id) for choice_id in attempt.choice_order if choice_id in by_id],
-        *by_id.values(),
-    ]
-
-
 async def start_attempt(
     session: AsyncSession, item: ReadingItem, current_user: CurrentUser
 ) -> AttemptStarted:
@@ -168,25 +118,6 @@ async def start_attempt(
     )
 
 
-async def item_outcomes(
-    session: AsyncSession, item_id: UUID
-) -> tuple[float | None, int]:
-    attempts = list(
-        await session.scalars(
-            select(Attempt)
-            .where(
-                Attempt.reading_item_id == item_id, Attempt.submitted_at.is_not(None)
-            )
-            .order_by(Attempt.submitted_at.asc(), Attempt.id.asc())
-        )
-    )
-    first_attempts = list(first_submissions_by_user_item(attempts).values())
-    if not first_attempts:
-        return None, 0
-    correct = sum(bool(attempt.is_correct) for attempt in first_attempts)
-    return round(correct / len(first_attempts) * 100, 1), len(first_attempts)
-
-
 async def get_owned_attempt_for_update(
     session: AsyncSession, attempt_id: UUID, current_user: CurrentUser
 ) -> Attempt:
@@ -221,62 +152,6 @@ def elapsed_seconds_since(started_at: datetime, completed_at: datetime) -> int:
     if completed_at.tzinfo is None:
         completed_at = completed_at.replace(tzinfo=UTC)
     return max(0, int((completed_at - started_at).total_seconds()))
-
-
-async def serialize_attempt_result(
-    session: AsyncSession, attempt: Attempt, item: ReadingItem
-) -> AttemptResult:
-    questions = await ensure_item_questions(session, item)
-    attempt_answers = await ensure_attempt_answers(session, attempt, questions)
-    answer_by_question = {answer.reading_question_id: answer for answer in attempt_answers}
-    question_results: list[AttemptQuestionResult] = []
-    for question in questions:
-        answer = answer_by_question.get(question.id)
-        selected = next(
-            (
-                choice
-                for choice in question.choices
-                if answer and choice.id == answer.selected_choice_id
-            ),
-            None,
-        )
-        correct = next((choice for choice in question.choices if choice.is_correct), None)
-        if not selected or not correct or answer is None or answer.is_correct is None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="This submitted attempt is incomplete.",
-            )
-        question_results.append(
-            AttemptQuestionResult(
-                question_id=question.id,
-                is_correct=answer.is_correct,
-                selected_choice_id=selected.id,
-                correct_choice_id=correct.id,
-                explanation=question.explanation,
-                selected_choice_wrong_explanation=selected.wrong_explanation,
-            )
-        )
-    if not question_results or attempt.is_correct is None or attempt.elapsed_seconds is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="This submitted attempt is incomplete.",
-        )
-    accuracy, challenger_count = await item_outcomes(session, item.id)
-    first_result = question_results[0]
-    return AttemptResult(
-        attempt_id=attempt.id,
-        item_id=item.id,
-        is_correct=attempt.is_correct,
-        selected_choice_id=first_result.selected_choice_id,
-        correct_choice_id=first_result.correct_choice_id,
-        explanation=first_result.explanation,
-        selected_choice_wrong_explanation=first_result.selected_choice_wrong_explanation,
-        elapsed_seconds=attempt.elapsed_seconds,
-        recommended_seconds=item.recommended_seconds,
-        item_accuracy=accuracy,
-        challenger_count=challenger_count,
-        question_results=question_results,
-    )
 
 
 async def get_attempt_state(
@@ -349,7 +224,15 @@ async def get_attempt_state(
         ],
         submitted=submitted,
         result=(
-            await serialize_attempt_result(session, attempt, item) if submitted else None
+            await serialize_attempt_result(
+                session,
+                attempt,
+                item,
+                questions=questions,
+                attempt_answers=attempt_answers,
+            )
+            if submitted
+            else None
         ),
     )
 
@@ -438,7 +321,13 @@ async def submit_attempt(
     attempt.submitted_at = submitted_at
     attempt.elapsed_seconds = elapsed_seconds_since(attempt.started_at, submitted_at)
     await session.commit()
-    return await serialize_attempt_result(session, attempt, item)
+    return await serialize_attempt_result(
+        session,
+        attempt,
+        item,
+        questions=questions,
+        attempt_answers=attempt_answers,
+    )
 
 
 async def abandon_attempt(

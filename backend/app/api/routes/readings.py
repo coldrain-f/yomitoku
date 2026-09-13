@@ -37,12 +37,12 @@ from app.schemas import (
     ReportRequest,
     StatisticsResponse,
 )
+from app.services.attempt_views import public_choices
 from app.services.attempts import (
     abandon_attempt as abandon_attempt_for_user,
 )
 from app.services.attempts import (
     ensure_item_questions,
-    public_choices,
 )
 from app.services.attempts import (
     get_attempt_state as get_attempt_state_for_user,
