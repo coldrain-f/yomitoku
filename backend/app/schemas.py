@@ -486,6 +486,30 @@ class ItemReportDetail(ApiModel):
     created_at: datetime
 
 
+class AdminItemFeedbackDetail(ApiModel):
+    id: UUID
+    quality_rating: int
+    perceived_level: ReadingLevel
+    comment: str | None
+    updated_at: datetime
+
+
+class AdminItemFeedbackPage(ApiModel):
+    items: list[AdminItemFeedbackDetail]
+    page: int
+    page_size: int
+    total_items: int
+    total_pages: int
+
+
+class AdminItemReportPage(ApiModel):
+    items: list[ItemReportDetail]
+    page: int
+    page_size: int
+    total_items: int
+    total_pages: int
+
+
 class ItemValidationDetail(ApiModel):
     validator_role: Literal["schema", "answer", "quality"]
     model_id: str

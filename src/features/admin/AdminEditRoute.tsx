@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useParams } from "react-router-dom";
+import { Dialog } from "../../components/ui/Dialog";
 import { useI18n } from "../../lib/i18n";
 import { readingTopics } from "../../lib/readingPolicy";
 import type { ReadingItem, ReadingLanguage, StateSetter } from "../../types";
 import { AdminEdit } from "./AdminScreens";
+import { AdminItemResponsesDialog } from "./AdminItemResponsesDialog";
 
 interface AdminEditRouteProps {
   items: ReadingItem[];
@@ -58,6 +60,7 @@ export function AdminEditRoute({
   const [explanationSuggestionErrors, setExplanationSuggestionErrors] = useState<
     Record<number, string>
   >({});
+  const [responsesOpen, setResponsesOpen] = useState(false);
   const suggestionRequestRef = useRef(0);
 
   useEffect(() => {
@@ -72,6 +75,7 @@ export function AdminEditRoute({
     setTopicSuggestionError("");
     setSuggestingExplanationIndex(null);
     setExplanationSuggestionErrors({});
+    setResponsesOpen(false);
   }, [itemId]);
 
   if (!item) return <Navigate to="/admin/readings" replace />;
@@ -196,26 +200,45 @@ export function AdminEditRoute({
   };
 
   return (
-    <AdminEdit
-      item={item}
-      draft={draft}
-      setDraft={setDraft}
-      onSave={onSave}
-      onHold={() => onHold(item)}
-      onPublish={() => onPublish(draft)}
-      onDelete={() => onDelete(item)}
-      onBack={onBack}
-      isSaving={isSaving}
-      onSuggestTitle={() => void suggestTitle()}
-      isSuggestingTitle={isSuggestingTitle}
-      titleSuggestionError={titleSuggestionError}
-      onSuggestTopic={() => void suggestTopic()}
-      isSuggestingTopic={isSuggestingTopic}
-      topicSuggestionError={topicSuggestionError}
-      onSuggestExplanation={(questionIndex) => void suggestExplanation(questionIndex)}
-      suggestingExplanationIndex={suggestingExplanationIndex}
-      explanationSuggestionErrors={explanationSuggestionErrors}
-      onConfirmQuestionTruncation={onConfirmQuestionTruncation}
-    />
+    <>
+      <AdminEdit
+        item={item}
+        draft={draft}
+        setDraft={setDraft}
+        onSave={onSave}
+        onHold={() => onHold(item)}
+        onPublish={() => onPublish(draft)}
+        onDelete={() => onDelete(item)}
+        onBack={onBack}
+        onOpenResponses={() => setResponsesOpen(true)}
+        isSaving={isSaving}
+        onSuggestTitle={() => void suggestTitle()}
+        isSuggestingTitle={isSuggestingTitle}
+        titleSuggestionError={titleSuggestionError}
+        onSuggestTopic={() => void suggestTopic()}
+        isSuggestingTopic={isSuggestingTopic}
+        topicSuggestionError={topicSuggestionError}
+        onSuggestExplanation={(questionIndex) => void suggestExplanation(questionIndex)}
+        suggestingExplanationIndex={suggestingExplanationIndex}
+        explanationSuggestionErrors={explanationSuggestionErrors}
+        onConfirmQuestionTruncation={onConfirmQuestionTruncation}
+      />
+      <Dialog
+        dialog={responsesOpen ? {
+          type: "admin-responses",
+          kicker: t("admin.itemResponse"),
+          title: t("admin.userResponses"),
+          context: item.title,
+          description: "",
+        } : null}
+        onClose={() => setResponsesOpen(false)}
+      >
+        <AdminItemResponsesDialog
+          itemId={item.id}
+          evaluationCount={item.perceivedVotes}
+          reportCount={item.reportCount}
+        />
+      </Dialog>
+    </>
   );
 }

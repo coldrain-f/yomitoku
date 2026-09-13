@@ -49,7 +49,8 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
   const closeLabel =
       dialog.type === "translation" ||
       dialog.type === "score-guide" ||
-      dialog.type === "highlights"
+      dialog.type === "highlights" ||
+      dialog.type === "admin-responses"
       ? t("common.close")
       : t("common.cancel");
   return (
@@ -61,7 +62,7 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
     >
       <section
         className={`confirm-dialog${
-          dialog.type === "translation"
+          dialog.type === "translation" || dialog.type === "admin-responses"
             ? " confirm-dialog-wide"
             : ""
         }${

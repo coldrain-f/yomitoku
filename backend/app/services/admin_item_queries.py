@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models import (
+    ItemFeedback,
     ItemReport,
     ItemValidation,
     PassageHighlight,
@@ -15,6 +16,8 @@ from app.db.models import (
     ReadingQuestion,
 )
 from app.schemas import (
+    AdminItemFeedbackPage,
+    AdminItemReportPage,
     AdminReadingItemDetail,
     LengthType,
     ReadingChoiceInput,
@@ -66,19 +69,101 @@ async def get_admin_item(session: AsyncSession, item_id: UUID) -> ReadingItem:
     return item
 
 
+async def list_admin_item_feedback(
+    session: AsyncSession,
+    item_id: UUID,
+    *,
+    page: int,
+    page_size: int,
+) -> AdminItemFeedbackPage:
+    await get_admin_item(session, item_id)
+    total_items = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(ItemFeedback)
+            .where(ItemFeedback.reading_item_id == item_id)
+        )
+        or 0
+    )
+    total_pages = max(1, math.ceil(total_items / page_size))
+    page = min(page, total_pages)
+    feedbacks = list(
+        await session.scalars(
+            select(ItemFeedback)
+            .where(ItemFeedback.reading_item_id == item_id)
+            .order_by(ItemFeedback.updated_at.desc(), ItemFeedback.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    )
+    return AdminItemFeedbackPage(
+        items=[
+            {
+                "id": feedback.id,
+                "quality_rating": feedback.quality_rating,
+                "perceived_level": feedback.perceived_level,
+                "comment": feedback.comment,
+                "updated_at": feedback.updated_at,
+            }
+            for feedback in feedbacks
+        ],
+        page=page,
+        page_size=page_size,
+        total_items=total_items,
+        total_pages=total_pages,
+    )
+
+
+async def list_admin_item_reports(
+    session: AsyncSession,
+    item_id: UUID,
+    *,
+    page: int,
+    page_size: int,
+) -> AdminItemReportPage:
+    await get_admin_item(session, item_id)
+    total_items = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(ItemReport)
+            .where(ItemReport.reading_item_id == item_id)
+        )
+        or 0
+    )
+    total_pages = max(1, math.ceil(total_items / page_size))
+    page = min(page, total_pages)
+    reports = list(
+        await session.scalars(
+            select(ItemReport)
+            .where(ItemReport.reading_item_id == item_id)
+            .order_by(ItemReport.created_at.desc(), ItemReport.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    )
+    return AdminItemReportPage(
+        items=[
+            {
+                "id": report.id,
+                "content": report.content,
+                "status": report.status,
+                "created_at": report.created_at,
+            }
+            for report in reports
+        ],
+        page=page,
+        page_size=page_size,
+        total_items=total_items,
+        total_pages=total_pages,
+    )
+
+
 async def serialize_detail(
     session: AsyncSession,
     item: ReadingItem,
     metrics: ItemMetrics,
 ) -> AdminReadingItemDetail:
     summary = serialize_public_summary(item, metrics, None)
-    reports = list(
-        await session.scalars(
-            select(ItemReport)
-            .where(ItemReport.reading_item_id == item.id)
-            .order_by(ItemReport.created_at.desc(), ItemReport.id.desc())
-        )
-    )
     validations = list(
         await session.scalars(
             select(ItemValidation)
@@ -133,15 +218,7 @@ async def serialize_detail(
         report_count=int(metrics["report_count"] or 0),
         challenger_count=int(metrics["challenger_count"] or 0),
         highlight_count=highlight_count,
-        reports=[
-            {
-                "id": report.id,
-                "content": report.content,
-                "status": report.status,
-                "created_at": report.created_at,
-            }
-            for report in reports
-        ],
+        reports=[],
         validations=[
             {
                 "validator_role": validation.validator_role,

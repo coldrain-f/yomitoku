@@ -3,6 +3,7 @@ import {
   ChevronDown,
   ChevronUp,
   Clock3,
+  MessageSquare,
   Plus,
   RefreshCw,
   Save,
@@ -13,7 +14,7 @@ import {
 import { Icon } from "../../components/ui/Icon";
 import { OptionButtons } from "../../components/ui/OptionButtons";
 import { useI18n } from "../../lib/i18n";
-import { formatDate, minimumVotes, statusClass } from "../../lib/reading";
+import { minimumVotes, statusClass } from "../../lib/reading";
 import {
   defaultGenerationLevelByLanguage,
   levelsForLanguage,
@@ -40,6 +41,7 @@ interface AdminEditProps {
   onPublish: () => void;
   onDelete: () => void;
   onBack: () => void;
+  onOpenResponses?: () => void;
   manual?: boolean;
   isSaving?: boolean;
   error?: string;
@@ -67,6 +69,7 @@ export function AdminEdit({
   onPublish,
   onDelete,
   onBack,
+  onOpenResponses,
   manual = false,
   isSaving = false,
   error = "",
@@ -564,29 +567,6 @@ export function AdminEdit({
                 <dd>{item.reportCount}건</dd>
               </div>
             </dl>
-            <section className="admin-report-section" aria-label={t("admin.reportDetails")}>
-              <div className="admin-section-heading">
-                <h3 className="admin-subsection-title">{t("admin.reportDetails")}</h3>
-                <span className="admin-section-note">{item.reports.length}건</span>
-              </div>
-              {item.reports.length ? (
-                <div className="admin-report-list">
-                  {item.reports.map((report) => (
-                    <article className="admin-report-item" key={report.id}>
-                      <div className="admin-record-meta">
-                        <span className="badge">
-                          {report.status === "open" ? t("admin.reportReceived") : report.status}
-                        </span>
-                        <time className="row-date">{formatDate(report.createdAt, locale)}</time>
-                      </div>
-                      <p>{report.content}</p>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <p className="admin-empty-detail">{t("admin.emptyReports")}</p>
-              )}
-            </section>
           </section> : null}
           {!manual ? <ValidationRecords validations={item.validations} /> : null}
         </fieldset>
@@ -611,6 +591,12 @@ export function AdminEdit({
             </button> : null}
           </div>
           <div className="admin-edit-main">
+            {!manual && onOpenResponses ? (
+              <button className="text-button" type="button" onClick={onOpenResponses} disabled={isWorking}>
+                <Icon icon={MessageSquare} />
+                {t("admin.userResponses")}
+              </button>
+            ) : null}
             {!manual ? <button className="text-button" type="button" onClick={onHold} disabled={isWorking}>
               <Icon icon={Clock3} />
               {item.status === "held"
@@ -635,4 +621,3 @@ export function AdminEdit({
     </section>
   );
 }
-

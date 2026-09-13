@@ -269,7 +269,8 @@ export interface DialogConfig {
     | "feedback"
     | "translation"
     | "score-guide"
-    | "highlights";
+    | "highlights"
+    | "admin-responses";
   kicker: string;
   title: string;
   context?: string;

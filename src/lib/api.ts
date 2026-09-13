@@ -177,6 +177,22 @@ export interface Statistics {
   byLevel: ApiStatisticGroup[];
 }
 
+export interface AdminItemFeedback {
+  id: string;
+  qualityRating: number;
+  perceivedLevel: DifficultyLevel;
+  comment: string | null;
+  updatedAt: string;
+}
+
+export interface AdminItemResponsePage<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
 export interface StartedAttempt {
   id: string;
   itemId: string;
@@ -612,6 +628,14 @@ export const api = {
     const response = await request<ApiReadingDetail>(`/admin/reading-items/${itemId}`);
     return toItem(response, response);
   },
+  adminItemFeedback: (itemId: string, page = 1, pageSize = 5) =>
+    request<AdminItemResponsePage<AdminItemFeedback>>(
+      `/admin/reading-items/${itemId}/feedback${queryString({ page, page_size: pageSize })}`,
+    ),
+  adminItemReports: (itemId: string, page = 1, pageSize = 5) =>
+    request<AdminItemResponsePage<ItemReport>>(
+      `/admin/reading-items/${itemId}/reports${queryString({ page, page_size: pageSize })}`,
+    ),
   updateAdminReading: async (
     item: ReadingItem,
     options: { clearPassageHighlights?: boolean } = {},

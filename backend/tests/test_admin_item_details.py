@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.api.routes.admin import update_admin_reading_item
 from app.core.security import CurrentUser
 from app.db.models import (
+    ItemFeedback,
     ItemReport,
     ItemValidation,
     PassageHighlight,
@@ -18,13 +19,18 @@ from app.db.models import (
     ReadingItem,
 )
 from app.schemas import AdminReadingItemUpdate
-from app.services.admin_item_queries import get_admin_item, serialize_detail
+from app.services.admin_item_queries import (
+    get_admin_item,
+    list_admin_item_feedback,
+    list_admin_item_reports,
+    serialize_detail,
+)
 from app.services.item_metrics import collect_item_metrics
 from tests.factories import make_generation_job, make_user
 
 
 @pytest.mark.asyncio
-async def test_admin_item_detail_includes_validation_and_report_records(
+async def test_admin_item_detail_includes_validation_and_paginated_response_records(
     sessions: async_sessionmaker[AsyncSession],
 ) -> None:
     item_id = uuid4()
@@ -102,22 +108,58 @@ async def test_admin_item_detail_includes_validation_and_report_records(
                 ),
             ]
         )
+        feedback_users = [await make_user(session) for _ in range(2)]
+        session.add_all(
+            [
+                ItemFeedback(
+                    user_id=feedback_users[0].id,
+                    reading_item_id=item_id,
+                    quality_rating=5,
+                    perceived_level="N2",
+                    comment="근거가 분명합니다.",
+                    updated_at=now,
+                ),
+                ItemFeedback(
+                    user_id=feedback_users[1].id,
+                    reading_item_id=item_id,
+                    quality_rating=3,
+                    perceived_level="N3",
+                    comment="선택지를 조금 더 다듬어 주세요.",
+                    updated_at=now + timedelta(minutes=2),
+                ),
+            ]
+        )
         await session.commit()
 
         loaded = await get_admin_item(session, item_id)
         metrics = await collect_item_metrics(session, [item_id])
         detail = await serialize_detail(session, loaded, metrics[item_id])
+        feedback_page = await list_admin_item_feedback(
+            session,
+            item_id,
+            page=1,
+            page_size=1,
+        )
+        report_page = await list_admin_item_reports(
+            session,
+            item_id,
+            page=2,
+            page_size=1,
+        )
 
-    assert [report.content for report in detail.reports] == [
-        "해설의 표현을 확인해 주세요.",
-        "이 선택지는 본문 근거와 맞지 않습니다.",
-    ]
+    assert detail.reports == []
     assert [(validation.validator_role, validation.score) for validation in detail.validations] == [
         ("answer", 96),
         ("quality", 82),
     ]
     assert detail.validations[1].issue_codes == ["DISTRACTOR_OVERLAP"]
     assert detail.validations[1].evidence == ["2번과 3번 선택지가 의미상 가깝다."]
+    assert feedback_page.total_items == 2
+    assert feedback_page.total_pages == 2
+    assert feedback_page.items[0].comment == "선택지를 조금 더 다듬어 주세요."
+    assert report_page.total_items == 2
+    assert report_page.page == 2
+    assert report_page.items[0].content == "이 선택지는 본문 근거와 맞지 않습니다."
 
 
 @pytest.mark.asyncio

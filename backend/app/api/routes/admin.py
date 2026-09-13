@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import CurrentUser, require_admin
 from app.db.session import get_session
 from app.schemas import (
+    AdminItemFeedbackPage,
+    AdminItemReportPage,
     AdminExplanationSuggestionRequest,
     AdminExplanationSuggestionResponse,
     AdminReadingItemCreate,
@@ -50,7 +52,9 @@ from app.services.admin_generation import (
 from app.services.admin_item_queries import (
     AdminItemStatus,
     get_admin_item_detail,
+    list_admin_item_feedback,
     list_admin_items,
+    list_admin_item_reports,
 )
 from app.services.admin_reading_items import (
     create_admin_item,
@@ -209,6 +213,44 @@ async def get_admin_reading_item(
     current_user: Annotated[CurrentUser, Depends(require_admin)],
 ) -> AdminReadingItemDetail:
     return await get_admin_item_detail(session, item_id)
+
+
+@router.get(
+    "/reading-items/{item_id}/feedback",
+    response_model=AdminItemFeedbackPage,
+)
+async def list_admin_reading_item_feedback(
+    item_id: UUID,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    current_user: Annotated[CurrentUser, Depends(require_admin)],
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=20)] = 5,
+) -> AdminItemFeedbackPage:
+    return await list_admin_item_feedback(
+        session,
+        item_id,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get(
+    "/reading-items/{item_id}/reports",
+    response_model=AdminItemReportPage,
+)
+async def list_admin_reading_item_reports(
+    item_id: UUID,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    current_user: Annotated[CurrentUser, Depends(require_admin)],
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=20)] = 5,
+) -> AdminItemReportPage:
+    return await list_admin_item_reports(
+        session,
+        item_id,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.patch("/reading-items/{item_id}", response_model=AdminReadingItemDetail)
