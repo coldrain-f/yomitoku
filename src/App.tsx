@@ -189,6 +189,8 @@ export default function App() {
     userId,
   } = useAuth();
   const [statistics, setStatistics] = useState<Statistics | null>(null);
+  const [selectedLanguageStatistics, setSelectedLanguageStatistics] =
+    useState<Statistics | null>(null);
   const [attempts, setAttempts] = useState<AttemptRecord[]>([]);
   const [passageHighlights, setPassageHighlights] = useState<
     Record<string, PassageHighlight[]>
@@ -474,6 +476,26 @@ export default function App() {
       setToast(errorMessage(error, "stats.failed")),
     );
   }, [authenticated]);
+
+  useEffect(() => {
+    if (!authenticated || screen !== "stats") {
+      setSelectedLanguageStatistics(null);
+      return;
+    }
+    let active = true;
+    setSelectedLanguageStatistics(null);
+    void api.statistics(filters.language).then(
+      (nextStatistics) => {
+        if (active) setSelectedLanguageStatistics(nextStatistics);
+      },
+      (error: unknown) => {
+        if (active) setToast(errorMessage(error, "stats.failed"));
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [authenticated, errorMessage, filters.language, screen, setToast]);
 
   useEffect(() => {
     if (!authenticated || role !== "admin") return;
@@ -857,6 +879,7 @@ export default function App() {
     resetSession();
     resetSubmission();
     setStatistics(null);
+    setSelectedLanguageStatistics(null);
     setPassageHighlights({});
     resetHighlightCollection();
     setHighlightRemoval(null);
@@ -1143,7 +1166,7 @@ export default function App() {
           />
           <Route path="/readings/:itemId" element={<RequireAuth authenticated={authenticated}><ReadingRoute items={items} attempt={attempt} result={result} onChoose={chooseAnswer} onSubmit={submit} isSubmitting={isSubmitting} onAbandon={goHome} onReport={openReport} onTranslate={openTranslation} onResult={() => result && navigate(`/results/${result.itemId}`)} highlights={attempt ? passageHighlights[attempt.itemId] ?? [] : []} onCreateHighlight={(startOffset, endOffset, selectedText) => attempt ? createPassageHighlight(attempt.itemId, startOffset, endOffset, selectedText) : Promise.reject(new Error(t("reading.noActiveAttempt")))} onDeleteHighlight={(highlightId) => attempt ? deletePassageHighlight(attempt.itemId, highlightId) : Promise.reject(new Error(t("reading.noActiveAttempt")))} /></RequireAuth>} />
           <Route path="/results/:itemId" element={<RequireAuth authenticated={authenticated}><ResultRoute result={result} onFeedback={openFeedback} onReview={() => result && navigate(`/readings/${result.itemId}`)} onContinue={continueReading} onHome={goHome} /></RequireAuth>} />
-          <Route path="/statistics" element={<RequireAuth authenticated={authenticated}><StatsScreen statistics={statistics} /></RequireAuth>} />
+          <Route path="/statistics" element={<RequireAuth authenticated={authenticated}><StatsScreen statistics={selectedLanguageStatistics} language={filters.language} /></RequireAuth>} />
           <Route path="/admin/readings" element={<RequireAdmin authenticated={authenticated} role={role}><AdminScreen items={adminItems} loading={isAdminListLoading} error={adminListError} page={adminPage} totalPages={adminTotalPages} totalItems={adminTotalItems} onPageChange={setAdminPage} filters={adminFilters} query={adminQuery} setQuery={updateAdminQuery} onLanguageChange={(language) => updateAdminFilters((current) => ({ ...current, language, level: "all" }))} onFilters={openAdminFilters} onEdit={openEdit} onGenerate={() => { void loadGenerationModels(); navigate("/admin/readings/new"); }} onManualCreate={() => { resetManualDraft(); navigate("/admin/readings/manual"); }} onHistory={() => { void loadGenerationHistory(); navigate("/admin/generation-history"); }} /></RequireAdmin>} />
           <Route path="/admin/generation-history" element={<RequireAdmin authenticated={authenticated} role={role}><GenerationHistoryScreen items={generationHistory} loading={isGenerationHistoryLoading} error={generationHistoryError} page={generationHistoryPage} totalPages={generationHistoryTotalPages} totalItems={generationHistoryTotalItems} onPageChange={(page) => void loadGenerationHistory(page)} onRefresh={() => void loadGenerationHistory(generationHistoryPage)} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
           <Route path="/admin/readings/manual" element={<RequireAdmin authenticated={authenticated} role={role}><ManualCreateScreen values={manualDraft} setValues={setManualDraft} isSaving={isManualSaving} error={manualError} onSave={() => void createManualReading()} onBack={leaveManualCreate} onSuggestTitle={suggestTitle} onSuggestTopic={suggestTopic} onSuggestExplanation={suggestExplanation} onConfirmQuestionTruncation={confirmQuestionTruncation} /></RequireAdmin>} />

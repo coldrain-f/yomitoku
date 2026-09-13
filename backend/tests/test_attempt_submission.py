@@ -568,15 +568,34 @@ async def test_statistics_use_only_a_learner_first_submitted_attempt(
                 elapsed_seconds=69,
             )
         )
+        session.add(
+            ReadingItem(
+                title="한국어 통계 문항",
+                passage="한국어 통계 범위를 확인합니다.",
+                question="통계 범위는 무엇인가?",
+                explanation="언어별로 집계합니다.",
+                language="ko",
+                official_level="TOPIK 4급",
+                length_type="short",
+                topic="교육",
+                recommended_seconds=180,
+                status="published",
+                published_at=datetime.now(UTC),
+            )
+        )
         await session.commit()
 
-        statistics = await get_user_statistics(session, user.id)
+        statistics = await get_user_statistics(session, user.id, language="ja")
+        korean_statistics = await get_user_statistics(session, user.id, language="ko")
 
     assert statistics.completed_count == 1
     assert statistics.total_generated_count == 1
     assert statistics.accuracy == 100
     assert statistics.average_elapsed_seconds == 42
     assert next(group for group in statistics.by_language if group.key == "ja").accuracy == 100
+    assert korean_statistics.total_generated_count == 1
+    assert korean_statistics.completed_count == 0
+    assert korean_statistics.accuracy is None
 
 
 @pytest.mark.asyncio

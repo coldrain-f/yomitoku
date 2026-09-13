@@ -595,7 +595,8 @@ export const api = {
     }).then((state) => state.isBookmarked),
   abandonAttempt: (attemptId: string) =>
     request<void>(`/reading-items/attempts/${attemptId}/abandon`, { method: "POST" }),
-  statistics: () => request<Statistics>("/me/statistics"),
+  statistics: (language?: ReadingLanguage) =>
+    request<Statistics>(`/me/statistics${language ? `?language=${language}` : ""}`),
   feedback: (itemId: string, qualityRating: number, perceivedLevel: DifficultyLevel, comment: string) =>
     request<void>(`/reading-items/${itemId}/feedback`, {
       method: "PUT",

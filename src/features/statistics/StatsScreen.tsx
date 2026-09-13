@@ -2,16 +2,17 @@ import type { CSSProperties } from "react";
 import type { Statistics } from "../../lib/api";
 import { formatTime } from "../../lib/reading";
 import { useI18n } from "../../lib/i18n";
-import type { DifficultyLevel, LengthType } from "../../types";
+import type { DifficultyLevel, LengthType, ReadingLanguage } from "../../types";
 
 interface StatsScreenProps {
   statistics: Statistics | null;
+  language: ReadingLanguage;
 }
 
 type ProgressStyle = CSSProperties & Record<"--progress", string>;
 
-export function StatsScreen({ statistics }: StatsScreenProps) {
-  const { t, levelLabel, lengthLabel } = useI18n();
+export function StatsScreen({ statistics, language }: StatsScreenProps) {
+  const { t, languageLabel, levelLabel, lengthLabel } = useI18n();
 
   if (!statistics) {
     return (
@@ -65,7 +66,9 @@ export function StatsScreen({ statistics }: StatsScreenProps) {
         <div className="stats-heading">
           <div>
             <p className="kicker">{t("stats.kicker")}</p>
-            <h1 className="screen-title">{t("stats.title")}</h1>
+            <h1 className="screen-title">
+              {t("stats.titleForLanguage", { language: languageLabel(language) })}
+            </h1>
           </div>
           <span className="badge">{t("stats.generated", { count: total })}</span>
         </div>

@@ -462,5 +462,6 @@ async def create_report(
 async def get_statistics(
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
+    language: Annotated[ReadingLanguage | None, Query()] = None,
 ) -> StatisticsResponse:
-    return await get_user_statistics(session, current_user.id)
+    return await get_user_statistics(session, current_user.id, language=language)

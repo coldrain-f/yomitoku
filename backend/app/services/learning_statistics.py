@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Attempt, ReadingItem
-from app.schemas import StatisticGroup, StatisticsResponse
+from app.schemas import ReadingLanguage, StatisticGroup, StatisticsResponse
 from app.services.item_metrics import first_submissions_by_user_item
 from app.services.reading_policy import LENGTH_TYPES, LEVELS_BY_LANGUAGE
 
@@ -63,13 +63,14 @@ def group_statistics(
 
 
 async def get_user_statistics(
-    session: AsyncSession, user_id: UUID
+    session: AsyncSession, user_id: UUID, language: ReadingLanguage | None = None
 ) -> StatisticsResponse:
-    """Return statistics based on each learner's first result for published items."""
+    """Return first-submission statistics for published items in an optional language."""
+    item_query = select(ReadingItem).where(ReadingItem.status == "published")
+    if language:
+        item_query = item_query.where(ReadingItem.language == language)
     items = list(
-        await session.scalars(
-            select(ReadingItem).where(ReadingItem.status == "published")
-        )
+        await session.scalars(item_query)
     )
     submissions = list(
         await session.scalars(
