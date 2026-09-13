@@ -63,6 +63,18 @@ from app.services.item_metrics import (
     perceived_feedback_summary_query,
     perceived_level_rank,
 )
+from app.services.reading_engagement import (
+    HighlightNotFoundError,
+    HighlightOverlapError,
+    HighlightRangeMismatchError,
+    add_item_bookmark,
+    create_user_highlight,
+    delete_user_highlight,
+    list_user_highlights,
+    normalized_passage_text,
+    remove_item_bookmark,
+    selected_text_for_offsets,
+)
 from app.services.reading_policy import (
     LENGTH_TYPES,
     LEVELS_BY_LANGUAGE,
@@ -186,30 +198,6 @@ def choices_for_attempt(item: ReadingItem, attempt: Attempt) -> list[ReadingChoi
         *[by_id.pop(choice_id) for choice_id in attempt.choice_order if choice_id in by_id],
         *by_id.values(),
     ]
-
-
-def normalized_passage_text(value: str) -> str:
-    return value.replace("\r\n", "\n").replace("\r", "\n")
-
-
-def python_index_for_utf16_offset(text: str, offset: int) -> int | None:
-    """Map browser DOM offsets to Python indices without splitting a surrogate pair."""
-    consumed = 0
-    for index, character in enumerate(text):
-        if consumed == offset:
-            return index
-        consumed += 2 if ord(character) > 0xFFFF else 1
-    return len(text) if consumed == offset else None
-
-
-def selected_text_for_offsets(
-    passage: str, start_offset: int, end_offset: int
-) -> str | None:
-    start_index = python_index_for_utf16_offset(passage, start_offset)
-    end_index = python_index_for_utf16_offset(passage, end_offset)
-    if start_index is None or end_index is None or end_index <= start_index:
-        return None
-    return passage[start_index:end_index]
 
 
 def serialize_passage_highlight(highlight: PassageHighlight) -> PassageHighlightResponse:
@@ -787,15 +775,7 @@ async def bookmark_reading_item(
 ) -> ReadingBookmarkResponse:
     await get_published_item(session, item_id)
     await ensure_user(session, current_user)
-    bookmark = await session.scalar(
-        select(ItemBookmark).where(
-            ItemBookmark.user_id == current_user.id,
-            ItemBookmark.reading_item_id == item_id,
-        )
-    )
-    if bookmark is None:
-        session.add(ItemBookmark(user_id=current_user.id, reading_item_id=item_id))
-        await session.commit()
+    await add_item_bookmark(session, current_user.id, item_id)
     return ReadingBookmarkResponse(reading_item_id=item_id, is_bookmarked=True)
 
 
@@ -806,15 +786,7 @@ async def delete_reading_bookmark(
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> ReadingBookmarkResponse:
     await get_published_item(session, item_id)
-    bookmark = await session.scalar(
-        select(ItemBookmark).where(
-            ItemBookmark.user_id == current_user.id,
-            ItemBookmark.reading_item_id == item_id,
-        )
-    )
-    if bookmark is not None:
-        await session.delete(bookmark)
-        await session.commit()
+    await remove_item_bookmark(session, current_user.id, item_id)
     return ReadingBookmarkResponse(reading_item_id=item_id, is_bookmarked=False)
 
 
@@ -885,21 +857,6 @@ async def translate_reading_item(
     )
 
 
-async def get_user_highlights(
-    session: AsyncSession, item_id: UUID, current_user: CurrentUser
-) -> list[PassageHighlight]:
-    return list(
-        await session.scalars(
-            select(PassageHighlight)
-            .where(
-                PassageHighlight.user_id == current_user.id,
-                PassageHighlight.reading_item_id == item_id,
-            )
-            .order_by(PassageHighlight.start_offset.asc(), PassageHighlight.end_offset.asc())
-        )
-    )
-
-
 @router.get("/{item_id}/highlights", response_model=list[PassageHighlightResponse])
 async def list_passage_highlights(
     item_id: UUID,
@@ -908,7 +865,7 @@ async def list_passage_highlights(
 ) -> list[PassageHighlightResponse]:
     item = await get_published_item(session, item_id)
     passage = normalized_passage_text(item.passage)
-    highlights = await get_user_highlights(session, item_id, current_user)
+    highlights = await list_user_highlights(session, current_user.id, item_id)
     return [
         serialize_passage_highlight(highlight)
         for highlight in highlights
@@ -931,43 +888,27 @@ async def create_passage_highlight(
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> PassageHighlightResponse:
     item = await get_published_item(session, item_id)
-    passage = normalized_passage_text(item.passage)
-    selected_text = selected_text_for_offsets(
-        passage, request.start_offset, request.end_offset
-    )
-    if selected_text != request.selected_text:
+    await ensure_user(session, current_user)
+    try:
+        highlight = await create_user_highlight(
+            session,
+            user_id=current_user.id,
+            reading_item_id=item_id,
+            passage=item.passage,
+            start_offset=request.start_offset,
+            end_offset=request.end_offset,
+            selected_text=request.selected_text,
+        )
+    except HighlightRangeMismatchError as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="The selected passage range no longer matches the source text.",
-        )
-
-    await ensure_user(session, current_user)
-    highlights = await get_user_highlights(session, item_id, current_user)
-    for highlight in highlights:
-        if (
-            highlight.start_offset == request.start_offset
-            and highlight.end_offset == request.end_offset
-        ):
-            return serialize_passage_highlight(highlight)
-        if (
-            request.start_offset < highlight.end_offset
-            and highlight.start_offset < request.end_offset
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="The selected range overlaps an existing highlight.",
-            )
-
-    highlight = PassageHighlight(
-        user_id=current_user.id,
-        reading_item_id=item_id,
-        start_offset=request.start_offset,
-        end_offset=request.end_offset,
-        selected_text=request.selected_text,
-    )
-    session.add(highlight)
-    await session.commit()
-    await session.refresh(highlight)
+        ) from error
+    except HighlightOverlapError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="The selected range overlaps an existing highlight.",
+        ) from error
     return serialize_passage_highlight(highlight)
 
 
@@ -979,19 +920,17 @@ async def delete_passage_highlight(
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> Response:
     await get_published_item(session, item_id)
-    highlight = await session.scalar(
-        select(PassageHighlight).where(
-            PassageHighlight.id == highlight_id,
-            PassageHighlight.user_id == current_user.id,
-            PassageHighlight.reading_item_id == item_id,
+    try:
+        await delete_user_highlight(
+            session,
+            user_id=current_user.id,
+            reading_item_id=item_id,
+            highlight_id=highlight_id,
         )
-    )
-    if not highlight:
+    except HighlightNotFoundError as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Highlight not found."
-        )
-    await session.delete(highlight)
-    await session.commit()
+        ) from error
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
