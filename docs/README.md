@@ -10,6 +10,7 @@
 | [04-acceptance-checklist.md](./04-acceptance-checklist.md) | 실제 기기 기준 QA 체크리스트와 자동 검증 명령 |
 | [05-delivery-roadmap.md](./05-delivery-roadmap.md) | 현재 운영 단계와 이후 개선 원칙 |
 | [06-production-deployment.md](./06-production-deployment.md) | Linux, Docker Compose, Caddy 운영 배포·갱신·복구 절차 |
+| [07-troubleshooting.md](./07-troubleshooting.md) | Compose, 포트, health check, Caddy, GitHub Pages 장애 점검 |
 
 ## 유지 원칙
 

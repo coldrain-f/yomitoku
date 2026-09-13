@@ -108,3 +108,5 @@ docker compose --env-file .env.production \
 ```
 
 백업은 서버 외부의 암호화된 저장소에도 복사하고, 정기적으로 별도 환경에서 복원 가능 여부를 확인한다. 운영 중에는 health endpoint, Google 로그인, 일반 풀이 제출, 관리자 저장을 배포 후 smoke test 한다.
+
+Compose 변수, 포트, health check, Caddy, migration, GitHub Pages 문제는 [운영 트러블슈팅](./07-troubleshooting.md)을 따른다.
