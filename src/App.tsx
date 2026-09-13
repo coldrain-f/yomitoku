@@ -22,6 +22,7 @@ import {
 } from "./features/readings/useHighlightCollection";
 import { useReadingAttempt } from "./features/readings/useReadingAttempt";
 import { useReadingList } from "./features/readings/useReadingList";
+import { useReadingStartDialog } from "./features/readings/useReadingStartDialog";
 import { useReadingSubmission } from "./features/readings/useReadingSubmission";
 import { StatsScreen } from "./features/statistics/StatsScreen";
 import { LoginScreen } from "./features/auth/LoginScreen";
@@ -33,7 +34,10 @@ import {
   useGenerationResources,
 } from "./features/admin/useAdminResources";
 import { useAdminReadingActions } from "./features/admin/useAdminReadingActions";
+import { useAppDialog } from "./hooks/useAppDialog";
 import { useFilterDraft } from "./hooks/useFilterDraft";
+import { useToast } from "./hooks/useToast";
+import { useTranslationDialog } from "./hooks/useTranslationDialog";
 import { AppDialogContent } from "./components/AppDialogContent";
 import { AppHeader } from "./components/AppHeader";
 import { Breadcrumb } from "./components/ui/Breadcrumb";
@@ -43,7 +47,6 @@ import {
   api,
   recordFromResult,
   type GenerationJob,
-  type ReadingTranslation,
   type Statistics,
 } from "./lib/api";
 import {
@@ -55,11 +58,9 @@ import {
   recommendedSecondsByLength,
   recommendedTopic,
 } from "./lib/readingPolicy";
-import { formatTime } from "./lib/reading";
 import { useI18n, type TranslationFunction } from "./lib/i18n";
 import type {
   AttemptRecord,
-  DialogConfig,
   FeedbackValues,
   GenerationValues,
   HighlightRemovalConfirmation,
@@ -238,12 +239,15 @@ export default function App() {
     replaceDraft: replaceFilterDraft,
     setDraft: setFilterDraft,
   } = useFilterDraft(filters);
-  const [dialog, setDialog] = useState<DialogConfig | null>(null);
+  const {
+    closeDialog,
+    dialog,
+    dialogError,
+    openDialog,
+    setDialogError,
+  } = useAppDialog();
   const [pendingStart, setPendingStart] = useState<ReadingItem | null>(null);
-  const [toast, setToast] = useState("");
-  const [translation, setTranslation] = useState<ReadingTranslation | null>(null);
-  const [translationLoading, setTranslationLoading] = useState(false);
-  const [translationError, setTranslationError] = useState("");
+  const { toast, setToast } = useToast();
   const [generation, setGeneration] = useState<GenerationValues>({
     language: defaultGenerationLanguage,
     level: defaultGenerationLevelByLanguage[defaultGenerationLanguage],
@@ -318,7 +322,12 @@ export default function App() {
     models: generationModels,
     modelsError: generationModelsError,
   } = useGenerationResources({ errorMessage, setGeneration });
-  const [dialogError, setDialogError] = useState("");
+  const {
+    openTranslation: openTranslationDialog,
+    translation,
+    translationError,
+    translationLoading,
+  } = useTranslationDialog({ errorMessage, openDialog, t });
   const generationJob = useGenerationJob(authenticated && role === "admin" ? userId : null);
   const isGenerating = generationJob.isPending || Boolean(generationJob.job?.generatedItemId);
   const generationProgress = generationJob.job
@@ -435,6 +444,24 @@ export default function App() {
     onAttemptRestored: restoreAttemptSubmission,
   });
   const activeItem = items.find((item) => item.id === attempt?.itemId);
+  const { openStartDialog, start } = useReadingStartDialog({
+    authenticated,
+    closeDialog,
+    errorMessage,
+    lengthLabel,
+    levelLabel,
+    navigate,
+    onUnauthenticatedStart: (item) => {
+      setPendingStart(item);
+      setDialogError("");
+      navigate("/login");
+    },
+    openDialog,
+    showToast: setToast,
+    startAttempt,
+    t,
+    topicLabel,
+  });
 
   useEffect(() => {
     if (!initialAuthError) return;
@@ -496,24 +523,11 @@ export default function App() {
   }, [authenticated, location.pathname, role]);
 
   useEffect(() => {
-    if (!toast) return undefined;
-    const timer = window.setTimeout(() => setToast(""), 2800);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
-  useEffect(() => {
     reportTextRef.current = reportText;
   }, [reportText]);
   useEffect(() => {
     feedbackRef.current = feedback;
   }, [feedback]);
-  const closeDialog = () => {
-    setDialog(null);
-    setDialogError("");
-  };
-  const openDialog = (value: DialogConfig) => {
-    setDialogError("");
-    setDialog(value);
-  };
   const confirmQuestionTruncation = (
     removedQuestionCount: number,
     onConfirm: () => void,
@@ -528,53 +542,6 @@ export default function App() {
         onConfirm();
       },
     });
-  const openStartDialog = (item: ReadingItem) => {
-    const hasScore = item.myScore !== null;
-    const hasPreviousSubmission = hasScore || item.myLatestStatus !== null;
-    const previousResult = hasScore
-      ? t("start.previousScore", { score: item.myScore ?? "" })
-      : item.myLatestStatus === "wrong"
-        ? t("start.previousWrong")
-        : item.myLatestStatus === "correct"
-          ? t("start.previousCorrect")
-          : null;
-    return openDialog({
-      kicker: t("start.kicker"),
-      title:
-        !hasScore && item.myLatestStatus === "wrong"
-          ? t("start.retryWrong")
-          : hasPreviousSubmission
-            ? t("start.retry")
-            : t("start.begin"),
-      context: item.title,
-      contextMeta: [levelLabel(item.officialLevel), lengthLabel(item.lengthType), topicLabel(item.topic)],
-      description: hasPreviousSubmission
-        ? t("start.retryDescription", { previous: previousResult ?? "" })
-        : t("start.description", { time: formatTime(item.recommendedSeconds) }),
-      confirmLabel: hasPreviousSubmission ? t("start.retryButton") : t("start.button"),
-      onConfirm: () => {
-        closeDialog();
-        void (async () => {
-          try {
-            await startAttempt(item);
-            navigate(`/readings/${item.id}`);
-          } catch (error) {
-            setToast(errorMessage(error, "start.openFailed"));
-          }
-        })();
-      },
-    });
-  };
-
-  const start = (item: ReadingItem) => {
-    if (authenticated) {
-      openStartDialog(item);
-      return;
-    }
-    setPendingStart(item);
-    openLogin();
-  };
-
   const abandonAndNavigate = (target: string, targetLabel: string) => {
     if (screen !== "reading" || !attempt || attempt.submitted) {
       navigate(target);
@@ -781,22 +748,7 @@ export default function App() {
   };
   const openTranslation = () => {
     if (!result || !attempt?.submitted) return;
-    setTranslation(null);
-    setTranslationError("");
-    setTranslationLoading(true);
-    openDialog({
-      type: "translation",
-      kicker: t("translation.kicker"),
-      title: t("translation.title"),
-      description: t("translation.description"),
-    });
-    void api
-      .translateReading(result.itemId)
-      .then(setTranslation)
-      .catch((error: unknown) =>
-        setTranslationError(errorMessage(error, "translation.failed")),
-      )
-      .finally(() => setTranslationLoading(false));
+    openTranslationDialog(result.itemId);
   };
   const openFeedback = () => {
     if (!result) return;
