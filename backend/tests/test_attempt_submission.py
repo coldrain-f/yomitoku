@@ -593,9 +593,27 @@ async def test_statistics_use_only_a_learner_first_submitted_attempt(
     assert statistics.accuracy == 100
     assert statistics.average_elapsed_seconds == 42
     assert next(group for group in statistics.by_language if group.key == "ja").accuracy == 100
+    assert [group.key for group in statistics.by_level] == [
+        "N5",
+        "N4",
+        "N3",
+        "N2",
+        "N1",
+        "N1+",
+    ]
     assert korean_statistics.total_generated_count == 1
     assert korean_statistics.completed_count == 0
     assert korean_statistics.accuracy is None
+    assert [group.key for group in korean_statistics.by_level] == [
+        "TOPIK 1급",
+        "TOPIK 2급",
+        "TOPIK 3급",
+        "TOPIK 4급",
+        "TOPIK 5급",
+        "TOPIK 6급",
+        "TOPIK 6급+",
+        "측정불가",
+    ]
 
 
 @pytest.mark.asyncio

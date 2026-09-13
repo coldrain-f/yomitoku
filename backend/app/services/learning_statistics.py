@@ -13,7 +13,10 @@ StatisticKey = Literal["language", "length_type", "official_level"]
 
 
 def group_statistics(
-    items: list[ReadingItem], attempts_by_item: dict[UUID, Attempt], key: StatisticKey
+    items: list[ReadingItem],
+    attempts_by_item: dict[UUID, Attempt],
+    key: StatisticKey,
+    language: ReadingLanguage | None = None,
 ) -> list[StatisticGroup]:
     """Aggregate a learner's first submitted result across one item dimension."""
     values: tuple[str, ...]
@@ -22,8 +25,12 @@ def group_statistics(
     elif key == "language":
         values = tuple(LEVELS_BY_LANGUAGE)
     else:
-        values = tuple(
-            level for levels in LEVELS_BY_LANGUAGE.values() for level in levels
+        values = (
+            LEVELS_BY_LANGUAGE[language]
+            if language
+            else tuple(
+                level for levels in LEVELS_BY_LANGUAGE.values() for level in levels
+            )
         )
 
     groups: list[StatisticGroup] = []
@@ -107,5 +114,10 @@ async def get_user_statistics(
         ),
         by_language=group_statistics(items, first_attempts, "language"),
         by_length=group_statistics(items, first_attempts, "length_type"),
-        by_level=group_statistics(items, first_attempts, "official_level"),
+        by_level=group_statistics(
+            items,
+            first_attempts,
+            "official_level",
+            language=language,
+        ),
     )
