@@ -6,9 +6,15 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.core.security import CurrentUser
 from app.db.base import Base
 from app.db.models import GenerationJob, User
-from app.schemas import GeneratedTitle
+from app.schemas import GeneratedTitle, GenerationJobCreateRequest
+from app.services.admin_generation import (
+    create_generation_job,
+    get_active_generation_job,
+    list_generation_job_history,
+)
 from app.services.generation_jobs import (
     begin_call,
     mark_failed,
@@ -131,3 +137,35 @@ async def test_stale_job_is_failed_without_retrying(
         assert job.error_code == "generation_interrupted"
         assert job.actual_cost_usd is None
         assert job.usage_events[0].usage_status == "unknown"
+
+
+@pytest.mark.asyncio
+async def test_admin_generation_reuses_an_active_request_and_lists_it(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    job_id = await make_job(sessions)
+    request = GenerationJobCreateRequest(
+        language="ja",
+        official_level="N2",
+        length_type="short",
+        topic="교육",
+    )
+
+    async with sessions() as session:
+        existing = await session.get(GenerationJob, job_id)
+        assert existing is not None
+        current_user = CurrentUser(id=existing.requested_by, role="admin")
+        reused, reused_existing = await create_generation_job(
+            session,
+            request=request,
+            current_user=current_user,
+        )
+        active = await get_active_generation_job(session, current_user)
+        history = await list_generation_job_history(session)
+
+    assert reused_existing is True
+    assert reused.id == job_id
+    assert active is not None
+    assert active.id == job_id
+    assert history.total_items == 1
+    assert history.items[0].id == job_id
