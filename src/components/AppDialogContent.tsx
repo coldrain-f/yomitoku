@@ -1,3 +1,5 @@
+import { useRef } from "react";
+import { useModalFocus } from "../hooks/useModalFocus";
 import { OptionButtons } from "./ui/OptionButtons";
 import { ListPagination } from "./ui/ListPagination";
 import { Trash2 } from "lucide-react";
@@ -85,6 +87,8 @@ export function AppDialogContent({
   onRemoveHighlight,
 }: AppDialogContentProps) {
   const { locale, t, languageLabel, levelLabel, lengthLabel, topicLabel } = useI18n();
+  const removalRef = useRef<HTMLDivElement>(null);
+  useModalFocus(removalRef, type === "highlights" && Boolean(highlightRemoval), onCancelHighlightRemoval);
 
   if (type === "score-guide") {
     return (
@@ -235,6 +239,8 @@ export function AppDialogContent({
         {highlightRemoval ? (
           <div
             className="highlight-removal-confirmation"
+            ref={removalRef}
+            tabIndex={-1}
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="highlight-removal-title"
