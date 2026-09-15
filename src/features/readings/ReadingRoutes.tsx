@@ -1,4 +1,4 @@
-import { Navigate, useParams } from "react-router-dom";
+import { Navigate, useLocation, useParams } from "react-router-dom";
 import type {
   PassageHighlight,
   ReadingAttempt,
@@ -43,6 +43,8 @@ export function ReadingRoute({
   onDeleteHighlight,
 }: ReadingRouteProps) {
   const { itemId } = useParams();
+  const { hash } = useLocation();
+  const reviewQuestionId = new URLSearchParams(hash.slice(1)).get("question") ?? undefined;
   const item =
     items.find((entry) => entry.id === itemId) ??
     (result && result.itemId === itemId ? result.item : undefined);
@@ -53,6 +55,7 @@ export function ReadingRoute({
       item={item}
       attempt={attempt}
       result={result}
+      reviewQuestionId={reviewQuestionId}
       onChoose={onChoose}
       onSubmit={onSubmit}
       isSubmitting={isSubmitting}
@@ -70,7 +73,7 @@ export function ReadingRoute({
 interface ResultRouteProps {
   result: ReadingResult | null;
   onFeedback: () => void;
-  onReview: () => void;
+  onReview: (questionId?: string) => void;
   onContinue: () => void;
   onHome: () => void;
 }
