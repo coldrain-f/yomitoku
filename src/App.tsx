@@ -1113,6 +1113,21 @@ export default function App() {
     isEditing
       ? leaveCurrentEditor("/statistics", t("stats.title"))
       : abandonAndNavigate("/statistics", t("stats.title"));
+  const openBookmarksFromHeader = () => {
+    const params = new URLSearchParams({
+      language: filters.language,
+      bookmarked: "true",
+      level: "all",
+      length: "all",
+      status: "all",
+      time: "all",
+      sort: "published-desc",
+    });
+    const target = `/?${params.toString()}`;
+    isEditing
+      ? leaveCurrentEditor(target, t("list.bookmarks"))
+      : abandonAndNavigate(target, t("list.bookmarks"));
+  };
   const logoutFromHeader = () =>
     isEditing ? leaveCurrentEditor("/", t("admin.logoutListTarget"), logout) : logout();
 
@@ -1125,9 +1140,13 @@ export default function App() {
           totalGenerated={totalGenerated}
           completeCount={completeCount}
           progressLanguage={filters.language}
+          screen={screen}
+          reviewing={screen === "home" && filters.bookmarked}
           onHome={goHomeFromHeader}
           onOpenAdmin={openAdminFromHeader}
           onOpenStats={openStatsFromHeader}
+          onOpenBookmarks={openBookmarksFromHeader}
+          onOpenHighlights={openHighlightCollection}
           onLogout={logoutFromHeader}
         />
         {screen !== "login" && authenticated ? (
