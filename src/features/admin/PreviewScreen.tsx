@@ -8,7 +8,6 @@ import { ValidationRecords } from "./ValidationRecords";
 
 interface PreviewScreenProps {
   item: ReadingItem;
-  onEdit: () => void;
   onHold: () => void;
   onPublish: () => void;
   onDelete: () => void;
@@ -17,7 +16,6 @@ interface PreviewScreenProps {
 
 export function PreviewScreen({
   item,
-  onEdit,
   onHold,
   onPublish,
   onDelete,
@@ -47,10 +45,8 @@ export function PreviewScreen({
               </span>
             </div>
           </div>
-          <button className="text-button" type="button" onClick={onEdit}>{t("admin.edit")}</button>
         </div>
         <div className="reading-body">
-          <ValidationRecords validations={item.validations} held={held} />
           <div className="passage">
             {item.passage.split(/\r?\n\s*\r?\n/).map((paragraph, index) => (
               <p key={`${index}-${paragraph.slice(0, 24)}`}>{paragraph}</p>
@@ -89,6 +85,7 @@ export function PreviewScreen({
               </div>
             </div>
           ))}
+          {held ? <ValidationRecords validations={item.validations} held /> : null}
           <div className="footer-actions preview-actions">
             <div className="preview-actions-secondary">
               {held ? (
@@ -130,3 +127,4 @@ export function PreviewScreen({
     </section>
   );
 }
+

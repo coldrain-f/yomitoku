@@ -128,9 +128,8 @@ export function GenerateScreen({
           </div>
           <div className="form-section">
             <div className="generate-topic-field">
-              <label className="form-label" htmlFor="generation-topic">{t("admin.topic")}</label>
+              <span className="form-label">{t("admin.topic")}</span>
               <select
-                id="generation-topic"
                 className="select-field"
                 value={values.topic}
                 disabled={isCreating}
@@ -143,19 +142,14 @@ export function GenerateScreen({
               >
                 <option value={recommendedTopic}>{t("admin.recommendedRandom")}</option>
                 {readingTopics.map((topic) => (
-                  <option key={topic} value={topic}>{topicLabel(topic)}</option>
+                  <option key={topic}>{topicLabel(topic)}</option>
                 ))}
               </select>
             </div>
           </div>
-          <details className="generation-model-settings">
-            <summary>{t("admin.modelSettings")}</summary>
-            <p className="welcome-preview-note">{t("admin.modelSettingsNote")}</p>
-            <div className="generation-model-grid">
           <div className="form-section">
             <span className="form-label">{t("admin.generatorAi")}</span>
             <select
-              aria-label={t("admin.generatorAi")}
               className="select-field"
               value={values.generatorModel}
               disabled={isCreating || !modelOptions}
@@ -178,7 +172,6 @@ export function GenerateScreen({
           <div className="form-section">
             <span className="form-label">{t("admin.validatorAi")}</span>
             <select
-              aria-label={t("admin.validatorAi")}
               className="select-field"
               value={values.validatorModel}
               disabled={isCreating || !modelOptions}
@@ -198,8 +191,6 @@ export function GenerateScreen({
               )}
             </select>
           </div>
-            </div>
-          </details>
           <div className="form-section generation-keywords-section">
             <span className="form-label">{t("admin.keywords")}</span>
             <div className="generation-keyword-list">
@@ -242,7 +233,19 @@ export function GenerateScreen({
           </div>
         </div>
         {values.language === "ja" ? (
-          <p className="welcome-preview-note">{t("admin.furiganaNote")}</p>
+          <div className="furigana-row">
+            <span className="form-label">{t("admin.furigana")}</span>
+            <OptionButtons
+              value="off"
+              options={[
+                { value: "off", label: t("admin.furiganaOff") },
+                { value: "on", label: t("admin.furiganaOn"), disabled: true },
+              ]}
+              onChange={() => {}}
+              ariaLabel={t("admin.furigana")}
+              disabled={isCreating}
+            />
+          </div>
         ) : null}
         {isCreating ? (
           <LoadingBar className="generation-progress" label={progressLabel} />
@@ -261,3 +264,4 @@ export function GenerateScreen({
     </section>
   );
 }
+

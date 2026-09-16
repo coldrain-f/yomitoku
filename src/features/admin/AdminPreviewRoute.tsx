@@ -4,7 +4,6 @@ import { PreviewScreen } from "./AdminScreens";
 
 interface AdminPreviewRouteProps {
   items: ReadingItem[];
-  onEdit: (item: ReadingItem) => void;
   onHold: (item: ReadingItem) => void;
   onPublish: (item: ReadingItem) => void;
   onDelete: (item: ReadingItem) => void;
@@ -13,7 +12,6 @@ interface AdminPreviewRouteProps {
 
 export function AdminPreviewRoute({
   items,
-  onEdit,
   onHold,
   onPublish,
   onDelete,
@@ -27,7 +25,6 @@ export function AdminPreviewRoute({
   return (
     <PreviewScreen
       item={item}
-      onEdit={() => onEdit(item)}
       onHold={() => onHold(item)}
       onPublish={() => onPublish(item)}
       onDelete={() => onDelete(item)}

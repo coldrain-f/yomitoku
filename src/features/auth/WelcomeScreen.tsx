@@ -30,7 +30,6 @@ export function WelcomeScreen({ onLogin }: WelcomeScreenProps) {
           <p className="welcome-login-note">{t("welcome.loginNote")}</p>
         </div>
         <div className="welcome-preview" aria-label={t("welcome.previewAria")}>
-          <p className="welcome-preview-note">{t("welcome.previewExample")}</p>
           <article className="paper flush welcome-preview-card" data-reading-language="ja">
             <div className="paper-head welcome-preview-head">
               <div>
