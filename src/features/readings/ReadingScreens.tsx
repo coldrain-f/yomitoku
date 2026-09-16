@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
   ArrowRight,
   Star,
@@ -26,12 +26,11 @@ import {
   minimumVotes,
 } from "../../lib/reading";
 import {
+  defaultGenerationLanguage,
   readingLanguages,
 } from "../../lib/readingPolicy";
 import { useI18n } from "../../lib/i18n";
 import { PassageHighlighter } from "./PassageHighlighter";
-import { ReadingFilterBar } from "./ReadingFilterBar";
-import { focusReadingSection, readingQuestionId } from "../../lib/readingNavigation";
 import type {
   Choice,
   ListFilters,
@@ -53,7 +52,7 @@ interface ReadingListScreenProps {
   onPageChange: (page: number) => void;
   authenticated: boolean;
   filters: ListFilters;
-  setFilters: (filters: ListFilters, query?: string) => void;
+  setFilters: (filters: ListFilters) => void;
   query: string;
   setQuery: (query: string) => void;
   onOpenFilters: () => void;
@@ -75,7 +74,6 @@ interface ReadingScreenProps {
   onReport: () => void;
   onTranslate: () => void;
   onResult: () => void;
-  reviewQuestionId?: string;
   highlights: PassageHighlight[];
   onCreateHighlight: (
     startOffset: number,
@@ -88,12 +86,9 @@ interface ReadingScreenProps {
 interface ResultScreenProps {
   result: ReadingResult | null;
   onFeedback: () => void;
-  onReview: (questionId?: string) => void;
+  onReview: () => void;
   onContinue: () => void;
   onHome: () => void;
-  isContinuing?: boolean;
-  continuationMessage?: string;
-  noNextItem?: boolean;
 }
 
 function progressForListItem(item: ReadingItem): LearningProgress {
@@ -146,15 +141,16 @@ export function ReadingListScreen({
     filters.bookmarked ||
     hasAdvancedFilters;
   const reset = () => {
+    setQuery("");
     setFilters({
-      language: filters.language,
+      language: defaultGenerationLanguage,
       bookmarked: false,
       level: "all",
       length: "all",
       status: "all",
       firstSubmissionTime: "all",
       sort: "published-desc",
-    }, "");
+    });
   };
 
   return (
@@ -162,7 +158,7 @@ export function ReadingListScreen({
       <div className="paper flush">
         <div className="paper-head">
           <div>
-            <h1 className="screen-title list-title">{t("list.title")}</h1>
+            <h1 className="title-jp">読解一覧</h1>
           </div>
           <div className="list-head-actions">
             {active ? (
@@ -208,8 +204,22 @@ export function ReadingListScreen({
             />
           </div>
           <div className="list-toolbar-tools">
+            {authenticated ? (
+              <button
+                className={`icon-button bookmark-filter-button${filters.bookmarked ? " is-bookmarked" : ""}`}
+                type="button"
+                aria-label={t("list.bookmarkedOnly")}
+                aria-pressed={filters.bookmarked}
+                title={t("list.bookmarkedOnly")}
+                onClick={() =>
+                  setFilters({ ...filters, bookmarked: !filters.bookmarked })
+                }
+              >
+                <Icon icon={Star} fill={filters.bookmarked ? "currentColor" : "none"} />
+              </button>
+            ) : null}
             <button
-              className={`text-button list-filter-button${hasAdvancedFilters ? " is-selected" : ""}`}
+              className={`icon-button list-filter-button${hasAdvancedFilters ? " is-active" : ""}`}
               type="button"
               aria-label={t("list.filters")}
               aria-pressed={hasAdvancedFilters}
@@ -217,23 +227,20 @@ export function ReadingListScreen({
               onClick={onOpenFilters}
             >
               <Icon icon={SlidersHorizontal} />
-              {t("list.filterButton")}
             </button>
             {authenticated ? (
               <button
-                className="text-button list-highlights-button"
+                className="icon-button list-highlights-button"
                 type="button"
                 aria-label={t("list.highlights")}
                 title={t("list.highlights")}
                 onClick={onOpenHighlights}
               >
                 <Icon icon={Highlighter} />
-                {t("list.highlightButton")}
               </button>
             ) : null}
           </div>
         </div>
-        <ReadingFilterBar filters={filters} setFilters={setFilters} query={query} setQuery={setQuery} authenticated={authenticated} onReset={reset} />
         {loading ? <LoadingOverlay label={t("list.loading")} /> : null}
         {error ? <p className="list-load-error" role="alert">{error}</p> : null}
         <div className="reading-list" aria-busy={loading}>
@@ -409,7 +416,6 @@ export function ReadingScreen({
   onReport,
   onTranslate,
   onResult,
-  reviewQuestionId,
   highlights,
   onCreateHighlight,
   onDeleteHighlight,
@@ -423,25 +429,6 @@ export function ReadingScreen({
   } = useI18n();
   const submitted = Boolean(attempt.submitted && result?.itemId === item.id);
   const questions = attempt.questions.length ? attempt.questions : item.questions;
-  const answeredCount = questions.filter(question => attempt.answers.some(answer => answer.questionId === question.id && answer.selectedChoiceId)).length;
-  const [missingIndex, setMissingIndex] = useState<number | null>(null);
-  const choicesRef = useRef(new Map<string, HTMLButtonElement>());
-  useEffect(() => {
-    if (!submitted || !reviewQuestionId) return;
-    const index = questions.findIndex(question => question.id === reviewQuestionId);
-    if (index >= 0) focusReadingSection(readingQuestionId(index));
-  }, [submitted, reviewQuestionId, questions]);
-  useEffect(() => { setMissingIndex(null); }, [attempt.attemptId]);
-  const submitAnswers = () => {
-    const index = questions.findIndex(question => !attempt.answers.some(answer => answer.questionId === question.id && answer.selectedChoiceId));
-    if (index >= 0) {
-      setMissingIndex(index);
-      focusReadingSection(readingQuestionId(index));
-      return;
-    }
-    setMissingIndex(null);
-    onSubmit();
-  };
   const explanationLanguage = item.language === "ja" ? "ko" : "ja";
   const wrongExplanationFallback =
     item.language === "ja"
@@ -454,20 +441,6 @@ export function ReadingScreen({
       aria-label={t("reading.screen")}
       data-reading-language={item.language}
     >
-      <nav className="reading-jump-nav" aria-label={t("reading.navigation")}>
-        <span className="reading-answer-progress" role="status">{t("reading.answeredCount", { count: answeredCount, total: questions.length })}</span>
-        <div className="reading-jump-buttons">
-          <button type="button" onClick={() => focusReadingSection("reading-passage")}>{t("reading.passage")}</button>
-          {questions.map((question, index) => {
-            const answered = attempt.answers.some(answer => answer.questionId === question.id && answer.selectedChoiceId);
-            return <button key={question.id} type="button" className={answered ? "is-answered" : ""}
-              aria-label={t("reading.questionState", { number: index + 1, state: t(answered ? "reading.answered" : "reading.unanswered") })}
-              onClick={() => focusReadingSection(readingQuestionId(index))}>
-              {index + 1}{answered ? <Icon icon={Check} /> : null}
-            </button>;
-          })}
-        </div>
-      </nav>
       <article className="paper flush">
         <div className="paper-head">
           <div>
@@ -500,14 +473,12 @@ export function ReadingScreen({
           </div>
         </div>
         <div className="reading-body">
-          <div id="reading-passage" className="reading-anchor" tabIndex={-1} aria-label={t("reading.passage")}>
           <PassageHighlighter
             passage={item.passage}
             highlights={highlights}
             onCreateHighlight={onCreateHighlight}
             onDeleteHighlight={onDeleteHighlight}
           />
-          </div>
           {questions.map((question, questionIndex) => {
             const selectedChoiceId = attempt.answers.find(
               (answer) => answer.questionId === question.id,
@@ -526,12 +497,11 @@ export function ReadingScreen({
                 ).padStart(2, "0")
               : "";
             return (
-              <div className="question-block reading-anchor" key={question.id} id={readingQuestionId(questionIndex)} tabIndex={-1} aria-labelledby={`${readingQuestionId(questionIndex)}-heading`}>
+              <div className="question-block" key={question.id}>
                 {questions.length > 1 ? (
                   <p className="question-number">{t("reading.question", { number: questionIndex + 1 })}</p>
                 ) : null}
-                <h3 id={`${readingQuestionId(questionIndex)}-heading`}>{question.question}</h3>
-                {missingIndex === questionIndex && !selectedChoiceId ? <p className="question-missing" role="alert">{t("reading.missingAnswer", { number: questionIndex + 1 })}</p> : null}
+                <h3>{question.question}</h3>
                 <div
                   className="answer-list"
                   role="radiogroup"
@@ -543,24 +513,9 @@ export function ReadingScreen({
                       type="button"
                       role="radio"
                       aria-checked={choice.id === selectedChoiceId}
-                      tabIndex={choice.id === (selectedChoiceId ?? question.choices[0]?.id) ? 0 : -1}
                       disabled={submitted || isSubmitting}
                       key={choice.id}
-                      ref={node => {
-                        const key = `${question.id}:${choice.id}`;
-                        if (node) choicesRef.current.set(key, node);
-                        else choicesRef.current.delete(key);
-                      }}
                       onClick={() => onChoose(question.id, choice.id)}
-                      onKeyDown={event => {
-                        const direction = ["ArrowDown", "ArrowRight"].includes(event.key) ? 1 : ["ArrowUp", "ArrowLeft"].includes(event.key) ? -1 : 0;
-                        if (!direction && event.key !== "Home" && event.key !== "End") return;
-                        event.preventDefault();
-                        const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? question.choices.length - 1 : (index + direction + question.choices.length) % question.choices.length;
-                        const next = question.choices[nextIndex];
-                        onChoose(question.id, next.id);
-                        choicesRef.current.get(`${question.id}:${next.id}`)?.focus();
-                      }}
                     >
                       <span className="answer-number">
                         {String(index + 1).padStart(2, "0")}
@@ -627,7 +582,7 @@ export function ReadingScreen({
                 <button
                   className="primary-button"
                   type="button"
-                  onClick={submitAnswers}
+                  onClick={onSubmit}
                   disabled={isSubmitting}
                 >
                   <Icon icon={Check} />
@@ -661,9 +616,6 @@ export function ResultScreen({
   onReview,
   onContinue,
   onHome,
-  isContinuing = false,
-  continuationMessage = "",
-  noNextItem = false,
 }: ResultScreenProps) {
   const {
     t,
@@ -710,24 +662,23 @@ export function ResultScreen({
         <div className="result-metrics">
           <div className="result-metric">
             <span className="result-label">{t("result.outcome")}</span>
-            <strong className={`result-value${isCorrect ? " is-correct" : ""}`}>
-              {t("result.correctCount", { correct: correctCount, total: questionCount })}
+            <strong
+              className={`result-value ${isCorrect ? "is-correct" : "is-wrong"}`}
+            >
+              {isCorrect ? t("result.correct") : t("result.wrong")}
             </strong>
             {questionCount > 1 ? (
               <div className="result-question-statuses" aria-label={t("result.answerCount")}>
                 {result.questionResults.map((questionResult, index) => (
-                  <button
-                    type="button"
+                  <span
                     className={questionResult.isCorrect ? "is-correct" : "is-wrong"}
                     key={questionResult.questionId}
-                    aria-label={t("result.reviewQuestion", { number: index + 1, outcome: questionResult.isCorrect ? t("result.correct") : t("result.wrong") })}
-                    onClick={() => onReview(questionResult.questionId)}
                   >
                     {t("result.questionOutcome", {
                       number: index + 1,
                       outcome: questionResult.isCorrect ? t("result.correct") : t("result.wrong"),
                     })}
-                  </button>
+                  </span>
                 ))}
               </div>
             ) : (
@@ -762,22 +713,21 @@ export function ResultScreen({
             <span className="result-detail">{t("result.challengers", { count: result.challengerCount })}</span>
           </div>
         </div>
-        {continuationMessage ? <p className="continuation-message" role="status">{continuationMessage}</p> : null}
-        <div className="footer-actions result-footer">
+        <div className="footer-actions">
           <button className="link-button" type="button" onClick={onFeedback}>
             <Icon icon={MessageSquare} />
             {t("result.feedback")}
           </button>
           <div className="result-actions">
-            <button className="text-button" type="button" onClick={() => onReview()}>
+            <button className="text-button" type="button" onClick={onReview}>
               {t("result.review")}
             </button>
-            <button className="primary-button" type="button" disabled={isContinuing} onClick={noNextItem ? onHome : onContinue}>
-              {isContinuing ? t("result.nextLoading") : noNextItem ? t("result.toList") : isCorrect ? t("result.nextItem") : t("result.retry")}
+            <button className="primary-button" type="button" onClick={onContinue}>
+              {isCorrect ? t("result.nextItem") : t("result.retry")}
             </button>
-            {!noNextItem ? <button className="text-button" type="button" onClick={onHome}>
+            <button className="text-button" type="button" onClick={onHome}>
               {t("result.toList")}
-            </button> : null}
+            </button>
           </div>
         </div>
       </div>

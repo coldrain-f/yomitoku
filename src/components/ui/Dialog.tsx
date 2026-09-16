@@ -1,6 +1,5 @@
 import {
   useEffect,
-  useRef,
   type MouseEvent,
   type ReactNode,
 } from "react";
@@ -8,9 +7,6 @@ import { X } from "lucide-react";
 import { Icon } from "./Icon";
 import type { DialogConfig } from "../../types";
 import { useI18n } from "../../lib/i18n";
-import { useModalFocus } from "../../hooks/useModalFocus";
-
-let scrollLockCount = 0;
 
 interface DialogProps {
   dialog: DialogConfig | null;
@@ -20,14 +16,8 @@ interface DialogProps {
 
 export function Dialog({ dialog, onClose, children }: DialogProps) {
   const { t } = useI18n();
-  const dialogRef = useRef<HTMLElement>(null);
-  const open = Boolean(dialog);
-  useModalFocus(dialogRef, open, () => {
-    onClose();
-    dialog?.onCancel?.();
-  });
   useEffect(() => {
-    if (!open) return undefined;
+    if (!dialog) return undefined;
     const scrollbarWidth = Math.max(
       0,
       window.innerWidth - document.documentElement.clientWidth,
@@ -37,15 +27,19 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
       `${scrollbarWidth}px`,
     );
     document.body.classList.add("dialog-open");
-    scrollLockCount += 1;
-    return () => {
-      scrollLockCount -= 1;
-      if (scrollLockCount === 0) {
-        document.body.classList.remove("dialog-open");
-        document.body.style.removeProperty("--scrollbar-compensation");
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+        dialog.onCancel?.();
       }
     };
-  }, [open]);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.classList.remove("dialog-open");
+      document.body.style.removeProperty("--scrollbar-compensation");
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [dialog, onClose]);
 
   if (!dialog) return null;
   const dismiss = () => {
@@ -67,8 +61,6 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
       }}
     >
       <section
-        ref={dialogRef}
-        tabIndex={-1}
         className={`confirm-dialog${
           dialog.type === "translation" || dialog.type === "admin-responses"
             ? " confirm-dialog-wide"

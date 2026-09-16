@@ -107,9 +107,9 @@ export function useReadingListFilters({
   );
 
   const setFilters = useCallback(
-    (next: ListFilters, nextQuery = query) => {
+    (next: ListFilters) => {
       resetPage();
-      writeParams({ ...next, query: nextQuery });
+      writeParams({ ...next, query });
     },
     [query, resetPage, writeParams],
   );
