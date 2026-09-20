@@ -16,5 +16,6 @@
 
 - API 또는 DB 구조를 바꾸면 [02](./02-data-and-api-spec.md)와 [04](./04-acceptance-checklist.md)를 함께 검토한다.
 - 화면 동작·문구·접근성·반응형 레이아웃을 바꾸면 [01](./01-ui-and-flow-spec.md)과 QA 항목을 함께 갱신한다.
+- 목록 요청 정책, 새로고침 복원, 초기 번들 분할처럼 사용자 체감 성능을 바꾸면 [01](./01-ui-and-flow-spec.md)과 [04](./04-acceptance-checklist.md)를 함께 갱신한다.
 - AI 모델·프롬프트·재시도 정책을 바꾸면 [03](./03-ai-operations-and-react-plan.md)와 운영 환경 변수 설명을 함께 갱신한다.
 - 운영 명령은 실제 `deploy/` Compose 파일과 `.env.production`을 기준으로 작성한다. 서버 고유 포트나 비밀값은 문서에 고정하지 않는다.

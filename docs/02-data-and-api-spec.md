@@ -44,7 +44,7 @@
 | `DELETE` | `/reading-items/{itemId}/highlights/{highlightId}` | 로그인 | 하이라이트 삭제 |
 | `GET` | `/reading-items/highlights` | 로그인 | 하이라이트 모아 보기·검색·페이지네이션 |
 | `POST` | `/reading-items/{itemId}/attempts` | 로그인 | 새 풀이 시도와 섞인 선택지 순서 생성 |
-| `GET` | `/reading-items/attempts/{attemptId}` | 로그인 | 진행 중 또는 제출된 시도 상태 복원 |
+| `GET` | `/reading-items/attempts/{attemptId}` | 로그인 | 진행 중 또는 제출된 시도 상태 복원. 같은 사용자의 새로고침 복원에 사용 |
 | `POST` | `/reading-items/attempts/{attemptId}/submit` | 로그인 | 질문별 답안 제출과 서버 채점 |
 | `POST` | `/reading-items/attempts/{attemptId}/abandon` | 로그인 | 시도 포기 |
 | `PUT` | `/reading-items/{itemId}/feedback` | 로그인 | 품질·체감 난이도 평가 upsert |
@@ -52,6 +52,8 @@
 | `GET` | `/me/statistics` | 로그인 | 개인 학습 통계 |
 
 목록은 `q`, `language`, `level`, `length`, `status`, `time`, `bookmarked`, `sort`, `page`, `pageSize`를 지원한다. `bookmarked=true`은 로그인 사용자만 의미가 있다.
+
+프런트엔드는 검색·필터 변경으로 더 이상 유효하지 않은 목록 요청에 `AbortSignal`을 전달해 취소한다. 이는 서버 API의 실패가 아니므로 화면 오류로 표시하지 않는다. 모든 일반 API 요청에는 15초 클라이언트 제한 시간이 적용된다.
 
 ## 관리자 API
 
