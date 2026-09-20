@@ -1,81 +1,81 @@
-# 데이터 및 API 명세
+# データ・API仕様
 
-## 공통 규칙
+## 共通ルール
 
-- API 접두사는 `/api/v1`이고 JSON의 필드명은 camelCase다.
-- DB 시간은 UTC로 저장하며 API는 ISO 8601을 반환한다.
-- ID는 UUID다. 보호 요청의 사용자 ID와 역할은 Bearer 토큰에서만 얻는다.
-- 학습자 상세 API는 제출 전 `isCorrect`, 정답 ID, 해설, 오답 해설을 반환하지 않는다.
-- 전체 응답 형태와 필수 필드는 FastAPI OpenAPI 문서(`/docs`)를 최종 기준으로 한다.
+- APIのプレフィックスは`/api/v1`で、JSONのフィールド名はcamelCaseです。
+- DBの時刻はUTCで保存し、APIはISO 8601形式で返します。
+- IDにはUUIDを使用します。保護されたリクエストのユーザーIDとロールは、Bearerトークンからのみ取得します。
+- 受講者向け詳細APIは、提出前に`isCorrect`、正答ID、解説、誤答解説を返しません。
+- 全レスポンス形式と必須フィールドの最終的な基準は、FastAPIのOpenAPIドキュメント（`/docs`）です。
 
-## 핵심 데이터 모델
+## 主なデータモデル
 
-| 모델 | 역할 |
+| モデル | 役割 |
 | --- | --- |
-| `users` | Google subject, 이메일, `learner`/`admin` 역할 |
-| `reading_items` | 제목, 지문, 언어, 등급, 유형, 주제, 권장 시간, 출처, 게시 상태 |
-| `reading_questions`, `reading_choices` | 문항별 질문과 선택지. 선택지는 정답·오답 해설·관리자 기준 순서를 가짐 |
-| `attempts`, `attempt_answers` | 시도별 선택지 섞기 순서, 질문별 답, 채점 결과, 시간, 포기 상태 |
-| `item_bookmarks`, `passage_highlights` | 사용자별 북마크와 UTF-16 오프셋 기반 하이라이트 |
-| `item_feedback`, `item_reports` | 품질·체감 난이도 평가와 오류 제보 |
-| `generation_jobs`, `generation_usage_events`, `item_validations` | AI 생성 요청, 모델 사용량, 검증 기록 |
+| `users` | Google subject、メールアドレス、`learner`／`admin`ロール |
+| `reading_items` | タイトル、本文、言語、レベル、種類、テーマ、目安時間、出典、公開状態 |
+| `reading_questions`, `reading_choices` | 問題ごとの設問と選択肢。選択肢は正答・誤答解説・管理者向けの基準順を持つ |
+| `attempts`, `attempt_answers` | 試行ごとの選択肢シャッフル順、設問ごとの解答、採点結果、時間、中断状態 |
+| `item_bookmarks`, `passage_highlights` | ユーザー別ブックマークとUTF-16オフセットに基づくハイライト |
+| `item_feedback`, `item_reports` | 品質・体感難易度の評価と問題報告 |
+| `generation_jobs`, `generation_usage_events`, `item_validations` | AI生成リクエスト、モデル利用量、検証記録 |
 
-문항 상태는 `review`, `held`, `published`다. 삭제는 소프트 삭제가 아니며 연결된 데이터는 외래키 cascade로 함께 제거된다.
+問題の状態は`review`、`held`、`published`です。削除はソフトデリートではなく、関連データも外部キーのcascadeによって削除されます。
 
-## 인증
+## 認証
 
-| 메서드 | 경로 | 설명 |
+| メソッド | パス | 説明 |
 | --- | --- | --- |
-| `POST` | `/auth/google` | Google ID 토큰 검증 후 Yomitoku Bearer 토큰 발급 |
-| `GET` | `/me` | 현재 로그인 사용자와 역할 반환 |
-| `POST` | `/auth/logout` | 클라이언트 토큰 제거를 위한 204 응답 |
+| `POST` | `/auth/google` | Google IDトークン検証後、Yomitoku Bearerトークンを発行 |
+| `GET` | `/me` | 現在ログインしているユーザーとロールを返却 |
+| `POST` | `/auth/logout` | クライアントトークンを破棄するための204レスポンス |
 
-관리자 역할은 `ADMIN_GOOGLE_EMAILS` 서버 allowlist만으로 결정한다. 개발 전용 `X-Dev-Role`, `X-Dev-User-Id` 헤더는 development/test 환경에서만 허용한다.
+管理者ロールは、サーバーの`ADMIN_GOOGLE_EMAILS` allowlistだけで判定します。開発専用の`X-Dev-Role`、`X-Dev-User-Id`ヘッダーは、development／test環境でのみ許可します。
 
-## 학습 API
+## 学習API
 
-| 메서드 | 경로 | 권한 | 설명 |
+| メソッド | パス | 権限 | 説明 |
 | --- | --- | --- | --- |
-| `GET` | `/reading-items` | 선택 | 검색·필터·정렬·페이지네이션 목록. 로그인 시 개인 상태·북마크 포함 |
-| `GET` | `/reading-items/{itemId}` | 로그인 | 풀이용 상세. 정답은 비공개 |
-| `PUT`/`DELETE` | `/reading-items/{itemId}/bookmark` | 로그인 | 북마크 설정·해제 |
-| `POST` | `/reading-items/{itemId}/translation` | 로그인 | 지문·질문·선택지 번역 |
-| `GET`/`POST` | `/reading-items/{itemId}/highlights` | 로그인 | 문항 하이라이트 조회·생성 |
-| `DELETE` | `/reading-items/{itemId}/highlights/{highlightId}` | 로그인 | 하이라이트 삭제 |
-| `GET` | `/reading-items/highlights` | 로그인 | 하이라이트 모아 보기·검색·페이지네이션 |
-| `POST` | `/reading-items/{itemId}/attempts` | 로그인 | 새 풀이 시도와 섞인 선택지 순서 생성 |
-| `GET` | `/reading-items/attempts/{attemptId}` | 로그인 | 진행 중 또는 제출된 시도 상태 복원. 같은 사용자의 새로고침 복원에 사용 |
-| `POST` | `/reading-items/attempts/{attemptId}/submit` | 로그인 | 질문별 답안 제출과 서버 채점 |
-| `POST` | `/reading-items/attempts/{attemptId}/abandon` | 로그인 | 시도 포기 |
-| `PUT` | `/reading-items/{itemId}/feedback` | 로그인 | 품질·체감 난이도 평가 upsert |
-| `POST` | `/reading-items/{itemId}/reports` | 로그인 | 오류 제보 |
-| `GET` | `/me/statistics` | 로그인 | 개인 학습 통계 |
+| `GET` | `/reading-items` | 任意 | 検索・フィルター・並び替え・ページネーション一覧。ログイン時は個人状態・ブックマークを含む |
+| `GET` | `/reading-items/{itemId}` | ログイン | 解答用の詳細。正答は非公開 |
+| `PUT`/`DELETE` | `/reading-items/{itemId}/bookmark` | ログイン | ブックマークの設定・解除 |
+| `POST` | `/reading-items/{itemId}/translation` | ログイン | 本文・設問・選択肢の翻訳 |
+| `GET`/`POST` | `/reading-items/{itemId}/highlights` | ログイン | 問題のハイライト取得・作成 |
+| `DELETE` | `/reading-items/{itemId}/highlights/{highlightId}` | ログイン | ハイライトの削除 |
+| `GET` | `/reading-items/highlights` | ログイン | ハイライト一覧・検索・ページネーション |
+| `POST` | `/reading-items/{itemId}/attempts` | ログイン | 新しい試行とシャッフル済みの選択肢順を作成 |
+| `GET` | `/reading-items/attempts/{attemptId}` | ログイン | 進行中または提出済みの試行状態を復元。同一ユーザーの再読み込み復元に使用 |
+| `POST` | `/reading-items/attempts/{attemptId}/submit` | ログイン | 設問ごとの解答提出とサーバー採点 |
+| `POST` | `/reading-items/attempts/{attemptId}/abandon` | ログイン | 試行の中断 |
+| `PUT` | `/reading-items/{itemId}/feedback` | ログイン | 品質・体感難易度評価のupsert |
+| `POST` | `/reading-items/{itemId}/reports` | ログイン | 問題報告 |
+| `GET` | `/me/statistics` | ログイン | 個人学習統計 |
 
-목록은 `q`, `language`, `level`, `length`, `status`, `time`, `bookmarked`, `sort`, `page`, `pageSize`를 지원한다. `bookmarked=true`은 로그인 사용자만 의미가 있다.
+一覧は`q`、`language`、`level`、`length`、`status`、`time`、`bookmarked`、`sort`、`page`、`pageSize`をサポートします。`bookmarked=true`はログインユーザーに対してのみ意味を持ちます。
 
-프런트엔드는 검색·필터 변경으로 더 이상 유효하지 않은 목록 요청에 `AbortSignal`을 전달해 취소한다. 이는 서버 API의 실패가 아니므로 화면 오류로 표시하지 않는다. 모든 일반 API 요청에는 15초 클라이언트 제한 시간이 적용된다.
+フロントエンドは、検索・フィルター変更によって不要になった一覧リクエストへ`AbortSignal`を渡してキャンセルします。これはサーバーAPIの失敗ではないため、画面エラーとして表示しません。通常のAPIリクエストには15秒のクライアント側タイムアウトを適用します。
 
-## 관리자 API
+## 管理者API
 
-모든 `/admin/*` 경로는 관리자 Bearer 토큰을 요구한다.
+すべての`/admin/*`パスは、管理者のBearerトークンを必要とします。
 
-| 메서드 | 경로 | 설명 |
+| メソッド | パス | 説明 |
 | --- | --- | --- |
-| `GET`/`POST` | `/admin/reading-items` | 관리자 목록과 수동 문항 등록 |
-| `GET`/`PATCH`/`DELETE` | `/admin/reading-items/{itemId}` | 상세 조회·편집·영구 삭제 |
-| `POST` | `/admin/reading-items/{itemId}/publish` | 게시 |
-| `POST` | `/admin/reading-items/{itemId}/hold` | 보류 |
-| `POST` | `/admin/reading-items/{itemId}/unhold` | 보류 해제 후 검토 상태 |
-| `POST` | `/admin/reading-items/title-suggestion` | AI 제목 제안 |
-| `POST` | `/admin/reading-items/topic-suggestion` | AI 주제 제안 |
-| `POST` | `/admin/reading-items/explanation-suggestion` | AI 해설 제안 |
-| `GET` | `/admin/generation-model-options` | 생성 화면 모델 선택지 |
-| `POST` | `/admin/generation-jobs` | 생성 작업 생성. 신규는 202, 진행 중/동일 요청 재사용은 200 |
-| `GET` | `/admin/generation-jobs`, `/admin/generation-jobs/active`, `/admin/generation-jobs/{jobId}` | 이력·활성 작업·개별 상태 조회 |
+| `GET`/`POST` | `/admin/reading-items` | 管理者一覧と手動問題登録 |
+| `GET`/`PATCH`/`DELETE` | `/admin/reading-items/{itemId}` | 詳細取得・編集・完全削除 |
+| `POST` | `/admin/reading-items/{itemId}/publish` | 公開 |
+| `POST` | `/admin/reading-items/{itemId}/hold` | 保留 |
+| `POST` | `/admin/reading-items/{itemId}/unhold` | 保留解除後にレビュー状態へ戻す |
+| `POST` | `/admin/reading-items/title-suggestion` | AIによるタイトル提案 |
+| `POST` | `/admin/reading-items/topic-suggestion` | AIによるテーマ提案 |
+| `POST` | `/admin/reading-items/explanation-suggestion` | AIによる解説提案 |
+| `GET` | `/admin/generation-model-options` | 生成画面のモデル選択肢 |
+| `POST` | `/admin/generation-jobs` | 生成タスクを作成。新規は202、進行中／同一リクエストの再利用は200 |
+| `GET` | `/admin/generation-jobs`, `/admin/generation-jobs/active`, `/admin/generation-jobs/{jobId}` | 履歴・実行中タスク・個別状態を取得 |
 
-## 점수·집계 규칙
+## スコア・集計ルール
 
-- 시도 결과는 서버 시각으로 계산하고, 포기한 시도는 통계에 포함하지 않는다.
-- 목록의 영구 점수는 첫 제출이 정답·권장 시간 이내면 100, 첫 제출이 정답·시간 초과면 90, 오답 뒤 재도전 정답이면 80이다.
-- 문항 정답률은 사용자별 최신 제출 1건을 사용한다. 결과 화면의 도전 수는 제출한 고유 사용자 수다.
-- 체감 난이도는 사용자별 최신 평가를 쓰며, 최소 유효 투표 수를 만족할 때만 일반 목록에 공개한다.
+- 試行結果はサーバー時刻で計算し、中断した試行は統計に含めません。
+- 一覧の永続スコアは、初回提出が正答かつ目安時間以内なら100、初回提出が正答だが時間超過なら90、不正解後の再挑戦で正答なら80です。
+- 問題の正答率には、ユーザーごとの最新提出1件を使用します。結果画面の挑戦者数は、提出したユニークユーザー数です。
+- 体感難易度には、ユーザーごとの最新評価を使用し、最小有効投票数を満たす場合のみ通常の一覧に公開します。

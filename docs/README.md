@@ -1,22 +1,22 @@
-# 読み解く 개발·운영 문서
+# 読み解く：開発・運用ドキュメント
 
-이 디렉터리는 현재 구현과 운영 기준을 설명한다. 과거의 정적 시안 전환 계획이 아니라, 로그인 이후 학습 흐름·관리자 운영·배포·QA를 기준으로 유지한다.
+このディレクトリでは、現在の実装と運用基準を説明します。過去の静的モックアップ移行計画ではなく、ログイン後の学習フロー、管理者運用、デプロイ、QAを基準に維持します。
 
-| 문서 | 용도 |
+| ドキュメント | 用途 |
 | --- | --- |
-| [00-project-overview.md](./00-project-overview.md) | 제품 문제, 설계 판단, AI 협업 방식, 검증 근거와 제한 사항을 설명하는 프로젝트 개요 |
-| [01-ui-and-flow-spec.md](./01-ui-and-flow-spec.md) | 학습자·관리자 화면, 다국어, 모바일 UX와 상태 전이 |
-| [02-data-and-api-spec.md](./02-data-and-api-spec.md) | 현재 데이터 모델, 인증, 주요 API 계약과 집계 규칙 |
-| [03-ai-operations-and-react-plan.md](./03-ai-operations-and-react-plan.md) | AI 생성 아키텍처, 워커·검증·비용 기록과 프론트엔드 구조 |
-| [04-acceptance-checklist.md](./04-acceptance-checklist.md) | 실제 기기 기준 QA 체크리스트와 자동 검증 명령 |
-| [05-delivery-roadmap.md](./05-delivery-roadmap.md) | 현재 운영 단계와 이후 개선 원칙 |
-| [06-production-deployment.md](./06-production-deployment.md) | Linux, Docker Compose, Caddy 운영 배포·갱신·복구 절차 |
-| [07-troubleshooting.md](./07-troubleshooting.md) | Compose, 포트, health check, Caddy, GitHub Pages 장애 점검 |
+| [00-project-overview.md](./00-project-overview.md) | プロダクト課題、設計判断、AIとの協働方法、検証根拠、制約を説明するプロジェクト概要 |
+| [01-ui-and-flow-spec.md](./01-ui-and-flow-spec.md) | 受講者・管理者画面、多言語、モバイルUX、状態遷移 |
+| [02-data-and-api-spec.md](./02-data-and-api-spec.md) | 現在のデータモデル、認証、主要API契約、集計ルール |
+| [03-ai-generation-architecture.md](./03-ai-generation-architecture.md) | AI生成アーキテクチャ、ワーカー、検証、コスト記録、フロントエンド構成 |
+| [04-acceptance-checklist.md](./04-acceptance-checklist.md) | 実機向けQAチェックリストと自動検証コマンド |
+| [05-delivery-roadmap.md](./05-delivery-roadmap.md) | 現在の運用段階と今後の改善方針 |
+| [06-production-deployment.md](./06-production-deployment.md) | Linux、Docker Compose、Caddyによる本番デプロイ・更新・復旧手順 |
+| [07-troubleshooting.md](./07-troubleshooting.md) | Compose、ポート、health check、Caddy、GitHub Pagesの障害確認 |
 
-## 유지 원칙
+## 維持方針
 
-- API 또는 DB 구조를 바꾸면 [02](./02-data-and-api-spec.md)와 [04](./04-acceptance-checklist.md)를 함께 검토한다.
-- 화면 동작·문구·접근성·반응형 레이아웃을 바꾸면 [01](./01-ui-and-flow-spec.md)과 QA 항목을 함께 갱신한다.
-- 목록 요청 정책, 새로고침 복원, 초기 번들 분할처럼 사용자 체감 성능을 바꾸면 [01](./01-ui-and-flow-spec.md)과 [04](./04-acceptance-checklist.md)를 함께 갱신한다.
-- AI 모델·프롬프트·재시도 정책을 바꾸면 [03](./03-ai-operations-and-react-plan.md)와 운영 환경 변수 설명을 함께 갱신한다.
-- 운영 명령은 실제 `deploy/` Compose 파일과 `.env.production`을 기준으로 작성한다. 서버 고유 포트나 비밀값은 문서에 고정하지 않는다.
+- APIまたはDB構造を変更した場合は、[02](./02-data-and-api-spec.md)と[04](./04-acceptance-checklist.md)をあわせて確認します。
+- 画面動作、文言、アクセシビリティ、レスポンシブレイアウトを変更した場合は、[01](./01-ui-and-flow-spec.md)とQA項目をあわせて更新します。
+- 一覧リクエストのポリシー、再読み込み復元、初期バンドル分割のような体感性能を変更した場合は、[01](./01-ui-and-flow-spec.md)と[04](./04-acceptance-checklist.md)をあわせて更新します。
+- AIモデル、プロンプト、再試行ポリシーを変更した場合は、[03](./03-ai-generation-architecture.md)と運用環境変数の説明をあわせて更新します。
+- 運用コマンドは実際の`deploy/` Composeファイルと`.env.production`に基づいて記述します。サーバー固有のポートやシークレットを文書に固定しません。
