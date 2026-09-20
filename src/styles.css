@@ -2964,6 +2964,20 @@ fieldset.admin-edit-form {
   transition: opacity 160ms ease, transform 160ms ease;
 }
 
+.result-filter-complete {
+  max-width: 260px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.route-restore-loading {
+  margin: 48px auto;
+  color: var(--muted);
+  text-align: center;
+}
+
 .toast-action {
   min-height: 30px;
   border: 1px solid currentColor;

@@ -1,4 +1,5 @@
 import { Navigate, useParams } from "react-router-dom";
+import { useI18n } from "../../lib/i18n";
 import type {
   PassageHighlight,
   ReadingAttempt,
@@ -25,6 +26,12 @@ interface ReadingRouteProps {
     selectedText: string,
   ) => Promise<PassageHighlight>;
   onDeleteHighlight: (highlightId: string) => Promise<void>;
+  isRestoring: boolean;
+}
+
+function RouteRestoreLoading() {
+  const { t } = useI18n();
+  return <p className="route-restore-loading" role="status">{t("common.loading")}</p>;
 }
 
 export function ReadingRoute({
@@ -41,12 +48,15 @@ export function ReadingRoute({
   highlights,
   onCreateHighlight,
   onDeleteHighlight,
+  isRestoring,
 }: ReadingRouteProps) {
   const { itemId } = useParams();
   const item =
     items.find((entry) => entry.id === itemId) ??
     (result && result.itemId === itemId ? result.item : undefined);
-  if (!item || attempt?.itemId !== item.id) return <Navigate to="/" replace />;
+  if (!item || attempt?.itemId !== item.id) {
+    return isRestoring ? <RouteRestoreLoading /> : <Navigate to="/" replace />;
+  }
 
   return (
     <ReadingScreen
@@ -73,6 +83,9 @@ interface ResultRouteProps {
   onReview: () => void;
   onContinue: () => void;
   onHome: () => void;
+  isRestoring: boolean;
+  isContinuing: boolean;
+  isFilterComplete: boolean;
 }
 
 export function ResultRoute({
@@ -81,9 +94,14 @@ export function ResultRoute({
   onReview,
   onContinue,
   onHome,
+  isRestoring,
+  isContinuing,
+  isFilterComplete,
 }: ResultRouteProps) {
   const { itemId } = useParams();
-  if (!result || result.itemId !== itemId) return <Navigate to="/" replace />;
+  if (!result || result.itemId !== itemId) {
+    return isRestoring ? <RouteRestoreLoading /> : <Navigate to="/" replace />;
+  }
 
   return (
     <ResultScreen
@@ -92,6 +110,8 @@ export function ResultRoute({
       onReview={onReview}
       onContinue={onContinue}
       onHome={onHome}
+      isContinuing={isContinuing}
+      isFilterComplete={isFilterComplete}
     />
   );
 }

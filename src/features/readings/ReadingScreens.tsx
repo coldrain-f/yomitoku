@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import {
   ArrowRight,
   Star,
@@ -89,6 +89,8 @@ interface ResultScreenProps {
   onReview: () => void;
   onContinue: () => void;
   onHome: () => void;
+  isContinuing?: boolean;
+  isFilterComplete?: boolean;
 }
 
 function progressForListItem(item: ReadingItem): LearningProgress {
@@ -428,12 +430,36 @@ export function ReadingScreen({
     perceivedLabel: localizedPerceivedLabel,
   } = useI18n();
   const submitted = Boolean(attempt.submitted && result?.itemId === item.id);
+  const answerChoiceRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const questions = attempt.questions.length ? attempt.questions : item.questions;
   const explanationLanguage = item.language === "ja" ? "ko" : "ja";
   const wrongExplanationFallback =
     item.language === "ja"
       ? "지문 근거와 맞지 않습니다."
       : "本文の根拠と合っていません。";
+  const selectChoiceFromKeyboard = (
+    question: ReadingAttempt["questions"][number],
+    currentIndex: number,
+    event: KeyboardEvent<HTMLButtonElement>,
+  ) => {
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+      nextIndex = (currentIndex + 1) % question.choices.length;
+    } else if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+      nextIndex = (currentIndex - 1 + question.choices.length) % question.choices.length;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = question.choices.length - 1;
+    }
+    if (nextIndex === null) return;
+    event.preventDefault();
+    const nextChoice = question.choices[nextIndex];
+    onChoose(question.id, nextChoice.id);
+    window.requestAnimationFrame(() => {
+      answerChoiceRefs.current[`${question.id}:${nextChoice.id}`]?.focus();
+    });
+  };
 
   return (
     <section
@@ -513,9 +539,20 @@ export function ReadingScreen({
                       type="button"
                       role="radio"
                       aria-checked={choice.id === selectedChoiceId}
+                      tabIndex={
+                        choice.id === selectedChoiceId || (!selectedChoiceId && index === 0)
+                          ? 0
+                          : -1
+                      }
                       disabled={submitted || isSubmitting}
                       key={choice.id}
+                      ref={(element) => {
+                        answerChoiceRefs.current[`${question.id}:${choice.id}`] = element;
+                      }}
                       onClick={() => onChoose(question.id, choice.id)}
+                      onKeyDown={(event) =>
+                        selectChoiceFromKeyboard(question, index, event)
+                      }
                     >
                       <span className="answer-number">
                         {String(index + 1).padStart(2, "0")}
@@ -616,6 +653,8 @@ export function ResultScreen({
   onReview,
   onContinue,
   onHome,
+  isContinuing = false,
+  isFilterComplete = false,
 }: ResultScreenProps) {
   const {
     t,
@@ -718,15 +757,34 @@ export function ResultScreen({
             {t("result.feedback")}
           </button>
           <div className="result-actions">
-            <button className="text-button" type="button" onClick={onReview}>
-              {t("result.review")}
+            {isFilterComplete ? (
+              <p className="result-filter-complete" role="status">
+                {t("result.completedCurrentFilter")}
+              </p>
+            ) : (
+              <button className="text-button" type="button" onClick={onReview}>
+                {t("result.review")}
+              </button>
+            )}
+            <button
+              className="primary-button"
+              type="button"
+              onClick={isFilterComplete ? onHome : onContinue}
+              disabled={isContinuing}
+            >
+              {isFilterComplete
+                ? t("result.completedToList")
+                : isContinuing
+                  ? t("result.findingNext")
+                  : isCorrect
+                    ? t("result.nextItem")
+                    : t("result.retry")}
             </button>
-            <button className="primary-button" type="button" onClick={onContinue}>
-              {isCorrect ? t("result.nextItem") : t("result.retry")}
-            </button>
-            <button className="text-button" type="button" onClick={onHome}>
-              {t("result.toList")}
-            </button>
+            {!isFilterComplete ? (
+              <button className="text-button" type="button" onClick={onHome}>
+                {t("result.toList")}
+              </button>
+            ) : null}
           </div>
         </div>
       </div>

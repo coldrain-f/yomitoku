@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   type MouseEvent,
   type ReactNode,
 } from "react";
@@ -16,8 +17,13 @@ interface DialogProps {
 
 export function Dialog({ dialog, onClose, children }: DialogProps) {
   const { t } = useI18n();
+  const dialogRef = useRef<HTMLElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (!dialog) return undefined;
+    triggerRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
     const scrollbarWidth = Math.max(
       0,
       window.innerWidth - document.documentElement.clientWidth,
@@ -27,17 +33,47 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
       `${scrollbarWidth}px`,
     );
     document.body.classList.add("dialog-open");
+    const focusDialog = () => {
+      const firstFocusable = dialogRef.current?.querySelector<HTMLElement>(
+        "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])",
+      );
+      (firstFocusable ?? dialogRef.current)?.focus();
+    };
+    const animationFrame = window.requestAnimationFrame(focusDialog);
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
         onClose();
         dialog.onCancel?.();
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])",
+        ),
+      );
+      if (!focusable.length) {
+        event.preventDefault();
+        dialogRef.current.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
     document.addEventListener("keydown", onKeyDown);
     return () => {
+      window.cancelAnimationFrame(animationFrame);
       document.body.classList.remove("dialog-open");
       document.body.style.removeProperty("--scrollbar-compensation");
       document.removeEventListener("keydown", onKeyDown);
+      if (triggerRef.current?.isConnected) triggerRef.current.focus();
     };
   }, [dialog, onClose]);
 
@@ -61,6 +97,7 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
       }}
     >
       <section
+        ref={dialogRef}
         className={`confirm-dialog${
           dialog.type === "translation" || dialog.type === "admin-responses"
             ? " confirm-dialog-wide"
@@ -71,6 +108,8 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="dialog-title"
+        aria-describedby={dialog.description ? "dialog-description" : undefined}
+        tabIndex={-1}
       >
         <button
           className="dialog-close"
@@ -97,7 +136,11 @@ export function Dialog({ dialog, onClose, children }: DialogProps) {
             ) : null}
           </div>
         ) : null}
-        {dialog.description ? <p className="body-copy">{dialog.description}</p> : null}
+        {dialog.description ? (
+          <p className="body-copy" id="dialog-description">
+            {dialog.description}
+          </p>
+        ) : null}
         {children}
         <div className={`dialog-actions${dialog.onReset ? " has-reset" : ""}`}>
           <button className="text-button" type="button" onClick={dismiss}>

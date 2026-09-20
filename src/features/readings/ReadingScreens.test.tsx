@@ -1,9 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { LocaleProvider } from "../../lib/i18n";
 import type { ReadingResult } from "../../types";
-import { readingItem } from "../../test/fixtures";
-import { ResultScreen } from "./ReadingScreens";
+import { readingAttempt, readingItem } from "../../test/fixtures";
+import { ReadingScreen, ResultScreen } from "./ReadingScreens";
 
 describe("ResultScreen", () => {
   afterEach(() => {
@@ -59,5 +59,38 @@ describe("ResultScreen", () => {
     expect(screen.getByText("1 / 2")).toBeTruthy();
     expect(screen.getByText("문제 1 정답")).toBeTruthy();
     expect(screen.getByText("문제 2 오답")).toBeTruthy();
+  });
+
+  it("selects answers with arrow keys using radio-group behavior", () => {
+    window.localStorage.setItem("yomitoku.ui-locale", "ko");
+    const onChoose = vi.fn();
+
+    render(
+      <LocaleProvider>
+        <ReadingScreen
+          item={readingItem}
+          attempt={readingAttempt}
+          result={null}
+          onChoose={onChoose}
+          onSubmit={vi.fn()}
+          isSubmitting={false}
+          onAbandon={vi.fn()}
+          onReport={vi.fn()}
+          onTranslate={vi.fn()}
+          onResult={vi.fn()}
+          highlights={[]}
+          onCreateHighlight={vi.fn().mockResolvedValue({})}
+          onDeleteHighlight={vi.fn().mockResolvedValue(undefined)}
+        />
+      </LocaleProvider>,
+    );
+
+    const firstGroup = screen.getAllByRole("radiogroup")[0];
+    const choices = screen.getAllByRole("radio", { name: /선택지/ });
+    choices[0].focus();
+    fireEvent.keyDown(choices[0], { key: "ArrowRight" });
+
+    expect(firstGroup.contains(document.activeElement)).toBe(true);
+    expect(onChoose).toHaveBeenCalledWith("question-1", "choice-2");
   });
 });

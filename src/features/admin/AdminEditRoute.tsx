@@ -17,6 +17,7 @@ interface AdminEditRouteProps {
   onDelete: (item: ReadingItem) => void;
   onBack: () => void;
   isSaving: boolean;
+  onLoadItem: (itemId: string) => Promise<ReadingItem>;
   onConfirmQuestionTruncation: (
     removedQuestionCount: number,
     onConfirm: () => void,
@@ -44,6 +45,7 @@ export function AdminEditRoute({
   onDelete,
   onBack,
   isSaving,
+  onLoadItem,
   onConfirmQuestionTruncation,
   onSuggestTitleRequest,
   onSuggestTopicRequest,
@@ -51,7 +53,12 @@ export function AdminEditRoute({
 }: AdminEditRouteProps) {
   const { t, errorMessage } = useI18n();
   const { itemId } = useParams();
-  const item = items.find((entry) => entry.id === itemId);
+  const listedItem = items.find((entry) => entry.id === itemId);
+  const hasDetail = Boolean(listedItem?.passage && listedItem.questions.length);
+  const [loadedItem, setLoadedItem] = useState<ReadingItem | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const needsItemLoad = Boolean(itemId && !hasDetail);
+  const item = hasDetail ? listedItem : loadedItem;
   const [isSuggestingTitle, setIsSuggestingTitle] = useState(false);
   const [titleSuggestionError, setTitleSuggestionError] = useState("");
   const [isSuggestingTopic, setIsSuggestingTopic] = useState(false);
@@ -62,6 +69,23 @@ export function AdminEditRoute({
   >({});
   const [responsesOpen, setResponsesOpen] = useState(false);
   const suggestionRequestRef = useRef(0);
+
+  useEffect(() => {
+    if (!itemId || !needsItemLoad) return undefined;
+    let active = true;
+    setLoadFailed(false);
+    void onLoadItem(itemId).then(
+      (nextItem) => {
+        if (active) setLoadedItem(nextItem);
+      },
+      () => {
+        if (active) setLoadFailed(true);
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [itemId, needsItemLoad, onLoadItem]);
 
   useEffect(() => {
     if (item && (!draft || draft.id !== item.id)) setDraft(structuredClone(item));
@@ -78,6 +102,9 @@ export function AdminEditRoute({
     setResponsesOpen(false);
   }, [itemId]);
 
+  if (needsItemLoad && !loadFailed) {
+    return <p className="route-restore-loading" role="status">{t("common.loading")}</p>;
+  }
   if (!item) return <Navigate to="/admin/readings" replace />;
   if (!draft || draft.id !== item.id) return null;
 

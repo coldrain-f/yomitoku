@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, type SubmittedAttempt } from "../../lib/api";
 import type {
   AttemptQuestionAnswer,
@@ -91,14 +91,31 @@ export function useReadingAttempt({
   onAttemptRestored,
 }: ReadingAttemptOptions) {
   const [attempt, setAttempt] = useState<ReadingAttempt | null>(null);
-  const restoredAttemptKeyRef = useRef<string | null>(null);
+  const [unavailableRestorationKey, setUnavailableRestorationKey] = useState<
+    string | null
+  >(null);
+  const routeMatch = pathname.match(/^\/(?:readings|results)\/([^/]+)$/);
+  const routeItemId = routeMatch?.[1] ?? null;
+  const storedSession = useMemo(
+    () =>
+      authenticated && userId && !authLoading && routeItemId && attempt?.itemId !== routeItemId
+        ? readStoredReadingSession(userId)
+        : null,
+    [attempt?.itemId, authLoading, authenticated, routeItemId, userId],
+  );
+  const restorationKey = storedSession && routeItemId
+    ? `${userId}:${storedSession.attemptId}:${pathname}`
+    : null;
+  const isRestoring = Boolean(
+    restorationKey && restorationKey !== unavailableRestorationKey,
+  );
 
   const clearStoredSession = useCallback(() => {
     if (userId) removeReadingSession(userId);
   }, [userId]);
 
   const resetSession = () => {
-    restoredAttemptKeyRef.current = null;
+    setUnavailableRestorationKey(null);
     setAttempt(null);
   };
 
@@ -210,20 +227,18 @@ export function useReadingAttempt({
   }, [attempt?.startedAt, attempt?.submitted, isReading]);
 
   useEffect(() => {
-    if (!authenticated || !userId || authLoading) return;
-    const match = pathname.match(/^\/(?:readings|results)\/([^/]+)$/);
-    if (!match || attempt?.itemId === match[1]) return;
-    const storedSession = readStoredReadingSession(userId);
-    if (!storedSession || storedSession.itemId !== match[1]) return;
-    const key = `${userId}:${storedSession.attemptId}:${pathname}`;
-    if (restoredAttemptKeyRef.current === key) return;
-    restoredAttemptKeyRef.current = key;
+    if (!storedSession || !routeItemId || !restorationKey) return undefined;
     let active = true;
 
     void api
       .attempt(storedSession.attemptId)
       .then((restored) => {
-        if (!active || restored.itemId !== storedSession.itemId) return;
+        if (!active) return;
+        if (restored.itemId !== storedSession.itemId) {
+          removeReadingSession(userId!);
+          setUnavailableRestorationKey(restorationKey);
+          return;
+        }
         void loadPassageHighlights(restored.itemId).catch(() => undefined);
         const storedAnswers = new Map(
           storedSession.answers.map((answer) => [answer.questionId, answer.selectedChoiceId]),
@@ -262,23 +277,25 @@ export function useReadingAttempt({
             : [restored.item, ...current],
         );
         setAttempt(nextAttempt);
+        setUnavailableRestorationKey(null);
         const submitted = restored.result;
         onAttemptRestored(restored.item, restored.itemId, submitted);
       })
       .catch(() => {
-        removeReadingSession(userId);
+        if (!active) return;
+        removeReadingSession(userId!);
+        setUnavailableRestorationKey(restorationKey);
       });
     return () => {
       active = false;
     };
   }, [
-    attempt?.itemId,
-    authLoading,
-    authenticated,
     loadPassageHighlights,
     onAttemptRestored,
-    pathname,
+    restorationKey,
     setItems,
+    routeItemId,
+    storedSession,
     userId,
   ]);
 
@@ -287,6 +304,7 @@ export function useReadingAttempt({
     attempt,
     chooseAnswer,
     clearStoredSession,
+    isRestoring,
     resetSession,
     setAttempt,
     startAttempt,
