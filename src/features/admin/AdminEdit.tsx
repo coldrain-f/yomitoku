@@ -32,6 +32,26 @@ import type {
 import { itemStatusLabel } from "./adminPresentation";
 import { ValidationRecords } from "./ValidationRecords";
 
+const recommendedTimeOptions = [
+  60,
+  90,
+  120,
+  150,
+  180,
+  210,
+  240,
+  270,
+  300,
+  360,
+  420,
+  480,
+  540,
+  600,
+  720,
+  900,
+  1200,
+] as const;
+
 interface AdminEditProps {
   item: ReadingItem;
   draft: ReadingItem;
@@ -101,6 +121,17 @@ export function AdminEdit({
   const canManageMultipleQuestions = manual || draft.contentSource === "manual";
   const recommendedSecondsForQuestions = (questionCount: number) =>
     recommendedSecondsByLength[draft.lengthType] + (questionCount - 1) * 60;
+  const recommendedTimeValues = [...new Set([
+    ...recommendedTimeOptions,
+    draft.recommendedSeconds,
+  ])].sort((left, right) => left - right);
+  const recommendedTimeLabel = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return remainingSeconds
+      ? t("admin.recommendedMinutesSeconds", { minutes, seconds: remainingSeconds })
+      : t("admin.recommendedMinutes", { minutes });
+  };
   useEffect(() => {
     setExpandedQuestionIndex((current) =>
       Math.min(current, Math.max(0, draft.questions.length - 1)),
@@ -313,19 +344,22 @@ export function AdminEdit({
             </label>
             <label className="admin-field">
               <span className="form-label">{t("admin.recommendedSeconds")}</span>
-              <input
-                className="input-field"
-                type="number"
-                min="1"
-                max="14400"
+              <select
+                className="select-field"
                 value={draft.recommendedSeconds}
                 onChange={(event) =>
                   setDraft({
                     ...draft,
-                    recommendedSeconds: Math.max(1, Number(event.target.value) || 1),
+                    recommendedSeconds: Number(event.target.value),
                   })
                 }
-              />
+              >
+                {recommendedTimeValues.map((seconds) => (
+                  <option key={seconds} value={seconds}>
+                    {recommendedTimeLabel(seconds)}
+                  </option>
+                ))}
+              </select>
             </label>
             <div className="admin-field">
               <div className="admin-field-label-row">

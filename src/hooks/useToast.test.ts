@@ -21,4 +21,19 @@ describe("useToast", () => {
     });
     expect(result.current.toast).toBe("");
   });
+
+  it("keeps an optional action with the active toast only", () => {
+    const { result } = renderHook(() => useToast());
+    const onAction = vi.fn();
+
+    act(() => {
+      result.current.setToast("Saved", { label: "Undo", onAction });
+    });
+    expect(result.current.toastAction).toEqual({ label: "Undo", onAction });
+
+    act(() => {
+      result.current.setToast("");
+    });
+    expect(result.current.toastAction).toBeNull();
+  });
 });

@@ -6,6 +6,7 @@ import {
   type GenerationModelOptions,
 } from "../../lib/api";
 import { readStoredFilters, storeFilters } from "../../lib/filterStorage";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import type { ErrorMessage } from "../../lib/i18n";
 import { defaultGenerationLanguage } from "../../lib/readingPolicy";
 import type { AdminFilters, GenerationValues, ReadingItem } from "../../types";
@@ -67,9 +68,14 @@ export function useAdminReadingList({
     normalizeAdminFilters(readStoredFilters(adminFiltersStorageKey, defaultAdminFilters)),
   );
   const requestRef = useRef(0);
+  const requestControllerRef = useRef<AbortController | null>(null);
+  const debouncedQuery = useDebouncedValue(query);
 
   const load = async (requestedPage = page) => {
     const requestId = ++requestRef.current;
+    requestControllerRef.current?.abort();
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
     setIsLoading(true);
     setError("");
     try {
@@ -83,7 +89,7 @@ export function useAdminReadingList({
         sort: adminSortParameter(filters.sort),
         page: requestedPage,
         pageSize,
-      });
+      }, controller.signal);
       if (requestId !== requestRef.current) return;
       setItems(response.items);
       setPage(response.page);
@@ -91,11 +97,15 @@ export function useAdminReadingList({
       setTotalItems(response.totalItems);
       setLoaded(true);
     } catch (requestError) {
+      if (controller.signal.aborted) return;
       if (requestId === requestRef.current) {
         setError(errorMessage(requestError, "admin.listLoadFailed"));
       }
     } finally {
       if (requestId === requestRef.current) setIsLoading(false);
+      if (requestControllerRef.current === controller) {
+        requestControllerRef.current = null;
+      }
     }
   };
 
@@ -111,9 +121,13 @@ export function useAdminReadingList({
   }, [filters]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      requestControllerRef.current?.abort();
+      return undefined;
+    }
     void load();
-  }, [enabled, filters, page, query]);
+    return () => requestControllerRef.current?.abort();
+  }, [debouncedQuery, enabled, filters, page]);
 
   const updateFilters = (next: SetStateAction<AdminFilters>) => {
     setPage(1);

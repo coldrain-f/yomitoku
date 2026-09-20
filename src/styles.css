@@ -2949,7 +2949,10 @@ fieldset.admin-edit-form {
   bottom: 20px;
   z-index: 30;
   max-width: min(360px, calc(100vw - 40px));
-  padding: 13px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px 11px 16px;
   border: 1px solid rgba(62, 107, 86, 0.35);
   background: #f4f8f3;
   box-shadow: var(--shadow);
@@ -2959,6 +2962,22 @@ fieldset.admin-edit-form {
   pointer-events: none;
   transform: translateY(12px);
   transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.toast-action {
+  min-height: 30px;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0 9px;
+}
+
+.toast-action:hover,
+.toast-action:focus-visible {
+  background: rgba(62, 107, 86, 0.1);
 }
 
 .toast.is-visible {

@@ -464,9 +464,14 @@ async function request<T>(
   if (options.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
+  const timeoutSignal = AbortSignal.timeout(15_000);
+  const signal = options.signal
+    ? AbortSignal.any([options.signal, timeoutSignal])
+    : timeoutSignal;
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...options,
     headers,
+    signal,
   });
   if (response.status === 204) return undefined as T;
   if (!response.ok) {
@@ -480,18 +485,26 @@ async function request<T>(
   return response.json() as Promise<T>;
 }
 
-async function listReadings(filters: ReadingListRequest = {}) {
+async function listReadings(
+  filters: ReadingListRequest = {},
+  signal?: AbortSignal,
+) {
   const { pageSize, ...query } = filters;
   const response = await request<ApiPage<ApiReadingSummary>>(
     `/reading-items${queryString({ ...query, page_size: pageSize })}`,
+    { signal },
   );
   return { ...response, items: response.items.map((item) => toItem(item)) };
 }
 
-async function listAdminReadings(filters: AdminReadingListRequest = {}) {
+async function listAdminReadings(
+  filters: AdminReadingListRequest = {},
+  signal?: AbortSignal,
+) {
   const { pageSize, ...query } = filters;
   const response = await request<ApiPage<ApiReadingSummary>>(
     `/admin/reading-items${queryString({ ...query, page_size: pageSize })}`,
+    { signal },
   );
   return { ...response, items: response.items.map((item) => toItem(item)) };
 }

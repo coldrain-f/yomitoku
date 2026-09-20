@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, type ReadingListRequest } from "../../lib/api";
 import type { ErrorMessage } from "../../lib/i18n";
 import type { ListFilters, ReadingItem } from "../../types";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useReadingListFilters } from "./useReadingListFilters";
 
 interface ReadingListOptions {
@@ -39,6 +40,7 @@ export function useReadingList({
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const requestRef = useRef(0);
+  const requestControllerRef = useRef<AbortController | null>(null);
   const {
     clearBookmarkFilter,
     filters,
@@ -46,9 +48,13 @@ export function useReadingList({
     setFilters,
     setQuery,
   } = useReadingListFilters({ resetPage: () => setPage(1) });
+  const debouncedQuery = useDebouncedValue(query);
 
   const load = async (requestedPage = page) => {
     const requestId = ++requestRef.current;
+    requestControllerRef.current?.abort();
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
     setIsLoading(true);
     setError("");
     try {
@@ -70,7 +76,7 @@ export function useReadingList({
             : publicSortParameter(filters.sort),
         page: requestedPage,
         pageSize,
-      });
+      }, controller.signal);
       if (requestId !== requestRef.current) return;
       setItems((current) =>
         response.items.map((item) => {
@@ -90,18 +96,26 @@ export function useReadingList({
       setTotalPages(response.totalPages);
       setTotalItems(response.totalItems);
     } catch (requestError) {
+      if (controller.signal.aborted) return;
       if (requestId === requestRef.current) {
         setError(errorMessage(requestError, "list.failed"));
       }
     } finally {
       if (requestId === requestRef.current) setIsLoading(false);
+      if (requestControllerRef.current === controller) {
+        requestControllerRef.current = null;
+      }
     }
   };
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      requestControllerRef.current?.abort();
+      return undefined;
+    }
     void load();
-  }, [authenticated, enabled, filters, page, query]);
+    return () => requestControllerRef.current?.abort();
+  }, [authenticated, debouncedQuery, enabled, filters, page]);
 
   return {
     error,

@@ -661,12 +661,15 @@ export function ResultScreen({
         </div>
         <div className="result-metrics">
           <div className="result-metric">
-            <span className="result-label">{t("result.outcome")}</span>
+            <span className="result-label">{t("result.answerCount")}</span>
             <strong
               className={`result-value ${isCorrect ? "is-correct" : "is-wrong"}`}
             >
-              {isCorrect ? t("result.correct") : t("result.wrong")}
+              {correctCount} / {questionCount}
             </strong>
+            <span className="result-detail">
+              {isCorrect ? t("result.correct") : t("result.wrong")}
+            </span>
             {questionCount > 1 ? (
               <div className="result-question-statuses" aria-label={t("result.answerCount")}>
                 {result.questionResults.map((questionResult, index) => (
@@ -681,11 +684,7 @@ export function ResultScreen({
                   </span>
                 ))}
               </div>
-            ) : (
-              <span className="result-answer-summary">
-                {t("result.answerCount")} <strong>{correctCount} / {questionCount}</strong>
-              </span>
-            )}
+            ) : null}
           </div>
           <div className="result-metric">
             <span className="result-label">{t("result.recommendedTime")}</span>

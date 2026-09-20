@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import {
   Navigate,
@@ -8,25 +16,12 @@ import {
   useNavigate,
 } from "react-router-dom";
 import {
-  GenerationHistoryScreen,
-  AdminScreen,
-  GenerateScreen,
-  ManualCreateScreen,
-} from "./features/admin/AdminScreens";
-import { AdminEditRoute } from "./features/admin/AdminEditRoute";
-import { AdminPreviewRoute } from "./features/admin/AdminPreviewRoute";
-import { ReadingListScreen } from "./features/readings/ReadingScreens";
-import { ReadingRoute, ResultRoute } from "./features/readings/ReadingRoutes";
-import {
   useHighlightCollection,
 } from "./features/readings/useHighlightCollection";
 import { useReadingAttempt } from "./features/readings/useReadingAttempt";
 import { useReadingList } from "./features/readings/useReadingList";
 import { useReadingStartDialog } from "./features/readings/useReadingStartDialog";
 import { useReadingSubmission } from "./features/readings/useReadingSubmission";
-import { StatsScreen } from "./features/statistics/StatsScreen";
-import { LoginScreen } from "./features/auth/LoginScreen";
-import { WelcomeScreen } from "./features/auth/WelcomeScreen";
 import { useAuth } from "./features/auth/useAuth";
 import { useGenerationJob } from "./features/admin/useGenerationJob";
 import {
@@ -72,6 +67,55 @@ import type {
 } from "./types";
 
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
+
+const ReadingListScreen = lazy(async () => {
+  const module = await import("./features/readings/ReadingScreens");
+  return { default: module.ReadingListScreen };
+});
+const ReadingRoute = lazy(async () => {
+  const module = await import("./features/readings/ReadingRoutes");
+  return { default: module.ReadingRoute };
+});
+const ResultRoute = lazy(async () => {
+  const module = await import("./features/readings/ReadingRoutes");
+  return { default: module.ResultRoute };
+});
+const StatsScreen = lazy(async () => {
+  const module = await import("./features/statistics/StatsScreen");
+  return { default: module.StatsScreen };
+});
+const LoginScreen = lazy(async () => {
+  const module = await import("./features/auth/LoginScreen");
+  return { default: module.LoginScreen };
+});
+const WelcomeScreen = lazy(async () => {
+  const module = await import("./features/auth/WelcomeScreen");
+  return { default: module.WelcomeScreen };
+});
+const AdminScreen = lazy(async () => {
+  const module = await import("./features/admin/AdminListScreen");
+  return { default: module.AdminListScreen };
+});
+const GenerationHistoryScreen = lazy(async () => {
+  const module = await import("./features/admin/GenerationHistoryScreen");
+  return { default: module.GenerationHistoryScreen };
+});
+const ManualCreateScreen = lazy(async () => {
+  const module = await import("./features/admin/ManualCreateScreen");
+  return { default: module.ManualCreateScreen };
+});
+const GenerateScreen = lazy(async () => {
+  const module = await import("./features/admin/GenerateScreen");
+  return { default: module.GenerateScreen };
+});
+const AdminEditRoute = lazy(async () => {
+  const module = await import("./features/admin/AdminEditRoute");
+  return { default: module.AdminEditRoute };
+});
+const AdminPreviewRoute = lazy(async () => {
+  const module = await import("./features/admin/AdminPreviewRoute");
+  return { default: module.AdminPreviewRoute };
+});
 
 function generationProgressLabel(job: GenerationJob, t: TranslationFunction) {
   if (job.status === "queued") return t("admin.progressQueued");
@@ -249,7 +293,7 @@ export default function App() {
     setDialogError,
   } = useAppDialog();
   const [pendingStart, setPendingStart] = useState<ReadingItem | null>(null);
-  const { toast, setToast } = useToast();
+  const { toast, toastAction, setToast } = useToast();
   const [generation, setGeneration] = useState<GenerationValues>({
     language: defaultGenerationLanguage,
     level: defaultGenerationLevelByLanguage[defaultGenerationLanguage],
@@ -820,15 +864,24 @@ export default function App() {
     setDialogError("");
     navigate("/login");
   };
-  const saveBookmark = async (item: ReadingItem) => {
+  const saveBookmark = async (
+    item: ReadingItem,
+    nextBookmarked = !item.isBookmarked,
+    offerUndo = true,
+  ) => {
     if (!authenticated) {
       openLogin();
       return;
     }
     if (bookmarkingItemIds.has(item.id)) return;
 
-    const nextBookmarked = !item.isBookmarked;
+    const previousBookmarked = item.isBookmarked;
     setBookmarkingItemIds((current) => new Set(current).add(item.id));
+    setItems((current) =>
+      current.map((entry) =>
+        entry.id === item.id ? { ...entry, isBookmarked: nextBookmarked } : entry,
+      ),
+    );
     try {
       const isBookmarked = await api.setBookmark(item.id, nextBookmarked);
       setItems((current) =>
@@ -839,8 +892,27 @@ export default function App() {
       if (filters.bookmarked && !isBookmarked) {
         await loadPublicItems();
       }
-      setToast(isBookmarked ? t("bookmark.addSuccess") : t("bookmark.removeSuccess"));
+      setToast(
+        isBookmarked ? t("bookmark.addSuccess") : t("bookmark.removeSuccess"),
+        offerUndo
+          ? {
+              label: t("common.undo"),
+              onAction: () => void saveBookmark(
+                { ...item, isBookmarked },
+                previousBookmarked,
+                false,
+              ),
+            }
+          : undefined,
+      );
     } catch (error) {
+      setItems((current) =>
+        current.map((entry) =>
+          entry.id === item.id && entry.isBookmarked === nextBookmarked
+            ? { ...entry, isBookmarked: previousBookmarked }
+            : entry,
+        ),
+      );
       setToast(errorMessage(error, "bookmark.failed"));
     } finally {
       setBookmarkingItemIds((current) => {
@@ -857,21 +929,7 @@ export default function App() {
     }
     if (bookmarkingItemIds.has(item.id)) return;
 
-    const willBookmark = !item.isBookmarked;
-    openDialog({
-      kicker: t("bookmark.kicker"),
-      title: willBookmark ? t("bookmark.addTitle") : t("bookmark.removeTitle"),
-      context: item.title,
-      contextMeta: [levelLabel(item.officialLevel), lengthLabel(item.lengthType), topicLabel(item.topic)],
-      description: willBookmark
-        ? t("bookmark.addDescription")
-        : t("bookmark.removeDescription"),
-      confirmLabel: willBookmark ? t("bookmark.addConfirm") : t("bookmark.removeConfirm"),
-      onConfirm: () => {
-        closeDialog();
-        void saveBookmark(item);
-      },
-    });
+    void saveBookmark(item);
   };
   const logout = () => {
     signOut();
@@ -1133,7 +1191,7 @@ export default function App() {
         {screen !== "login" && authenticated ? (
           <Breadcrumb screen={screen} />
         ) : null}
-        {authLoading ? <p role="status">{t("common.loading")}</p> : <Routes>
+        {authLoading ? <p role="status">{t("common.loading")}</p> : <Suspense fallback={<p role="status">{t("common.loading")}</p>}><Routes>
           <Route
             path="/login"
             element={
@@ -1174,7 +1232,7 @@ export default function App() {
           <Route path="/admin/readings/:itemId/edit" element={<RequireAdmin authenticated={authenticated} role={role}><AdminEditRoute items={adminItems} draft={draft} setDraft={setDraft} onSave={() => draft && void updateAdminItem(draft)} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={leaveEditor} isSaving={isAdminSaving} onConfirmQuestionTruncation={confirmQuestionTruncation} onSuggestTitleRequest={suggestTitle} onSuggestTopicRequest={suggestTopic} onSuggestExplanationRequest={suggestExplanation} /></RequireAdmin>} />
           <Route path="/admin/readings/:itemId/preview" element={<RequireAdmin authenticated={authenticated} role={role}><AdminPreviewRoute items={adminItems} onHold={changeHold} onPublish={publishItem} onDelete={deleteItem} onBack={() => navigate("/admin/readings")} /></RequireAdmin>} />
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>}
+        </Routes></Suspense>}
       </div>
       {screen === "stats" ? (
         <nav className="scroll-controls" aria-label={t("stats.scrollNavigation")}>
@@ -1185,7 +1243,24 @@ export default function App() {
       <Dialog dialog={dialog} onClose={closeDialog}>
         <AppDialogContent type={dialog?.type} authenticated={authenticated} filterDraft={filterDraft} setFilterDraft={setFilterDraft} adminFilterDraft={adminFilterDraft} setAdminFilterDraft={setAdminFilterDraft} reportText={reportText} setReportText={setReportText} feedback={feedback} feedbackLanguage={result?.item.language ?? defaultGenerationLanguage} setFeedback={setFeedback} dialogError={dialogError} translation={translation} translationLoading={translationLoading} translationError={translationError} highlightCollection={highlightCollection} highlightLanguage={highlightLanguage} highlightQuery={highlightQuery} onHighlightLanguageChange={(language) => { setHighlightLanguage(language); void loadHighlightCollection({ language, page: 1 }); }} onHighlightQueryChange={setHighlightQuery} onHighlightSearch={() => void loadHighlightCollection({ page: 1 })} onHighlightPageChange={(page) => void loadHighlightCollection({ page })} highlightsLoading={isHighlightCollectionLoading} highlightsError={highlightCollectionError} removingHighlightId={removingHighlightId} highlightRemoval={highlightRemoval} onCancelHighlightRemoval={() => setHighlightRemoval(null)} onConfirmHighlightRemoval={() => { if (!highlightRemoval) return; setHighlightRemoval(null); void removeHighlightFromCollection(highlightRemoval.readingItemId, highlightRemoval.highlightId); }} onRemoveHighlight={confirmHighlightRemoval} />
       </Dialog>
-      {toast ? <div className="toast is-visible" role="status">{toast}</div> : null}
+      {toast ? (
+        <div className="toast is-visible" role="status">
+          <span>{toast}</span>
+          {toastAction ? (
+            <button
+              className="toast-action"
+              type="button"
+              onClick={() => {
+                const action = toastAction.onAction;
+                setToast("");
+                action();
+              }}
+            >
+              {toastAction.label}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </main>
   );
 }
