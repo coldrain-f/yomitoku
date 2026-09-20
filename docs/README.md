@@ -4,7 +4,7 @@
 
 | 문서 | 용도 |
 | --- | --- |
-| [00-portfolio-case-study.md](./00-portfolio-case-study.md) | 제품 문제, 설계 판단, AI 협업 방식, 검증 근거와 제한 사항을 설명하는 공개용 사례 연구 |
+| [00-project-overview.md](./00-project-overview.md) | 제품 문제, 설계 판단, AI 협업 방식, 검증 근거와 제한 사항을 설명하는 프로젝트 개요 |
 | [01-ui-and-flow-spec.md](./01-ui-and-flow-spec.md) | 학습자·관리자 화면, 다국어, 모바일 UX와 상태 전이 |
 | [02-data-and-api-spec.md](./02-data-and-api-spec.md) | 현재 데이터 모델, 인증, 주요 API 계약과 집계 규칙 |
 | [03-ai-operations-and-react-plan.md](./03-ai-operations-and-react-plan.md) | AI 생성 아키텍처, 워커·검증·비용 기록과 프론트엔드 구조 |
