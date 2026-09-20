@@ -49,7 +49,7 @@
 ## 검증과 현재 한계
 
 - 최신 프런트엔드 검증: `npm test` 16개 파일·24개 테스트, `npm run build` 통과 (2026-09-20 기준)
-- CI는 PR의 백엔드 검사(Ruff·pytest·Compose 검증)와 `main` 배포의 프런트엔드 빌드로 구성한다.
+- CI는 PR의 백엔드 검사(Ruff·pytest·Compose 검증)와 프런트엔드 검사(테스트·빌드), `main` 배포의 프런트엔드 빌드로 구성한다.
 - 풀이·결과 복원은 같은 브라우저 탭의 로그인 세션을 대상으로 한다. URL만으로 다른 사용자에게 학습 시도를 공유하지 않는다.
 - 실제 Google 로그인, 운영 API, iPhone Safari·Android Chrome에서의 종단 간 검증은 [QA 체크리스트](./docs/04-acceptance-checklist.md)의 다음 단계다.
 
