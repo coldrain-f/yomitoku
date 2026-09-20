@@ -52,6 +52,20 @@ AI 생성 결과는 검증을 통과해도 자동 게시하지 않는다. 비용
 
 ![독해 결과 화면의 정답 수와 해설·재도전·목록 이동](./assets/screenshots/reading-result.png)
 
+### 관리자 콘텐츠 생성과 검토
+
+관리자는 콘텐츠 언어·난이도·유형·주제·키워드와 생성·검증 모델을 설정해 문항 생성 작업을 시작한다. 생성 결과는 자동 게시하지 않고, 검증과 관리자 검토를 거친다.
+
+![일본어 독해 문항의 관리자 생성 설정 화면](./assets/screenshots/admin-generate.png)
+
+생성 결과는 초안으로 열어 지문·문항·정답을 검토한다.
+
+![AI가 생성한 일본어 독해 문항 초안과 정답 근거](./assets/screenshots/admin-generated-draft.png)
+
+관리자는 해설 근거를 확인한 뒤 보류하거나 공개한다.
+
+![생성 문항의 정답 해설 검토와 보류·공개 작업](./assets/screenshots/admin-review-actions.png)
+
 ## 시스템 구조
 
 ```text
