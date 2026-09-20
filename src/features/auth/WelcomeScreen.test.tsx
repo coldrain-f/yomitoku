@@ -23,7 +23,8 @@ describe("WelcomeScreen", () => {
         name: "독해를 풀고, 기록으로 실력을 쌓으세요",
       }),
     ).toBeTruthy();
-    expect(screen.getByText("다음 글의 내용과 같은 것은?")).toBeTruthy();
+    expect(screen.getByText("次の文章の内容として正しいものはどれですか。")).toBeTruthy();
+    expect(screen.getByText("일본어 · N3 · 단문")).toBeTruthy();
     expect(screen.getByText("하이라이트 모아보기")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "학습 시작하기" }));
